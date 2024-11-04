@@ -4,10 +4,30 @@ using UnrealBuildTool;
 
 public class BridgeRun : ModuleRules
 {
-	public BridgeRun(ReadOnlyTargetRules Target) : base(Target)
-	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    public BridgeRun(ReadOnlyTargetRules Target) : base(Target)
+    {
+        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "HeadMountedDisplay" });
-	}
+        PublicIncludePaths.AddRange(
+            new string[] {
+                "BridgeRun/Public"
+            }
+        );
+
+        PrivateIncludePaths.AddRange(
+            new string[] {
+                "BridgeRun/Private"
+            }
+        );
+
+        PublicDependencyModuleNames.AddRange(
+            new string[] {
+                "Core",
+                "CoreUObject",
+                "Engine",
+                "InputCore",
+                "HeadMountedDisplay"
+            }
+        );
+    }
 }
