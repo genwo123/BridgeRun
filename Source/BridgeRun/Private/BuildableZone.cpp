@@ -16,18 +16,35 @@ ABuildableZone::ABuildableZone()
     LeftBottomRope = CreateDefaultSubobject<USplineComponent>(TEXT("LeftBottomRope"));
     LeftBottomRope->SetupAttachment(RootComponent);
     LeftBottomRope->SetRelativeLocation(FVector::ZeroVector);
+    LeftBottomRope->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    LeftBottomRope->SetVisibility(true);
+    LeftBottomRope->ComponentTags.Add(FName("LeftRope"));
+    LeftBottomRope->SetCollisionProfileName(TEXT("OverlapAll"));
 
     RightBottomRope = CreateDefaultSubobject<USplineComponent>(TEXT("RightBottomRope"));
     RightBottomRope->SetupAttachment(RootComponent);
     RightBottomRope->SetRelativeLocation(FVector(0.0f, BridgeWidth, 0.0f));
+    RightBottomRope->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    RightBottomRope->SetVisibility(true);
+    RightBottomRope->ComponentTags.Add(FName("RightRope"));
+    RightBottomRope->SetCollisionProfileName(TEXT("OverlapAll"));
 
     LeftTopRope = CreateDefaultSubobject<USplineComponent>(TEXT("LeftTopRope"));
     LeftTopRope->SetupAttachment(RootComponent);
     LeftTopRope->SetRelativeLocation(FVector(0.0f, 0.0f, 200.0f));
+    LeftTopRope->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    LeftTopRope->SetVisibility(true);
+    LeftTopRope->ComponentTags.Add(FName("LeftRope"));
+    LeftTopRope->SetCollisionProfileName(TEXT("OverlapAll"));
 
     RightTopRope = CreateDefaultSubobject<USplineComponent>(TEXT("RightTopRope"));
     RightTopRope->SetupAttachment(RootComponent);
     RightTopRope->SetRelativeLocation(FVector(0.0f, BridgeWidth, 200.0f));
+    RightTopRope->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    RightTopRope->SetVisibility(true);
+    RightTopRope->ComponentTags.Add(FName("RightRope"));
+    RightTopRope->SetCollisionProfileName(TEXT("OverlapAll"));
+
     // 각 로프의 초기 포인트 설정
     for (auto* Rope : { LeftBottomRope, RightBottomRope, LeftTopRope, RightTopRope })
     {
@@ -38,6 +55,9 @@ ABuildableZone::ABuildableZone()
             Rope->AddSplinePoint(FVector(1000.0f, 0.0f, 0.0f), ESplineCoordinateSpace::Local);
             Rope->SetSplinePointType(0, ESplinePointType::Linear);
             Rope->SetSplinePointType(1, ESplinePointType::Linear);
+
+            // 콜리전 추가 설정
+            Rope->SetGenerateOverlapEvents(true);
         }
     }
 }

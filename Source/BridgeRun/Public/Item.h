@@ -13,6 +13,10 @@ class BRIDGERUN_API AItem : public AActor
 public:
     AItem();
 
+    UPROPERTY()
+    bool bIsBuiltItem = false;
+
+
     virtual void Tick(float DeltaTime) override;
 
     UPROPERTY(EditDefaultsOnly, Category = "Item")

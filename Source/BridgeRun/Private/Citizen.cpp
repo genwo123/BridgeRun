@@ -4,11 +4,12 @@
 #include "Item.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "DrawDebugHelpers.h"
 #include "InvenComponent.h"
-#include "BuildableZone.h" 
+#include "PlayerModeComponent.h"
+#include "BuildingComponent.h"
+#include "CombatComponent.h"
 
 ACitizen::ACitizen()
 {
@@ -19,38 +20,32 @@ ACitizen::ACitizen()
     bUseControllerRotationYaw = false;
     bUseControllerRotationRoll = false;
 
-    // 캐릭터가 이동 방향으로 자연스럽게 회전하도록 설정
+    // 캐릭터 이동 설정
     GetCharacterMovement()->bOrientRotationToMovement = true;
     GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
     GetCharacterMovement()->bUseControllerDesiredRotation = false;
 
-    // 스프링암 생성
+    // 컴포넌트 생성
     SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
     SpringArmComponent->SetupAttachment(RootComponent);
     SpringArmComponent->bUsePawnControlRotation = true;
 
-    // 카메라 생성
     CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
     CameraComponent->SetupAttachment(SpringArmComponent);
     CameraComponent->bUsePawnControlRotation = false;
 
-    // 인벤토리 컴포넌트 생성
+    // 기능별 컴포넌트 생성
     InvenComponent = CreateDefaultSubobject<UInvenComponent>(TEXT("InvenComponent"));
-
-    // BuildPreviewMesh 초기화
-    BuildPreviewMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BuildPreviewMesh"));
-    BuildPreviewMesh->SetupAttachment(RootComponent);
-    BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    BuildPreviewMesh->SetVisibility(false);
-
-    // 기본값 초기화는 InvenComponent에서 처리
+    PlayerModeComponent = CreateDefaultSubobject<UPlayerModeComponent>(TEXT("PlayerModeComponent"));
+    BuildingComponent = CreateDefaultSubobject<UBuildingComponent>(TEXT("BuildingComponent"));
+    CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 }
 
 void ACitizen::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 인벤토리 UI 생성
+    // UI 생성
     if (InventoryWidgetClass)
     {
         InventoryWidget = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
@@ -59,22 +54,141 @@ void ACitizen::BeginPlay()
             InventoryWidget->AddToViewport();
         }
     }
+
+    // 모드 변경 이벤트 바인딩
+    if (PlayerModeComponent)
+    {
+        PlayerModeComponent->OnPlayerModeChanged.AddDynamic(this, &ACitizen::OnPlayerModeChanged);
+    }
 }
 
 void ACitizen::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+}
 
-    // 건설 관련 아이템이 선택되었을 때만 프리뷰 업데이트
-    if (InvenComponent &&
-        (InvenComponent->GetCurrentSelectedSlot() == EInventorySlot::Plank ||
-            InvenComponent->GetCurrentSelectedSlot() == EInventorySlot::Tent))
+void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
+{
+    // 이전 모드와 새로운 모드 로그 출력
+    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
+        FString::Printf(TEXT("Mode Changed: %s -> %s"),
+            *UEnum::GetValueAsString(OldMode),
+            *UEnum::GetValueAsString(NewMode)));
+
+
+
+    switch (NewMode)
     {
-        UpdateBuildPreview();
+    case EPlayerMode::Build:
+        GetCharacterMovement()->bOrientRotationToMovement = false;
+        if (BuildingComponent)
+        {
+            BuildingComponent->OnBuildModeEntered();
+        }
+        break;
+
+    case EPlayerMode::Combat:
+        GetCharacterMovement()->bOrientRotationToMovement = true;
+        if (CombatComponent)
+        {
+            CombatComponent->OnCombatModeEntered();
+        }
+        break;
+
+    case EPlayerMode::Normal:
+        GetCharacterMovement()->bOrientRotationToMovement = true;
+        if (BuildingComponent)
+        {
+            BuildingComponent->DeactivateBuildMode();
+        }
+        break;
     }
 }
 
-// 이동 관련 함수들은 그대로 유지
+void ACitizen::SelectInventorySlot(EInventorySlot Slot)
+{
+    if (!InvenComponent || !PlayerModeComponent) return;
+
+    FItemData* ItemData = InvenComponent->GetItemData(Slot);
+    if (!ItemData || ItemData->Count <= 0)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
+            FString::Printf(TEXT("Cannot select slot: No items available in slot %d"), static_cast<int32>(Slot)));
+        return;
+    }
+
+    if (InvenComponent->GetCurrentSelectedSlot() == Slot)
+    {
+        // 같은 슬롯 다시 선택 시 해제
+        InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Orange,
+            TEXT("Deselected current slot - Returning to Normal mode"));
+    }
+    else
+    {
+        InvenComponent->SetCurrentSelectedSlot(Slot);
+
+        // 슬롯에 따른 모드 설정
+        switch (Slot)
+        {
+        case EInventorySlot::Plank:
+        case EInventorySlot::Tent:
+            PlayerModeComponent->SetPlayerMode(EPlayerMode::Build);
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
+                FString::Printf(TEXT("Selected Building Item: %s"),
+                    Slot == EInventorySlot::Plank ? TEXT("Plank") : TEXT("Tent")));
+            break;
+
+        case EInventorySlot::Gun:
+            PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
+                TEXT("Selected Combat Item: Gun"));
+            break;
+
+        case EInventorySlot::Telescope:
+        case EInventorySlot::Trophy:
+            PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue,
+                FString::Printf(TEXT("Selected Normal Item: %s"),
+                    Slot == EInventorySlot::Telescope ? TEXT("Telescope") : TEXT("Trophy")));
+            break;
+        }
+    }
+}
+
+void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+    // 이동
+    PlayerInputComponent->BindAxis("MoveForward", this, &ACitizen::MoveForward);
+    PlayerInputComponent->BindAxis("MoveRight", this, &ACitizen::MoveRight);
+    PlayerInputComponent->BindAxis("Turn", this, &ACitizen::Turn);
+    PlayerInputComponent->BindAxis("LookUp", this, &ACitizen::LookUp);
+
+    // 점프
+    PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACitizen::StartJump);
+    PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACitizen::StopJump);
+
+    // 인벤토리 슬롯 선택
+    PlayerInputComponent->BindAction("Slot1", IE_Pressed, this, &ACitizen::SelectSlot1);
+    PlayerInputComponent->BindAction("Slot2", IE_Pressed, this, &ACitizen::SelectSlot2);
+    PlayerInputComponent->BindAction("Slot3", IE_Pressed, this, &ACitizen::SelectSlot3);
+    PlayerInputComponent->BindAction("Slot4", IE_Pressed, this, &ACitizen::SelectSlot4);
+    PlayerInputComponent->BindAction("Slot5", IE_Pressed, this, &ACitizen::SelectSlot5);
+
+    // 상호작용
+    PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &ACitizen::Interact);
+
+    // 건설 관련 입력은 BuildingComponent에서 처리하도록 변경
+    if (BuildingComponent)
+    {
+        PlayerInputComponent->BindAction("RotateBuild", IE_Pressed, BuildingComponent, &UBuildingComponent::RotateBuildPreview);
+        PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, BuildingComponent, &UBuildingComponent::AttemptBuild);  // Build를 PrimaryAction으로 변경
+    }
+}
+
 void ACitizen::MoveForward(float Value)
 {
     if ((Controller != nullptr) && (Value != 0.0f))
@@ -123,159 +237,6 @@ void ACitizen::StopJump()
     bPressedJump = false;
 }
 
-void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-    Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-    // 이동
-    PlayerInputComponent->BindAxis("MoveForward", this, &ACitizen::MoveForward);
-    PlayerInputComponent->BindAxis("MoveRight", this, &ACitizen::MoveRight);
-    PlayerInputComponent->BindAxis("Turn", this, &ACitizen::Turn);
-    PlayerInputComponent->BindAxis("LookUp", this, &ACitizen::LookUp);
-
-    // 점프
-    PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACitizen::StartJump);
-    PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACitizen::StopJump);
-
-    // 인벤토리 슬롯 선택
-    PlayerInputComponent->BindAction("Slot1", IE_Pressed, this, &ACitizen::SelectSlot1);
-    PlayerInputComponent->BindAction("Slot2", IE_Pressed, this, &ACitizen::SelectSlot2);
-    PlayerInputComponent->BindAction("Slot3", IE_Pressed, this, &ACitizen::SelectSlot3);
-    PlayerInputComponent->BindAction("Slot4", IE_Pressed, this, &ACitizen::SelectSlot4);
-    PlayerInputComponent->BindAction("Slot5", IE_Pressed, this, &ACitizen::SelectSlot5);
-
-    // 건설 관련
-    PlayerInputComponent->BindAction("RotateBuild", IE_Pressed, this, &ACitizen::RotateBuildPreview);
-    PlayerInputComponent->BindAction("Build", IE_Pressed, this, &ACitizen::AttemptBuild);
-
-    //상호 작용
-    PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &ACitizen::Interact);
-}
-
-void ACitizen::SelectInventorySlot(EInventorySlot Slot)
-{
-    if (InvenComponent)
-    {
-        FItemData* ItemData = InvenComponent->GetItemData(Slot);
-        if (ItemData && ItemData->Count > 0)
-        {
-            if (InvenComponent->GetCurrentSelectedSlot() == Slot)
-            {
-                InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
-                BuildPreviewMesh->SetVisibility(false);
-            }
-            else
-            {
-                InvenComponent->SetCurrentSelectedSlot(Slot);
-                if (Slot == EInventorySlot::Plank || Slot == EInventorySlot::Tent)
-                {
-                    BuildPreviewMesh->SetVisibility(true);
-                }
-                else
-                {
-                    BuildPreviewMesh->SetVisibility(false);
-                }
-            }
-        }
-    }
-}
-
-void ACitizen::UpdateBuildPreview()
-{
-    if (!BuildPreviewMesh || !InvenComponent) return;
-
-    EInventorySlot CurrentSlot = InvenComponent->GetCurrentSelectedSlot();
-    if (CurrentSlot != EInventorySlot::Plank && CurrentSlot != EInventorySlot::Tent)
-    {
-        BuildPreviewMesh->SetVisibility(false);
-        return;
-    }
-    BuildPreviewMesh->SetVisibility(true);
-
-    APlayerController* PC = Cast<APlayerController>(Controller);
-    if (!PC) return;
-
-    FVector Start, Dir;
-    PC->DeprojectMousePositionToWorld(Start, Dir);
-    FVector End = Start + (Dir * MaxBuildDistance);
-
-    FHitResult HitResult;
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(this);
-    bool bValidPlacement = false;
-
-    if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams))
-    {
-        if (ABuildableZone* Zone = Cast<ABuildableZone>(HitResult.GetActor()))
-        {
-            // 좌우 설치 포인트 계산
-            FVector LeftPoint = HitResult.Location;
-            FVector RightPoint = LeftPoint + FVector(0.0f, Zone->BridgeWidth, 0.0f);
-
-            // 판자와 천막의 설치 가능 여부 체크
-            if (CurrentSlot == EInventorySlot::Plank)  // CurrentSelectedSlot을 CurrentSlot으로 변경
-            {
-                bValidPlacement = Zone->IsPlankPlacementValid(LeftPoint, RightPoint);
-            }
-            else if (CurrentSlot == EInventorySlot::Tent)  // CurrentSelectedSlot을 CurrentSlot으로 변경
-            {
-                bValidPlacement = Zone->IsTentPlacementValid(LeftPoint, RightPoint);
-            }
-
-            // 프리뷰 위치 및 회전 설정
-            BuildPreviewMesh->SetWorldLocation(LeftPoint);
-            BuildPreviewMesh->SetWorldRotation(FRotator::ZeroRotator);
-
-            // 디버그용 시각화 (개발 중에만 사용)
-            DrawDebugLine(GetWorld(), LeftPoint, RightPoint,
-                bValidPlacement ? FColor::Green : FColor::Red,
-                false, -1.0f, 0, 2.0f);
-        }
-    }
-
-    // 프리뷰 머티리얼 업데이트
-    if (ValidPlacementMaterial && InvalidPlacementMaterial)
-    {
-        BuildPreviewMesh->SetMaterial(0, bValidPlacement ?
-            ValidPlacementMaterial : InvalidPlacementMaterial);
-    }
-
-    // 디버그 메시지
-    GEngine->AddOnScreenDebugMessage(-1, 0.1f,
-        bValidPlacement ? FColor::Green : FColor::Red,
-        FString::Printf(TEXT("Can Place: %s"),
-            bValidPlacement ? TEXT("Yes") : TEXT("No")));
-}
-
-void ACitizen::RotateBuildPreview()
-{
-    if (InvenComponent && InvenComponent->GetCurrentSelectedSlot() == EInventorySlot::Plank)
-    {
-        FRotator NewRotation = BuildPreviewMesh->GetComponentRotation();
-        NewRotation.Yaw += BuildRotationStep;
-        BuildPreviewMesh->SetWorldRotation(NewRotation);
-    }
-}
-
-void ACitizen::AttemptBuild()
-{
-    if (!InvenComponent) return;
-
-    EInventorySlot CurrentSlot = InvenComponent->GetCurrentSelectedSlot();
-    if (CurrentSlot != EInventorySlot::Plank && CurrentSlot != EInventorySlot::Tent) return;
-
-    FVector Location = BuildPreviewMesh->GetComponentLocation();
-    FRotator Rotation = BuildPreviewMesh->GetComponentRotation();
-
-    if (IsValidBuildLocation(Location))
-    {
-        if (UseItem(CurrentSlot))
-        {
-            // TODO: 실제 건설 구현
-        }
-    }
-}
-
 void ACitizen::AddItem(EInventorySlot Slot, int32 Amount)
 {
     if (InvenComponent)
@@ -291,20 +252,45 @@ bool ACitizen::UseItem(EInventorySlot Slot, int32 Amount)
         FItemData* ItemData = InvenComponent->GetItemData(Slot);
         if (ItemData && ItemData->Count >= Amount)
         {
-            ItemData->Count -= Amount;
-            InvenComponent->UpdateItemCount(Slot, -Amount);
+            // 아이템 타입에 따른 처리
+            switch (Slot)
+            {
+            case EInventorySlot::Plank:
+            case EInventorySlot::Tent:
+                // 소모성 아이템
+                ItemData->Count -= Amount;
+                InvenComponent->UpdateItemCount(Slot, -Amount);
+                // 갯수가 0이 되면 모드 해제
+                if (ItemData->Count == 0 && BuildingComponent)
+                {
+                    BuildingComponent->DeactivateBuildMode();
+                    InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
+                }
+                break;
+
+            case EInventorySlot::Telescope:
+            case EInventorySlot::Gun:
+                // 비소모성 아이템은 갯수 변경 없음
+                break;
+
+            case EInventorySlot::Trophy:
+                // 트로피는 별도 처리
+                ItemData->Count -= Amount;
+                InvenComponent->UpdateItemCount(Slot, -Amount);
+                if (ItemData->Count == 0)
+                {
+                    InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
+                }
+                break;
+
+            default:
+                break;
+            }
             return true;
         }
     }
     return false;
 }
-
-bool ACitizen::IsValidBuildLocation(const FVector& Location) const
-{
-    // TODO: BuildableZone 체크 구현
-    return true;
-}
-
 
 void ACitizen::Interact()
 {
@@ -313,51 +299,17 @@ void ACitizen::Interact()
     FVector Forward = CameraComponent->GetForwardVector();
     FVector End = Start + (Forward * InteractionRange);
 
-    // 디버그 라인 그리기
-    DrawDebugLine(
-        GetWorld(),
-        Start,
-        End,
-        FColor::Red,
-        false,  // persistent lines
-        5.0f,   // lifetime
-        0,      // depth priority
-        2.0f    // thickness
-    );
-
     FHitResult HitResult;
     FCollisionQueryParams QueryParams;
     QueryParams.AddIgnoredActor(this);
 
     if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams))
     {
-        // 히트 발생 확인
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
-            FString::Printf(TEXT("Hit Actor: %s"), *HitResult.GetActor()->GetName()));
-
         if (AItem* Item = Cast<AItem>(HitResult.GetActor()))
         {
-            // 아이템 캐스팅 성공 확인
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue,
-                TEXT("Found Item - Adding to Inventory"));
-
             // 아이템 획득
             AddItem(Item->ItemType, Item->Amount);
             Item->Destroy();
-
-            // 아이템 제거 확인
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White,
-                TEXT("Item Destroyed"));
         }
-        else
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
-                TEXT("Hit Actor is not an Item"));
-        }
-    }
-    else
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
-            TEXT("No Hit Result"));
     }
 }

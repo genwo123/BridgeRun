@@ -27,6 +27,7 @@ AItem::AItem()
 void AItem::BeginPlay()
 {
     Super::BeginPlay();
+    
 }
 
 void AItem::Tick(float DeltaTime)
@@ -34,6 +35,7 @@ void AItem::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 }
 
+// Item.cpp의 OnOverlapBegin 수정
 void AItem::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
     AActor* OtherActor,
     UPrimitiveComponent* OtherComp,
@@ -41,15 +43,16 @@ void AItem::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
+    // 건설된 아이템은 오버랩 무시
+    if (bIsBuiltItem)
+    {
+        return;
+    }
+
     if (ACitizen* Citizen = Cast<ACitizen>(OtherActor))
     {
         // 아이템 획득
         Citizen->AddItem(ItemType, Amount);
-
-        // SpawnZone에서 아이템이 나가는 것으로 처리됨 (OnOverlapEnd 이벤트가 자동으로 발생)
-        // SpawnZone->ItemCollected() 호출 제거
-
-        // 아이템 제거
         Destroy();
     }
 }
