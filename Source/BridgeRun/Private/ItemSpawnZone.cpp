@@ -50,18 +50,11 @@ void AItemSpawnZone::StartSpawnTimer()
             SpawnInterval,
             true);
 
-        // 디버그 로그
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
-            TEXT("Spawn Timer Started"));
-    }
+     }
 }
 
 void AItemSpawnZone::SpawnItem()
 {
-    // 디버그 로그
-    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
-        FString::Printf(TEXT("Attempting Spawn: Current Count: %d/%d"),
-            CurrentItemCount, MaxItemCount));
 
     if (CurrentItemCount >= MaxItemCount || ItemsToSpawn.Num() == 0)
     {
@@ -95,10 +88,7 @@ void AItemSpawnZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
     {
         CurrentItemCount++;
 
-        // 디버그 로그로 확인
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue,
-            FString::Printf(TEXT("OnOverlapBegin - Count increased to: %d"), CurrentItemCount));
-    }
+     }
 }
 
 void AItemSpawnZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
@@ -111,11 +101,6 @@ void AItemSpawnZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
         if (CurrentItemCount > 0)
         {
             CurrentItemCount--;
-
-            // 디버그 로그
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Orange,
-                FString::Printf(TEXT("Item left zone: Count %d/%d"),
-                    CurrentItemCount, MaxItemCount));
         }
 
         // 아이템이 부족하면 스폰 시작
@@ -137,9 +122,5 @@ FVector AItemSpawnZone::GetRandomPointInVolume()
 
 void AItemSpawnZone::LogSpawnStatus(const FString& Message)
 {
-    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
-        FString::Printf(TEXT("SpawnZone: %s (Count: %d/%d)"),
-            *Message,
-            CurrentItemCount,
-            MaxItemCount));
+            
 }

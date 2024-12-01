@@ -18,6 +18,8 @@ public:
 protected:
     virtual void BeginPlay() override;
 
+    UPROPERTY()
+    class AItem_Trophy* HeldTrophy;  // 들고 있는 트로피 레퍼런스
     // 캐릭터 움직임 관련
     UPROPERTY()
     class UCharacterMovementComponent* MovementComponent;

@@ -7,18 +7,15 @@
 AItem::AItem()
 {
     PrimaryActorTick.bCanEverTick = true;
-
     // 메시 컴포넌트 설정
     MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
     RootComponent = MeshComponent;
-
     // 콜리전 컴포넌트 설정
     CollisionComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionComponent"));
     CollisionComponent->SetupAttachment(MeshComponent);
     CollisionComponent->SetCollisionProfileName(TEXT("OverlapAll"));
     CollisionComponent->OnComponentBeginOverlap.AddDynamic(this, &AItem::OnOverlapBegin);
     CollisionComponent->OnComponentEndOverlap.AddDynamic(this, &AItem::OnOverlapEnd);
-
     // 기본값 설정
     Amount = 1;
     ItemType = EInventorySlot::None;

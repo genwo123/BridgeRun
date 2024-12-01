@@ -9,6 +9,7 @@
 #include "InvenComponent.h"
 #include "PlayerModeComponent.h"
 #include "BuildingComponent.h"
+#include "Item_Trophy.h"
 #include "CombatComponent.h"
 
 ACitizen::ACitizen()
@@ -294,7 +295,15 @@ bool ACitizen::UseItem(EInventorySlot Slot, int32 Amount)
 
 void ACitizen::Interact()
 {
-    // 레이캐스트 시작점과 끝점 체크
+    // 이미 트로피를 들고 있다면 그냥 놓기
+    if (HeldTrophy)
+    {
+        HeldTrophy->Drop();
+        HeldTrophy = nullptr;
+        return;
+    }
+
+    // 트로피를 들고 있지 않다면 레이캐스트로 아이템 체크
     FVector Start = CameraComponent->GetComponentLocation();
     FVector Forward = CameraComponent->GetForwardVector();
     FVector End = Start + (Forward * InteractionRange);
@@ -305,9 +314,15 @@ void ACitizen::Interact()
 
     if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams))
     {
-        if (AItem* Item = Cast<AItem>(HitResult.GetActor()))
+        if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(HitResult.GetActor()))
         {
-            // 아이템 획득
+            // 트로피 들기
+            Trophy->PickUp(this);
+            HeldTrophy = Trophy;  // 트로피 레퍼런스 저장
+        }
+        else if (AItem* Item = Cast<AItem>(HitResult.GetActor()))
+        {
+            // 일반 아이템 획득
             AddItem(Item->ItemType, Item->Amount);
             Item->Destroy();
         }
