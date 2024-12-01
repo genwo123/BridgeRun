@@ -47,7 +47,7 @@ void AGameModeBase::BeginPlay()
 ### 1.3 인벤토리 UI 시스템
 ![아이템 슬롯 구조](./images/sprint1/ui_inventory_slot_layout.png)
 ![실시간 카운트](./images/sprint1/ui_item_count_binding.png)
-![아이템 카운트 디자인](./images/sprint1/ui_item_count_design.png)
+![아이템 카운트 디자인](./images/sprint1/ui_item_count_blueprint.png)
 
 아이템 카운트의 실시간 업데이트를 위해 바인딩 시스템을 구현했습니다.
 InvenComponent에서 아이템 개수가 변경될 때마다 UI가 자동으로 업데이트되도록 설계했습니다.
