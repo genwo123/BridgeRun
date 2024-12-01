@@ -9,28 +9,28 @@
 ### 💻 주요 구현 내용
 
 #### 1. UI 스택 시스템 구현
-![PlayerStack 구조](PlayerStack의-기본-구조와-이벤트-그래프-이미지)
+![PlayerStack 구조](./images/sprint1/ui_player_stack_structure.png)
 *Common UI를 활용한 UI 스택 관리 시스템*
 
-![HUD 연동](기본-게임모드-베이스에서-player화면-hud-이미지)
+![HUD 연동](./images/sprint1/ui_hud_gamemode_setup.png)
 *게임모드와 HUD 시스템 연동*
 
 #### 2. 인벤토리 시스템
-![아이템 슬롯 구조](Item_Slot을-베이스로-활용-이미지)
+![아이템 슬롯 구조](./images/sprint1/ui_inventory_slot_layout.png)
 *기본 아이템 슬롯 UI 구조*
 
-![실시간 카운트](계층-구조-디자인-형태-Item_Count-바인딩-이미지)
+![실시간 카운트](./images/sprint1/ui_item_count_binding.png)
 *아이템 카운트 실시간 업데이트 시스템*
 
-![아이템 카운트 로직](Item_Count를-실시간-동적으로-증감-이미지)
-*아이템 카운트 바인딩 시스템*
+![아이템 카운트 디자인](./images/sprint1/ui_item_count_buleprint.png)
+*아이템 카운트 UI 디자인 및 바인딩*
 
 #### 3. 입력 시스템
-![입력 매핑](입력-시스템-매핑-이미지)
+![입력 매핑](./images/sprint1/input_system_mapping.png)
 *기본 입력 시스템 구성*
 
 #### 4. 게임플레이 구현
-![인게임 구현](인게임-UI-최종-구현-이미지)
+![인게임 구현](./images/sprint1/ingame_inventory_ui.png)
 *실제 게임에서 구현된 UI 시스템*
 
 ### 🛠 기술 스택
