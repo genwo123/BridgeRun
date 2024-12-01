@@ -22,7 +22,7 @@
 ![실시간 카운트](./images/sprint1/ui_item_count_binding.png)
 *아이템 카운트 실시간 업데이트 시스템*
 
-![아이템 카운트 디자인](./images/sprint1/ui_item_count_buleprint.png)
+![아이템 카운트 디자인](./images/sprint1/ui_item_count_blueprint.png)
 *아이템 카운트 UI 디자인 및 바인딩*
 
 #### 3. 입력 시스템
