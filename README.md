@@ -21,12 +21,14 @@
 - 트로피 타워 점령을 통한 명예와 자원의 획득
 
 ## 📝 개발 일지
-| 회차 | 기간 | 개발 일지 |
-| --- | --- | --- |
-| Sprint 0 | 2024.10.21 - 2024.11.03 | [링크](./docs/Sprints/BridgeRun_Sprint0.md) |
-| Sprint 1 | 2024.11.04 - 2024.11.17 | [링크](./docs/Sprints/BridgeRun_Sprint1.md) |
-| Sprint 2 | 2024.11.18 - 2024.12.01 | [링크](./docs/Sprints/BridgeRun_Sprint2.md) |
-| Sprint 3 | 2024.12.02 - 2024.12.15 | [링크](./docs/Sprints/BridgeRun_Sprint3.md) |
+| 회차 | 기간 | 핵심 내용 | 개발 일지 |
+| --- | --- | --- | --- |
+| Sprint 0 | 2024.10.21 - 2024.11.03 | 게임 기획 및 초기 컨셉 설계 | [0회차 개발일지](./docs/Sprints/BridgeRun_Sprint0.md) |
+| Sprint 1 | 2024.11.04 - 2024.11.17 | 기본 시스템 구축 및 컴포넌트 설계 | [1회차 개발일지](./docs/Sprints/BridgeRun_Sprint1.md) |
+| Sprint 2 | 2024.11.18 - 2024.12.01 | 점수/건설 시스템 구현 및 최적화 | [2회차 개발일지](./docs/Sprints/BridgeRun_Sprint2.md) |
+| Sprint 3 | 2024.12.02 - 2024.12.15 | 추가 기능 개발 및 시스템 확장 | [3회차 개발일지 - 작성 예정](./docs/Sprints/BridgeRun_Sprint3.md) |
+
+이런 식으로 각 스프린트의 핵심 내용을 한 눈에 파악할 수 있도록 했습니다. 어떠신가요?
 
 ### 개발 일지 내용
 각 스프린트 기록에는 다음 내용이 포함됩니다:
