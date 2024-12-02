@@ -26,12 +26,15 @@
 - BuildingComponent: 건설 시스템
 - CombatComponent: 전투 시스템 (기본 구조만 구현)
 
+
 ### 2.2 트로피/트로피존 시스템
 
 #### 트로피 시스템
 ![트로피 점수 획득](./images/sprint2/trophy_score_system.png)
-
 *트로피 점수 획득 시스템 작동 모습*
+
+![트로피존 상호작용](./images/sprint2/trophy_zone_interaction.png)
+*트로피와 트로피존의 상호작용 과정*
 
 ```cpp
 void AItem_Trophy::PickUp(ACitizen* Player)
@@ -57,9 +60,6 @@ void AItem_Trophy::PickUp(ACitizen* Player)
 ```
 
 #### 트로피존 시스템 
-![트로피존 구현](./images/sprint2/trophy_zone_blueprint.png)
-*트로피존의 블루프린트 구조*
-
 실시간 점수 계산과 타이머 시스템을 구현했습니다:
 ```cpp
 void ATrophyZone::OnScoreTimerComplete()
@@ -74,6 +74,18 @@ void ATrophyZone::OnScoreTimerComplete()
     PlacedTrophy->Destroy();
     PlacedTrophy = nullptr;
     GetWorld()->GetTimerManager().ClearTimer(UpdateTimerHandle);
+}
+
+void ATrophyZone::UpdateTimer()
+{
+    if (!IsValid(PlacedTrophy) || !IsValid(TimerText)) return;
+    
+    RemainingTime = GetWorld()->GetTimerManager().GetTimerRemaining(ScoreTimerHandle);
+    if (RemainingTime > 0.0f)
+    {
+        FString TimerString = FString::Printf(TEXT("%.1f"), RemainingTime);
+        TimerText->SetText(FText::FromString(TimerString));
+    }
 }
 ```
 
@@ -148,7 +160,6 @@ bool ABuildableZone::IsPlankPlacementValid(const FVector& StartPoint, const FVec
 }
 ```
 
-## 4. 아이템 스폰 시스템
 
 ### 4.1 자동 생성 시스템
 ![판자 스폰존](./images/sprint2/plank_spawn_zone.png)
@@ -185,6 +196,10 @@ void AItemSpawnZone::SpawnItem()
 }
 ```
 
+![아이템 스폰 과정](./images/sprint2/plank_spawn_process.gif)
+*실제 판자의 생성부터 획득까지의 전체 과정*
+
+
 ### 4.2 작동 과정
 ![아이템 스폰 과정](./images/sprint2/plank_spawn_process.gif)
 *실제 판자 생성 및 획득 과정*
@@ -192,6 +207,9 @@ void AItemSpawnZone::SpawnItem()
 ## 5. 발생한 문제점과 해결
 
 ### 5.1 트로피존 상호작용 문제
+![트로피 배치 테스트](./images/sprint2/trophy_placement_test.png)
+*트로피존 상호작용 문제 디버깅 과정*
+
 - 문제: 트로피와 트로피존 간의 상호작용이 일방향으로만 작동
   - 트로피에서 트로피존은 인식되지만 반대는 동작하지 않음
   - 디버그 로그를 통해 캐스팅 문제 확인
