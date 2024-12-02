@@ -213,9 +213,18 @@ void AItemSpawnZone::SpawnItem()
 ## 5. 발생한 문제점과 해결
 
 ### 5.1 트로피존 상호작용 문제
+
+![트로피존 에러](./images/sprint2/trophy_zone_error.png)
+
+*트로피존에서 오버랩은 인식되지만 트로피를 인식못하고 있음*
+
+
 ![트로피 배치 테스트](./images/sprint2/trophy_placement_test.png)
 
 *트로피존 상호작용 문제 디버깅 과정*
+
+
+
 
 - 문제: 트로피와 트로피존 간의 상호작용이 일방향으로만 작동
   - 트로피에서 트로피존은 인식되지만 반대는 동작하지 않음
