@@ -30,6 +30,7 @@
 
 #### 트로피 시스템
 ![트로피 점수 획득](./images/sprint2/trophy_score_system.png)
+
 *트로피 점수 획득 시스템 작동 모습*
 
 ```cpp
