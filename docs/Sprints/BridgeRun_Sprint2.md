@@ -134,9 +134,11 @@ ABuildableZone::ABuildableZone()
 
 ### 3.2 건설 검증 및 프리뷰 시스템
 ![건설 프리뷰](./images/sprint2/buildable_zone_preview.png)
+
 *실시간 건설 가능 영역 시각화*
 
 ![건설 완료](./images/sprint2/plank_placement_result.png)
+
 *판자 설치 완료 상태*
 
 검증 시스템 주요 기능:
