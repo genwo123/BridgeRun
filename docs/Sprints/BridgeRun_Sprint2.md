@@ -18,6 +18,7 @@
 
 ### 2.1 컴포넌트 기반 시스템 구조
 ![컴포넌트 구조](./images/sprint2/component_structure.png)
+
 *시티즌 클래스의 컴포넌트 구조*
 
 기본 캐릭터 시스템을 여러 컴포넌트로 분리하여 확장성을 확보했습니다:
@@ -31,9 +32,11 @@
 
 #### 트로피 시스템
 ![트로피 점수 획득](./images/sprint2/trophy_score_system.png)
+
 *트로피 점수 획득 시스템 작동 모습*
 
 ![트로피존 상호작용](./images/sprint2/trophy_zone_interaction.png)
+
 *트로피와 트로피존의 상호작용 과정*
 
 ```cpp
@@ -93,6 +96,7 @@ void ATrophyZone::UpdateTimer()
 
 ### 3.1 스플라인 기반 BuildableZone 설계
 ![다릿줄 스플라인 구조](./images/sprint2/rope_spline_structure.png)
+
 *스플라인 컴포넌트를 활용한 다리 구조 시스템*
 
 스플라인 컴포넌트를 선택한 핵심 이유:
@@ -165,9 +169,11 @@ bool ABuildableZone::IsPlankPlacementValid(const FVector& StartPoint, const FVec
 
 ### 4.1 자동 생성 시스템
 ![판자 스폰존](./images/sprint2/plank_spawn_zone.png)
+
 *판자 생성 구역*
 
 ![스폰존 설정](./images/sprint2/plank_spawn_blueprint.png)
+
 *스폰존 블루프린트 구성*
 
 아이템 스폰 시스템 특징:
@@ -201,12 +207,14 @@ void AItemSpawnZone::SpawnItem()
 
 ### 4.2 작동 과정
 ![아이템 스폰 과정](./images/sprint2/plank_spawn_process.gif)
+
 *실제 판자 생성 및 획득 과정*
 
 ## 5. 발생한 문제점과 해결
 
 ### 5.1 트로피존 상호작용 문제
 ![트로피 배치 테스트](./images/sprint2/trophy_placement_test.png)
+
 *트로피존 상호작용 문제 디버깅 과정*
 
 - 문제: 트로피와 트로피존 간의 상호작용이 일방향으로만 작동
