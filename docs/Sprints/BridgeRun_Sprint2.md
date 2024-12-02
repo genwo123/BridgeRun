@@ -196,9 +196,6 @@ void AItemSpawnZone::SpawnItem()
 }
 ```
 
-![아이템 스폰 과정](./images/sprint2/plank_spawn_process.gif)
-*실제 판자의 생성부터 획득까지의 전체 과정*
-
 
 ### 4.2 작동 과정
 ![아이템 스폰 과정](./images/sprint2/plank_spawn_process.gif)
