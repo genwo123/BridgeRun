@@ -2,6 +2,7 @@
 #include "ItemSpawnZone.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Item_Gun.h"
 
 AItemSpawnZone::AItemSpawnZone()
 {
@@ -53,9 +54,9 @@ void AItemSpawnZone::StartSpawnTimer()
      }
 }
 
+
 void AItemSpawnZone::SpawnItem()
 {
-
     if (CurrentItemCount >= MaxItemCount || ItemsToSpawn.Num() == 0)
     {
         GetWorld()->GetTimerManager().ClearTimer(SpawnTimer);
@@ -69,11 +70,24 @@ void AItemSpawnZone::SpawnItem()
     {
         FVector SpawnLocation = GetRandomPointInVolume();
         FRotator SpawnRotation = FRotator(0.f);
-        GetWorld()->SpawnActor<AItem>(ItemToSpawn,
+
+        AItem* SpawnedItem = GetWorld()->SpawnActor<AItem>(ItemToSpawn,
             SpawnLocation,
             SpawnRotation);
 
-        // CurrentItemCount++ 제거 - OnOverlapBegin에서만 카운트
+        if (AItem_Gun* Gun = Cast<AItem_Gun>(SpawnedItem))
+        {
+            Gun->InitializeAmmo();
+            Gun->SetGunTag(Gun->GetName());  // 액터 이름을 태그로 사용
+
+            UE_LOG(LogTemp, Warning, TEXT("Spawned gun [%s] with ammo: %d"),
+                *Gun->GetName(), Gun->GetCurrentAmmo());
+
+            if (Gun->CollisionComponent)
+            {
+                Gun->CollisionComponent->SetGenerateOverlapEvents(false);
+            }
+        }
     }
 }
 

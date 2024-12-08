@@ -4,6 +4,7 @@
 #include "Item.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Item_Telescope.h"  
 #include "Blueprint/UserWidget.h"
 #include "DrawDebugHelpers.h"
 #include "InvenComponent.h"
@@ -16,17 +17,14 @@ ACitizen::ACitizen()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // 캐릭터 회전 설정
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
     bUseControllerRotationRoll = false;
 
-    // 캐릭터 이동 설정
     GetCharacterMovement()->bOrientRotationToMovement = true;
     GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
     GetCharacterMovement()->bUseControllerDesiredRotation = false;
 
-    // 컴포넌트 생성
     SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
     SpringArmComponent->SetupAttachment(RootComponent);
     SpringArmComponent->bUsePawnControlRotation = true;
@@ -35,7 +33,6 @@ ACitizen::ACitizen()
     CameraComponent->SetupAttachment(SpringArmComponent);
     CameraComponent->bUsePawnControlRotation = false;
 
-    // 기능별 컴포넌트 생성
     InvenComponent = CreateDefaultSubobject<UInvenComponent>(TEXT("InvenComponent"));
     PlayerModeComponent = CreateDefaultSubobject<UPlayerModeComponent>(TEXT("PlayerModeComponent"));
     BuildingComponent = CreateDefaultSubobject<UBuildingComponent>(TEXT("BuildingComponent"));
@@ -46,7 +43,6 @@ void ACitizen::BeginPlay()
 {
     Super::BeginPlay();
 
-    // UI 생성
     if (InventoryWidgetClass)
     {
         InventoryWidget = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
@@ -56,11 +52,12 @@ void ACitizen::BeginPlay()
         }
     }
 
-    // 모드 변경 이벤트 바인딩
     if (PlayerModeComponent)
     {
         PlayerModeComponent->OnPlayerModeChanged.AddDynamic(this, &ACitizen::OnPlayerModeChanged);
     }
+
+    AddItem(EInventorySlot::Telescope);
 }
 
 void ACitizen::Tick(float DeltaTime)
@@ -70,18 +67,14 @@ void ACitizen::Tick(float DeltaTime)
 
 void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
 {
-    // 이전 모드와 새로운 모드 로그 출력
     GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
         FString::Printf(TEXT("Mode Changed: %s -> %s"),
             *UEnum::GetValueAsString(OldMode),
             *UEnum::GetValueAsString(NewMode)));
 
-
-
     switch (NewMode)
     {
     case EPlayerMode::Build:
-        GetCharacterMovement()->bOrientRotationToMovement = false;
         if (BuildingComponent)
         {
             BuildingComponent->OnBuildModeEntered();
@@ -89,7 +82,6 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
         break;
 
     case EPlayerMode::Combat:
-        GetCharacterMovement()->bOrientRotationToMovement = true;
         if (CombatComponent)
         {
             CombatComponent->OnCombatModeEntered();
@@ -97,11 +89,16 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
         break;
 
     case EPlayerMode::Normal:
-        GetCharacterMovement()->bOrientRotationToMovement = true;
         if (BuildingComponent)
         {
             BuildingComponent->DeactivateBuildMode();
         }
+        if (CombatComponent)
+        {
+            CombatComponent->OnCombatModeExited();
+        }
+        GetCharacterMovement()->bOrientRotationToMovement = true;
+        bUseControllerRotationYaw = false;
         break;
     }
 }
@@ -109,6 +106,37 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
 void ACitizen::SelectInventorySlot(EInventorySlot Slot)
 {
     if (!InvenComponent || !PlayerModeComponent) return;
+
+    // 현재 선택된 슬롯이면 해제 로직을 먼저 처리
+    if (InvenComponent->GetCurrentSelectedSlot() == Slot)
+    {
+        InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+
+        // 모든 장착된 아이템 해제
+        if (CombatComponent)
+        {
+            if (CombatComponent->EquippedTelescope)
+            {
+                CombatComponent->OnTelescopeUnequipped();
+            }
+            if (CombatComponent->EquippedGun)
+            {
+                CombatComponent->OnGunUnequipped();
+            }
+        }
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Orange,
+            TEXT("Deselected current slot - Returning to Normal mode"));
+        return;
+    }
+
+    // 새로운 슬롯 선택 시에만 Normal 모드 체크
+    if (PlayerModeComponent->GetCurrentMode() != EPlayerMode::Normal)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
+            TEXT("Must return to Normal mode before selecting new item"));
+        return;
+    }
 
     FItemData* ItemData = InvenComponent->GetItemData(Slot);
     if (!ItemData || ItemData->Count <= 0)
@@ -118,76 +146,91 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
         return;
     }
 
-    if (InvenComponent->GetCurrentSelectedSlot() == Slot)
+    InvenComponent->SetCurrentSelectedSlot(Slot);
+    switch (Slot)
     {
-        // 같은 슬롯 다시 선택 시 해제
-        InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
-        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Orange,
-            TEXT("Deselected current slot - Returning to Normal mode"));
-    }
-    else
-    {
-        InvenComponent->SetCurrentSelectedSlot(Slot);
+    case EInventorySlot::Plank:
+    case EInventorySlot::Tent:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Build);
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
+            FString::Printf(TEXT("Selected Building Item: %s"),
+                Slot == EInventorySlot::Plank ? TEXT("Plank") : TEXT("Tent")));
+        break;
 
-        // 슬롯에 따른 모드 설정
-        switch (Slot)
+    case EInventorySlot::Gun:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
+        if (CombatComponent && CombatComponent->GunClass)
         {
-        case EInventorySlot::Plank:
-        case EInventorySlot::Tent:
-            PlayerModeComponent->SetPlayerMode(EPlayerMode::Build);
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
-                FString::Printf(TEXT("Selected Building Item: %s"),
-                    Slot == EInventorySlot::Plank ? TEXT("Plank") : TEXT("Tent")));
-            break;
-
-        case EInventorySlot::Gun:
-            PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
-                TEXT("Selected Combat Item: Gun"));
-            break;
-
-        case EInventorySlot::Telescope:
-        case EInventorySlot::Trophy:
-            PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue,
-                FString::Printf(TEXT("Selected Normal Item: %s"),
-                    Slot == EInventorySlot::Telescope ? TEXT("Telescope") : TEXT("Trophy")));
-            break;
+            FActorSpawnParameters SpawnParams;
+            SpawnParams.Owner = this;
+            AItem_Gun* NewGun = GetWorld()->SpawnActor<AItem_Gun>(CombatComponent->GunClass, GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+            if (NewGun)
+            {
+                CombatComponent->OnGunEquipped(NewGun);
+            }
         }
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Selected Combat Item: Gun"));
+        break;
+
+    case EInventorySlot::Telescope:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
+        if (CombatComponent && CombatComponent->TelescopeClass)
+        {
+            FActorSpawnParameters SpawnParams;
+            SpawnParams.Owner = this;
+            AItem_Telescope* NewTelescope = GetWorld()->SpawnActor<AItem_Telescope>(CombatComponent->TelescopeClass, GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+            if (NewTelescope)
+            {
+                CombatComponent->OnTelescopeEquipped(NewTelescope);
+            }
+        }
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Selected Combat Item: Telescope"));
+        break;
+
+    case EInventorySlot::Trophy:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, TEXT("Selected Normal Item: Trophy"));
+        break;
     }
 }
+
 
 void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-    // 이동
     PlayerInputComponent->BindAxis("MoveForward", this, &ACitizen::MoveForward);
     PlayerInputComponent->BindAxis("MoveRight", this, &ACitizen::MoveRight);
     PlayerInputComponent->BindAxis("Turn", this, &ACitizen::Turn);
     PlayerInputComponent->BindAxis("LookUp", this, &ACitizen::LookUp);
 
-    // 점프
     PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACitizen::StartJump);
     PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACitizen::StopJump);
 
-    // 인벤토리 슬롯 선택
     PlayerInputComponent->BindAction("Slot1", IE_Pressed, this, &ACitizen::SelectSlot1);
     PlayerInputComponent->BindAction("Slot2", IE_Pressed, this, &ACitizen::SelectSlot2);
     PlayerInputComponent->BindAction("Slot3", IE_Pressed, this, &ACitizen::SelectSlot3);
     PlayerInputComponent->BindAction("Slot4", IE_Pressed, this, &ACitizen::SelectSlot4);
     PlayerInputComponent->BindAction("Slot5", IE_Pressed, this, &ACitizen::SelectSlot5);
 
-    // 상호작용
     PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &ACitizen::Interact);
 
-    // 건설 관련 입력은 BuildingComponent에서 처리하도록 변경
+    // 건설 관련 입력
     if (BuildingComponent)
     {
         PlayerInputComponent->BindAction("RotateBuild", IE_Pressed, BuildingComponent, &UBuildingComponent::RotateBuildPreview);
-        PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, BuildingComponent, &UBuildingComponent::AttemptBuild);  // Build를 PrimaryAction으로 변경
+        PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, BuildingComponent, &UBuildingComponent::AttemptBuild);
     }
+
+    // 전투 관련 입력
+    if (CombatComponent)
+    {
+        PlayerInputComponent->BindAction("Zoom", IE_Pressed, CombatComponent, &UCombatComponent::HandleAim);  // HandleZoom을 HandleAim으로 변경
+        PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, CombatComponent, &UCombatComponent::HandleShoot);
+        PlayerInputComponent->BindAction("DropWeapon", IE_Pressed, CombatComponent, &UCombatComponent::DropCurrentWeapon);
+    }
+
+   
 }
 
 void ACitizen::MoveForward(float Value)
@@ -214,18 +257,12 @@ void ACitizen::MoveRight(float Value)
 
 void ACitizen::Turn(float Value)
 {
-    if (Value != 0.0f)
-    {
-        AddControllerYawInput(Value);
-    }
+    AddControllerYawInput(Value);
 }
 
 void ACitizen::LookUp(float Value)
 {
-    if (Value != 0.0f)
-    {
-        AddControllerPitchInput(Value);
-    }
+    AddControllerPitchInput(Value);
 }
 
 void ACitizen::StartJump()
@@ -253,15 +290,12 @@ bool ACitizen::UseItem(EInventorySlot Slot, int32 Amount)
         FItemData* ItemData = InvenComponent->GetItemData(Slot);
         if (ItemData && ItemData->Count >= Amount)
         {
-            // 아이템 타입에 따른 처리
             switch (Slot)
             {
             case EInventorySlot::Plank:
             case EInventorySlot::Tent:
-                // 소모성 아이템
                 ItemData->Count -= Amount;
                 InvenComponent->UpdateItemCount(Slot, -Amount);
-                // 갯수가 0이 되면 모드 해제
                 if (ItemData->Count == 0 && BuildingComponent)
                 {
                     BuildingComponent->DeactivateBuildMode();
@@ -271,20 +305,15 @@ bool ACitizen::UseItem(EInventorySlot Slot, int32 Amount)
 
             case EInventorySlot::Telescope:
             case EInventorySlot::Gun:
-                // 비소모성 아이템은 갯수 변경 없음
                 break;
 
             case EInventorySlot::Trophy:
-                // 트로피는 별도 처리
                 ItemData->Count -= Amount;
                 InvenComponent->UpdateItemCount(Slot, -Amount);
                 if (ItemData->Count == 0)
                 {
                     InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
                 }
-                break;
-
-            default:
                 break;
             }
             return true;
@@ -295,7 +324,6 @@ bool ACitizen::UseItem(EInventorySlot Slot, int32 Amount)
 
 void ACitizen::Interact()
 {
-    // 이미 트로피를 들고 있다면 그냥 놓기
     if (HeldTrophy)
     {
         HeldTrophy->Drop();
@@ -303,7 +331,6 @@ void ACitizen::Interact()
         return;
     }
 
-    // 트로피를 들고 있지 않다면 레이캐스트로 아이템 체크
     FVector Start = CameraComponent->GetComponentLocation();
     FVector Forward = CameraComponent->GetForwardVector();
     FVector End = Start + (Forward * InteractionRange);
@@ -316,13 +343,45 @@ void ACitizen::Interact()
     {
         if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(HitResult.GetActor()))
         {
-            // 트로피 들기
             Trophy->PickUp(this);
-            HeldTrophy = Trophy;  // 트로피 레퍼런스 저장
+            HeldTrophy = Trophy;
+        }
+        else if (AItem_Gun* Gun = Cast<AItem_Gun>(HitResult.GetActor()))
+        {
+            FItemData* GunData = InvenComponent->GetItemData(EInventorySlot::Gun);
+            if (!GunData || GunData->Count == 0)
+            {
+                // 총의 태그와 탄약 정보를 저장
+                if (CombatComponent)
+                {
+                    FString GunTag = Gun->GetGunTag();
+                    if (!GunTag.IsEmpty())
+                    {
+                        // 기존 저장된 정보가 없을 때만 새로 추가
+                        if (!CombatComponent->GunAmmoStorage.Contains(GunTag))
+                        {
+                            CombatComponent->GunAmmoStorage.Add(GunTag, Gun->GetCurrentAmmo());
+                            UE_LOG(LogTemp, Warning, TEXT("Storing gun info - Tag: %s, Ammo: %d"),
+                                *GunTag, Gun->GetCurrentAmmo());
+                        }
+                    }
+                }
+
+                AddItem(EInventorySlot::Gun, 1);
+                Gun->Destroy();
+
+                // 디버그 메시지
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
+                    FString::Printf(TEXT("Picked up gun with %d ammo"), Gun->GetCurrentAmmo()));
+            }
+            else
+            {
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
+                    TEXT("Already has a gun"));
+            }
         }
         else if (AItem* Item = Cast<AItem>(HitResult.GetActor()))
         {
-            // 일반 아이템 획득
             AddItem(Item->ItemType, Item->Amount);
             Item->Destroy();
         }

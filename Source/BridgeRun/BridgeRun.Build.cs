@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// BridgeRun.Build.cs
 using UnrealBuildTool;
 public class BridgeRun : ModuleRules
 {
