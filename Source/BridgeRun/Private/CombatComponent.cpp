@@ -72,44 +72,71 @@ void UCombatComponent::OnTelescopeUnequipped()
 {
     if (EquippedTelescope)
     {
-        // 줌 상태 체크 및 해제
         if (EquippedTelescope->bIsZoomed)
         {
-            EquippedTelescope->ToggleZoom();  // 줌 상태 해제
+            EquippedTelescope->ToggleZoom();
         }
-
         ResetCameraSettings();
         EquippedTelescope->Destroy();
         EquippedTelescope = nullptr;
     }
 }
 
-
-void UCombatComponent::ResetCameraSettings()
+void UCombatComponent::OnGunEquipped(AItem_Gun* Gun)
 {
+    if (!Gun || !OwnerCitizen || !GetWorld()) return;
+
+    if (IsValid(EquippedGun) && EquippedGun != Gun)
+    {
+        if (EquippedGun->IsAiming())
+        {
+            EquippedGun->ToggleAim();
+        }
+        EquippedGun->SetActorHiddenInGame(true);
+        EquippedGun->SetActorEnableCollision(false);
+    }
+
+    EquippedGun = Gun;
+    EquippedGun->PickUp(OwnerCitizen);
+
+    UE_LOG(LogTemp, Warning, TEXT("Gun equipped with ammo: %d"), EquippedGun->GetCurrentAmmo());
+}
+
+void UCombatComponent::OnGunUnequipped()
+{
+    if (!IsValid(EquippedGun)) return;
+
+    if (EquippedGun->IsAiming())
+    {
+        EquippedGun->ToggleAim();
+    }
+
+    EquippedGun->SetActorHiddenInGame(true);
+    EquippedGun->SetActorEnableCollision(false);
+
+    UE_LOG(LogTemp, Warning, TEXT("Gun unequipped with ammo: %d"), EquippedGun->GetCurrentAmmo());
+    EquippedGun = nullptr;
+}
+
+void UCombatComponent::DropCurrentWeapon()
+{
+    if (!EquippedGun) return;
+
+    UE_LOG(LogTemp, Warning, TEXT("Dropping gun with ammo: %d"), EquippedGun->GetCurrentAmmo());
+
+    if (OwnerCitizen && OwnerCitizen->GetInvenComponent())
+    {
+        OwnerCitizen->GetInvenComponent()->UpdateItemCount(EInventorySlot::Gun, -1);
+    }
+
+    EquippedGun->ThrowForward();
+    bHasGun = false;
+    EquippedGun = nullptr;
+
     if (OwnerCitizen)
     {
-        OwnerCitizen->bUseControllerRotationPitch = false;
-        OwnerCitizen->bUseControllerRotationYaw = false;
-        OwnerCitizen->bUseControllerRotationRoll = false;
-
-        if (UCharacterMovementComponent* MovementComp = OwnerCitizen->GetCharacterMovement())
-        {
-            MovementComp->bOrientRotationToMovement = true;
-            MovementComp->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
-            MovementComp->bUseControllerDesiredRotation = false;
-        }
-
-        if (USpringArmComponent* SpringArm = OwnerCitizen->FindComponentByClass<USpringArmComponent>())
-        {
-            SpringArm->bUsePawnControlRotation = true;
-            SpringArm->TargetArmLength = 300.0f;
-        }
-
-        if (UCameraComponent* Camera = OwnerCitizen->GetFollowCamera())
-        {
-            Camera->bUsePawnControlRotation = false;
-        }
+        OwnerCitizen->GetPlayerModeComponent()->SetPlayerMode(EPlayerMode::Normal);
+        OwnerCitizen->GetInvenComponent()->SetCurrentSelectedSlot(EInventorySlot::None);
     }
 }
 
@@ -141,121 +168,30 @@ void UCombatComponent::HandleAim()
     }
 }
 
-void UCombatComponent::DropCurrentWeapon()
+void UCombatComponent::ResetCameraSettings()
 {
-    if (EquippedGun)
+    if (OwnerCitizen)
     {
-        FString GunTag = EquippedGun->GetGunTag();
-        if (!GunTag.IsEmpty())
+        OwnerCitizen->bUseControllerRotationPitch = false;
+        OwnerCitizen->bUseControllerRotationYaw = false;
+        OwnerCitizen->bUseControllerRotationRoll = false;
+
+        if (UCharacterMovementComponent* MovementComp = OwnerCitizen->GetCharacterMovement())
         {
-            GunAmmoStorage[GunTag] = EquippedGun->GetCurrentAmmo();
+            MovementComp->bOrientRotationToMovement = true;
+            MovementComp->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+            MovementComp->bUseControllerDesiredRotation = false;
         }
 
-        if (OwnerCitizen && OwnerCitizen->GetInvenComponent())
+        if (USpringArmComponent* SpringArm = OwnerCitizen->FindComponentByClass<USpringArmComponent>())
         {
-            OwnerCitizen->GetInvenComponent()->UpdateItemCount(EInventorySlot::Gun, -1);
+            SpringArm->bUsePawnControlRotation = true;
+            SpringArm->TargetArmLength = 300.0f;
         }
 
-        EquippedGun->ThrowForward();
-        bHasGun = false;
-        EquippedGun = nullptr;
-
-        if (OwnerCitizen)
+        if (UCameraComponent* Camera = OwnerCitizen->GetFollowCamera())
         {
-            OwnerCitizen->GetPlayerModeComponent()->SetPlayerMode(EPlayerMode::Normal);
-            OwnerCitizen->GetInvenComponent()->SetCurrentSelectedSlot(EInventorySlot::None);
+            Camera->bUsePawnControlRotation = false;
         }
     }
-}
-
-
-void UCombatComponent::OnGunEquipped(AItem_Gun* Gun)
-{
-    // 안전성 체크
-    if (!Gun || !OwnerCitizen || !GetWorld())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("OnGunEquipped: Invalid pointers detected"));
-        return;
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("===== OnGunEquipped Start ====="));
-
-    // 이전 총이 있으면 상태 저장
-    if (IsValid(EquippedGun) && EquippedGun != Gun)
-    {
-        if (!EquippedGun->GetGunTag().IsEmpty())
-        {
-            const int32 AmmoToStore = EquippedGun->GetCurrentAmmo();
-            GunAmmoStorage.Add(EquippedGun->GetGunTag(), AmmoToStore);
-
-            UE_LOG(LogTemp, Warning, TEXT("Storing previous gun state - Tag: [%s], Ammo: %d"),
-                *EquippedGun->GetGunTag(), AmmoToStore);
-        }
-
-        // 이전 총 안전하게 처리
-        EquippedGun->SetActorHiddenInGame(true);
-        EquippedGun->SetActorEnableCollision(false);
-    }
-
-    // 새 총 설정
-    EquippedGun = Gun;
-
-    // 저장된 탄약 정보 복원 시도
-    const FString CurrentGunTag = Gun->GetGunTag();
-    if (!CurrentGunTag.IsEmpty() && GunAmmoStorage.Contains(CurrentGunTag))
-    {
-        const int32* FoundAmmo = GunAmmoStorage.Find(CurrentGunTag);
-        if (FoundAmmo)
-        {
-            Gun->SetAmmo(*FoundAmmo);
-            UE_LOG(LogTemp, Warning, TEXT("Restored ammo for gun [%s]: %d"),
-                *CurrentGunTag, *FoundAmmo);
-        }
-    }
-    else
-    {
-        GunAmmoStorage.Add(CurrentGunTag, Gun->GetCurrentAmmo());
-        UE_LOG(LogTemp, Warning, TEXT("Storing new gun state - Tag: [%s], Ammo: %d"),
-            *CurrentGunTag, Gun->GetCurrentAmmo());
-    }
-
-    // 총 장착
-    Gun->PickUp(OwnerCitizen);
-
-    UE_LOG(LogTemp, Warning, TEXT("===== OnGunEquipped End ====="));
-}
-
-void UCombatComponent::OnGunUnequipped()
-{
-    if (!IsValid(EquippedGun))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("OnGunUnequipped: No valid gun to unequip"));
-        return;
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("===== OnGunUnequipped Start ====="));
-
-    // 현재 상태 저장 시도
-    const FString CurrentGunTag = EquippedGun->GetGunTag();
-    if (!CurrentGunTag.IsEmpty())
-    {
-        const int32 CurrentAmmo = EquippedGun->GetCurrentAmmo();
-        GunAmmoStorage.Add(CurrentGunTag, CurrentAmmo);
-
-        UE_LOG(LogTemp, Warning, TEXT("Storing gun state - Tag: [%s], Ammo: %d"),
-            *CurrentGunTag, CurrentAmmo);
-    }
-
-    // 조준 상태 해제
-    if (EquippedGun->IsAiming())
-    {
-        EquippedGun->ToggleAim();
-    }
-
-    // 총 숨기기
-    EquippedGun->SetActorHiddenInGame(true);
-    EquippedGun->SetActorEnableCollision(false);
-    EquippedGun = nullptr;
-
-    UE_LOG(LogTemp, Warning, TEXT("===== OnGunUnequipped End ====="));
 }

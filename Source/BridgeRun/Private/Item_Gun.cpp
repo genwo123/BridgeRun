@@ -5,7 +5,7 @@
 #include "Components/SceneComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
-#include "GameFramework/SpringArmComponent.h"  // 추가된 헤더
+#include "GameFramework/SpringArmComponent.h"
 #include <DrawDebugHelpers.h>
 
 AItem_Gun::AItem_Gun()
@@ -14,17 +14,15 @@ AItem_Gun::AItem_Gun()
     ItemType = EInventorySlot::Gun;
     CurrentAmmo = MaxAmmo;
 
-    // 생성자에서 바로 태그 초기화
-    GunTag = FString::Printf(TEXT("Gun_%d"), GetUniqueID());
-    UE_LOG(LogTemp, Warning, TEXT("Gun Created with ammo: %d, Tag: %s"), CurrentAmmo, *GunTag);
+    UE_LOG(LogTemp, Warning, TEXT("Gun Created with ammo: %d"), CurrentAmmo);
 }
 
 void AItem_Gun::PickUp(ACitizen* Player)
 {
     if (!Player) return;
 
-    UE_LOG(LogTemp, Warning, TEXT("PickUp - Gun [%s] Before attach, Tag: [%s], Ammo: %d"),
-        *GetName(), *GunTag, CurrentAmmo);
+    UE_LOG(LogTemp, Warning, TEXT("Gun [%s] picked up with ammo: %d"),
+        *GetName(), CurrentAmmo);
 
     bIsHeld = true;
 
@@ -37,26 +35,27 @@ void AItem_Gun::PickUp(ACitizen* Player)
     AttachToActor(Player, AttachRules);
     SetActorRelativeLocation(FVector(100.0f, 30.0f, 0.0f));
     SetActorRotation(Player->GetActorRotation());
-
-    UE_LOG(LogTemp, Warning, TEXT("PickUp - Gun [%s] After attach, Tag: [%s], Ammo: %d"),
-        *GetName(), *GunTag, CurrentAmmo);
 }
-
 
 void AItem_Gun::Drop()
 {
-    if (bIsAiming)  // 줌 상태라면
+    if (bIsAiming)
     {
-        ToggleAim();  // 줌 해제
+        ToggleAim();
     }
 
     bIsHeld = false;
     DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
     if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(GetRootComponent()))
     {
         PrimComp->SetSimulatePhysics(true);
     }
+
+    UE_LOG(LogTemp, Warning, TEXT("Gun [%s] dropped with ammo: %d"),
+        *GetName(), CurrentAmmo);
 }
+
 void AItem_Gun::Fire()
 {
     if (CurrentAmmo <= 0)
@@ -64,26 +63,27 @@ void AItem_Gun::Fire()
         UE_LOG(LogTemp, Warning, TEXT("No ammo left!"));
         return;
     }
+
     if (ACitizen* Player = Cast<ACitizen>(GetOwner()))
     {
         FVector Start = GetActorLocation();
         FVector Forward = Player->GetActorForwardVector();
         FVector End = Start + (Forward * 5000.0f);
 
-        // 디버그 라인 추가
         DrawDebugLine(
             GetWorld(),
             Start,
             End,
             FColor::Red,
             false,
-            2.0f  // 2초동안 보여짐
+            2.0f
         );
 
         FHitResult HitResult;
         FCollisionQueryParams QueryParams;
         QueryParams.AddIgnoredActor(this);
         QueryParams.AddIgnoredActor(Player);
+
         if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams))
         {
             if (AActor* HitActor = HitResult.GetActor())
@@ -91,11 +91,12 @@ void AItem_Gun::Fire()
                 UE_LOG(LogTemp, Warning, TEXT("Hit Actor: %s at location: %s"),
                     *HitActor->GetName(),
                     *HitResult.Location.ToString());
-                // 여기에 히트 효과 추가 (넉백, 데미지 등)
             }
         }
+
         CurrentAmmo--;
-        UE_LOG(LogTemp, Warning, TEXT("Ammo left: %d"), CurrentAmmo);
+        UE_LOG(LogTemp, Warning, TEXT("Gun [%s] fired, ammo left: %d"),
+            *GetName(), CurrentAmmo);
     }
 }
 
@@ -117,20 +118,16 @@ void AItem_Gun::ToggleAim()
         {
             if (!bIsAiming)
             {
-                // 기존 설정 저장
                 DefaultFOV = Camera->FieldOfView;
-                // SpringArm 길이를 0으로 하여 1인칭 전환
                 if (USpringArmComponent* SpringArm = Player->FindComponentByClass<USpringArmComponent>())
                 {
                     DefaultArmLength = SpringArm->TargetArmLength;
                     SpringArm->TargetArmLength = 0.0f;
                 }
-                // FOV 변경 (망원경보다 덜 확대)
                 Camera->SetFieldOfView(AimFOV);
             }
             else
             {
-                // 원래 설정으로 복구
                 Camera->SetFieldOfView(DefaultFOV);
                 if (USpringArmComponent* SpringArm = Player->FindComponentByClass<USpringArmComponent>())
                 {
@@ -142,37 +139,18 @@ void AItem_Gun::ToggleAim()
     }
 }
 
-
 void AItem_Gun::ThrowForward()
 {
     if (ACitizen* Player = Cast<ACitizen>(GetOwner()))
     {
-        // 플레이어 전방으로 던지기
         FVector ThrowDirection = Player->GetActorForwardVector();
         FVector ThrowVelocity = ThrowDirection * 1000.0f + FVector(0, 0, 300.0f);
 
-        Drop();  // 기존 Drop 호출
+        Drop();
 
         if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(GetRootComponent()))
         {
             PrimComp->AddImpulse(ThrowVelocity);
         }
     }
-}
-
-void AItem_Gun::SetGunTag(const FString& NewTag)
-{
-    GunTag = GetName();  // 액터의 실제 이름을 태그로 사용
-    UE_LOG(LogTemp, Warning, TEXT("Gun [%s] - SetGunTag: Using actual name as tag, CurrentAmmo: %d"),
-        *GunTag, CurrentAmmo);
-}
-
-FString AItem_Gun::GetGunTag() const
-{
-    if (GunTag.IsEmpty())
-    {
-        const_cast<AItem_Gun*>(this)->GunTag = GetName();
-        UE_LOG(LogTemp, Warning, TEXT("Gun [%s] - GetGunTag: Using actual name as tag"), *GunTag);
-    }
-    return GunTag;
 }

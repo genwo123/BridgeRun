@@ -125,16 +125,12 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
                 CombatComponent->OnGunUnequipped();
             }
         }
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Orange,
-            TEXT("Deselected current slot - Returning to Normal mode"));
         return;
     }
 
-    // 새로운 슬롯 선택 시에만 Normal 모드 체크
     if (PlayerModeComponent->GetCurrentMode() != EPlayerMode::Normal)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
-            TEXT("Must return to Normal mode before selecting new item"));
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Must return to Normal mode before selecting new item"));
         return;
     }
 
@@ -152,9 +148,6 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
     case EInventorySlot::Plank:
     case EInventorySlot::Tent:
         PlayerModeComponent->SetPlayerMode(EPlayerMode::Build);
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
-            FString::Printf(TEXT("Selected Building Item: %s"),
-                Slot == EInventorySlot::Plank ? TEXT("Plank") : TEXT("Tent")));
         break;
 
     case EInventorySlot::Gun:
@@ -163,13 +156,13 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
         {
             FActorSpawnParameters SpawnParams;
             SpawnParams.Owner = this;
-            AItem_Gun* NewGun = GetWorld()->SpawnActor<AItem_Gun>(CombatComponent->GunClass, GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+            AItem_Gun* NewGun = GetWorld()->SpawnActor<AItem_Gun>(CombatComponent->GunClass,
+                GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
             if (NewGun)
             {
                 CombatComponent->OnGunEquipped(NewGun);
             }
         }
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Selected Combat Item: Gun"));
         break;
 
     case EInventorySlot::Telescope:
@@ -178,18 +171,17 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
         {
             FActorSpawnParameters SpawnParams;
             SpawnParams.Owner = this;
-            AItem_Telescope* NewTelescope = GetWorld()->SpawnActor<AItem_Telescope>(CombatComponent->TelescopeClass, GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+            AItem_Telescope* NewTelescope = GetWorld()->SpawnActor<AItem_Telescope>(
+                CombatComponent->TelescopeClass, GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
             if (NewTelescope)
             {
                 CombatComponent->OnTelescopeEquipped(NewTelescope);
             }
         }
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Selected Combat Item: Telescope"));
         break;
 
     case EInventorySlot::Trophy:
         PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, TEXT("Selected Normal Item: Trophy"));
         break;
     }
 }
@@ -351,33 +343,14 @@ void ACitizen::Interact()
             FItemData* GunData = InvenComponent->GetItemData(EInventorySlot::Gun);
             if (!GunData || GunData->Count == 0)
             {
-                // 총의 태그와 탄약 정보를 저장
-                if (CombatComponent)
-                {
-                    FString GunTag = Gun->GetGunTag();
-                    if (!GunTag.IsEmpty())
-                    {
-                        // 기존 저장된 정보가 없을 때만 새로 추가
-                        if (!CombatComponent->GunAmmoStorage.Contains(GunTag))
-                        {
-                            CombatComponent->GunAmmoStorage.Add(GunTag, Gun->GetCurrentAmmo());
-                            UE_LOG(LogTemp, Warning, TEXT("Storing gun info - Tag: %s, Ammo: %d"),
-                                *GunTag, Gun->GetCurrentAmmo());
-                        }
-                    }
-                }
-
                 AddItem(EInventorySlot::Gun, 1);
                 Gun->Destroy();
 
-                // 디버그 메시지
-                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
-                    FString::Printf(TEXT("Picked up gun with %d ammo"), Gun->GetCurrentAmmo()));
+                UE_LOG(LogTemp, Warning, TEXT("Picked up gun with ammo: %d"), Gun->GetCurrentAmmo());
             }
             else
             {
-                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
-                    TEXT("Already has a gun"));
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Already has a gun"));
             }
         }
         else if (AItem* Item = Cast<AItem>(HitResult.GetActor()))

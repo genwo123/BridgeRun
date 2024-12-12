@@ -31,8 +31,6 @@ AItemSpawnZone::AItemSpawnZone()
 void AItemSpawnZone::BeginPlay()
 {
     Super::BeginPlay();
-
-    // 초기 스폰 시작
     StartSpawnTimer();
 }
 
@@ -50,10 +48,8 @@ void AItemSpawnZone::StartSpawnTimer()
             &AItemSpawnZone::SpawnItem,
             SpawnInterval,
             true);
-
-     }
+    }
 }
-
 
 void AItemSpawnZone::SpawnItem()
 {
@@ -77,17 +73,17 @@ void AItemSpawnZone::SpawnItem()
 
         if (AItem_Gun* Gun = Cast<AItem_Gun>(SpawnedItem))
         {
-            Gun->InitializeAmmo();
-            Gun->SetGunTag(Gun->GetName());  // 액터 이름을 태그로 사용
+            Gun->InitializeAmmo();  // 새 총은 항상 3발로 초기화
 
-            UE_LOG(LogTemp, Warning, TEXT("Spawned gun [%s] with ammo: %d"),
-                *Gun->GetName(), Gun->GetCurrentAmmo());
+            UE_LOG(LogTemp, Warning, TEXT("Spawned new gun with ammo: %d"), Gun->GetCurrentAmmo());
 
             if (Gun->CollisionComponent)
             {
                 Gun->CollisionComponent->SetGenerateOverlapEvents(false);
             }
         }
+
+        CurrentItemCount++;
     }
 }
 
@@ -101,8 +97,7 @@ void AItemSpawnZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
     if (AItem* Item = Cast<AItem>(OtherActor))
     {
         CurrentItemCount++;
-
-     }
+    }
 }
 
 void AItemSpawnZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
@@ -116,7 +111,6 @@ void AItemSpawnZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
         {
             CurrentItemCount--;
         }
-
         // 아이템이 부족하면 스폰 시작
         if (CurrentItemCount < MaxItemCount)
         {
@@ -132,9 +126,4 @@ FVector AItemSpawnZone::GetRandomPointInVolume()
     return UKismetMathLibrary::RandomPointInBoundingBox(
         SpawnVolume->GetComponentLocation(),
         ExtentMax);
-}
-
-void AItemSpawnZone::LogSpawnStatus(const FString& Message)
-{
-            
 }

@@ -60,7 +60,4 @@ protected:
         UPrimitiveComponent* OtherComp,
         int32 OtherBodyIndex);
 
-    // 디버그용 helper 함수 (선택적)
-    UFUNCTION()
-    void LogSpawnStatus(const FString& Message);
 };

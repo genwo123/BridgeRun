@@ -11,10 +11,8 @@ UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class BRIDGERUN_API UCombatComponent : public UActorComponent
 {
     GENERATED_BODY()
-
 protected:
     virtual void BeginPlay() override;
-
     UPROPERTY()
     class ACitizen* OwnerCitizen;
 
@@ -53,10 +51,6 @@ public:
 
     void OnGunEquipped(AItem_Gun* Gun);
     void OnGunUnequipped();
-
-    // ÃÑÀÇ ÅÂ±×º° Åº¾à ÀúÀå¿ë ¸Ê
-    UPROPERTY()
-    TMap<FString, int32> GunAmmoStorage;
 
 private:
     void ResetCameraSettings();

@@ -1,3 +1,4 @@
+// Item_Gun.h
 #pragma once
 #include "CoreMinimal.h"
 #include "Item.h"
@@ -20,10 +21,6 @@ protected:
     UPROPERTY()
     bool bIsHeld;
 
-    // 총 고유 태그
-    UPROPERTY(SaveGame)
-    FString GunTag;
-
     // 조준 관련
     UPROPERTY()
     bool bIsAiming = false;
@@ -44,10 +41,6 @@ protected:
 
 public:
     AItem_Gun();
-
-    // 태그 관련 함수
-    void SetGunTag(const FString& NewTag);
-    FString GetGunTag() const;
 
     // 탄약 관련 함수
     UFUNCTION(BlueprintCallable, Category = "Gun|Ammo")
