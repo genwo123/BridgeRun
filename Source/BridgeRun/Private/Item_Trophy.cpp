@@ -108,3 +108,4 @@ void AItem_Trophy::BeginPlay()  // BeginPlay ±¸Çö
         CollisionComponent->SetGenerateOverlapEvents(true);
     }
 }
+

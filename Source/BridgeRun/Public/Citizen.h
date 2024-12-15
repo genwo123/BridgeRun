@@ -10,12 +10,10 @@ UCLASS(Blueprintable)
 class BRIDGERUN_API ACitizen : public ACharacter
 {
     GENERATED_BODY()
-
 public:
     ACitizen();
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
     UFUNCTION()
     UCameraComponent* GetFollowCamera() const { return CameraComponent; }
 
@@ -47,7 +45,7 @@ protected:
 
     // 상호작용
     UPROPERTY(EditAnywhere, Category = "Interaction")
-    float InteractionRange = 500.0f;
+    float InteractionRange = 100.0f;
 
     // UI
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")

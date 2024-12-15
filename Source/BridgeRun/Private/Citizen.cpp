@@ -12,6 +12,9 @@
 #include "BuildingComponent.h"
 #include "Item_Trophy.h"
 #include "CombatComponent.h"
+#include "Item_Plank.h"
+#include "Item_Tent.h"
+#include <Kismet/KismetSystemLibrary.h>
 
 ACitizen::ACitizen()
 {
@@ -107,13 +110,11 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
 {
     if (!InvenComponent || !PlayerModeComponent) return;
 
-    // 현재 선택된 슬롯이면 해제 로직을 먼저 처리
     if (InvenComponent->GetCurrentSelectedSlot() == Slot)
     {
         InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
         PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
 
-        // 모든 장착된 아이템 해제
         if (CombatComponent)
         {
             if (CombatComponent->EquippedTelescope)
@@ -186,7 +187,6 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
     }
 }
 
-
 void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -207,22 +207,18 @@ void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
     PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &ACitizen::Interact);
 
-    // 건설 관련 입력
     if (BuildingComponent)
     {
         PlayerInputComponent->BindAction("RotateBuild", IE_Pressed, BuildingComponent, &UBuildingComponent::RotateBuildPreview);
         PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, BuildingComponent, &UBuildingComponent::AttemptBuild);
     }
 
-    // 전투 관련 입력
     if (CombatComponent)
     {
-        PlayerInputComponent->BindAction("Zoom", IE_Pressed, CombatComponent, &UCombatComponent::HandleAim);  // HandleZoom을 HandleAim으로 변경
+        PlayerInputComponent->BindAction("Zoom", IE_Pressed, CombatComponent, &UCombatComponent::HandleAim);
         PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, CombatComponent, &UCombatComponent::HandleShoot);
         PlayerInputComponent->BindAction("DropWeapon", IE_Pressed, CombatComponent, &UCombatComponent::DropCurrentWeapon);
     }
-
-   
 }
 
 void ACitizen::MoveForward(float Value)
@@ -286,7 +282,6 @@ bool ACitizen::UseItem(EInventorySlot Slot, int32 Amount)
             {
             case EInventorySlot::Plank:
             case EInventorySlot::Tent:
-                ItemData->Count -= Amount;
                 InvenComponent->UpdateItemCount(Slot, -Amount);
                 if (ItemData->Count == 0 && BuildingComponent)
                 {
@@ -323,40 +318,94 @@ void ACitizen::Interact()
         return;
     }
 
-    FVector Start = CameraComponent->GetComponentLocation();
-    FVector Forward = CameraComponent->GetForwardVector();
-    FVector End = Start + (Forward * InteractionRange);
+    TArray<AActor*> OverlappedActors;
 
-    FHitResult HitResult;
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(this);
+    DrawDebugSphere(
+        GetWorld(),
+        GetActorLocation(),
+        InteractionRange,
+        32,
+        FColor::Green,
+        false,
+        0.1f,
+        0,
+        1.0f
+    );
 
-    if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams))
+    if (UKismetSystemLibrary::SphereOverlapActors(
+        GetWorld(),
+        GetActorLocation(),
+        InteractionRange,
+        TArray<TEnumAsByte<EObjectTypeQuery>>(),
+        AItem::StaticClass(),
+        TArray<AActor*>(),
+        OverlappedActors))
     {
-        if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(HitResult.GetActor()))
-        {
-            Trophy->PickUp(this);
-            HeldTrophy = Trophy;
-        }
-        else if (AItem_Gun* Gun = Cast<AItem_Gun>(HitResult.GetActor()))
-        {
-            FItemData* GunData = InvenComponent->GetItemData(EInventorySlot::Gun);
-            if (!GunData || GunData->Count == 0)
-            {
-                AddItem(EInventorySlot::Gun, 1);
-                Gun->Destroy();
+        AActor* ClosestItem = nullptr;
+        float ClosestDistance = InteractionRange;
 
-                UE_LOG(LogTemp, Warning, TEXT("Picked up gun with ammo: %d"), Gun->GetCurrentAmmo());
-            }
-            else
+        for (AActor* Actor : OverlappedActors)
+        {
+            float Distance = FVector::Distance(GetActorLocation(), Actor->GetActorLocation());
+            if (Distance < ClosestDistance)
             {
-                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Already has a gun"));
+                DrawDebugLine(
+                    GetWorld(),
+                    GetActorLocation(),
+                    Actor->GetActorLocation(),
+                    FColor::Yellow,
+                    false,
+                    0.1f,
+                    0,
+                    1.0f
+                );
+
+                ClosestDistance = Distance;
+                ClosestItem = Actor;
             }
         }
-        else if (AItem* Item = Cast<AItem>(HitResult.GetActor()))
+
+        if (ClosestItem)
         {
-            AddItem(Item->ItemType, Item->Amount);
-            Item->Destroy();
+            DrawDebugLine(
+                GetWorld(),
+                GetActorLocation(),
+                ClosestItem->GetActorLocation(),
+                FColor::Red,
+                false,
+                0.1f,
+                0,
+                2.0f
+            );
+
+            if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(ClosestItem))
+            {
+                Trophy->PickUp(this);
+                HeldTrophy = Trophy;
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Picked up Trophy"));
+            }
+            else if (AItem_Gun* Gun = Cast<AItem_Gun>(ClosestItem))
+            {
+                FItemData* GunData = InvenComponent->GetItemData(EInventorySlot::Gun);
+                if (!GunData || GunData->Count == 0)
+                {
+                    AddItem(EInventorySlot::Gun, 1);
+                    Gun->Destroy();
+                    UE_LOG(LogTemp, Warning, TEXT("Picked up gun with ammo: %d"), Gun->GetCurrentAmmo());
+                    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
+                        FString::Printf(TEXT("Picked up gun with %d ammo"), Gun->GetCurrentAmmo()));
+                }
+                else
+                {
+                    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Already has a gun"));
+                }
+            }
+            else if (AItem* Item = Cast<AItem>(ClosestItem))
+            {
+                AddItem(Item->ItemType, Item->Amount);
+                Item->Destroy();
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Picked up Item"));
+            }
         }
     }
 }
