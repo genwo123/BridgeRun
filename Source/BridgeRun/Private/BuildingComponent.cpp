@@ -6,9 +6,11 @@
 #include "BuildableZone.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
+#include "Item.h"
 #include "Item_Plank.h"
 #include "Item_Tent.h"
+#include "Kismet/GameplayStatics.h"
+#include "PlayerModeComponent.h"  
 
 UBuildingComponent::UBuildingComponent()
 {
@@ -22,13 +24,25 @@ void UBuildingComponent::BeginPlay()
     OwnerCitizen = Cast<ACitizen>(GetOwner());
     if (OwnerCitizen)
     {
+        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, TEXT("Initializing BuildPreviewMesh"));
         BuildPreviewMesh = NewObject<UStaticMeshComponent>(OwnerCitizen, TEXT("BuildPreviewMesh"));
         if (BuildPreviewMesh)
         {
-            BuildPreviewMesh->SetupAttachment(nullptr);
+            BuildPreviewMesh->SetupAttachment(OwnerCitizen->GetRootComponent());
             BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
             BuildPreviewMesh->SetVisibility(false);
             BuildPreviewMesh->RegisterComponent();
+
+            if (PlankClass)
+            {
+                AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
+                if (DefaultPlank && DefaultPlank->MeshComponent)
+                {
+                    PlankMesh = DefaultPlank->MeshComponent->GetStaticMesh();
+                    FVector PlankScale = DefaultPlank->MeshComponent->GetRelativeScale3D();
+                    BuildPreviewMesh->SetRelativeScale3D(PlankScale);
+                }
+            }
         }
     }
     bCanBuildNow = true;
@@ -47,49 +61,22 @@ void UBuildingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 void UBuildingComponent::OnBuildModeEntered()
 {
     if (!BuildPreviewMesh || !OwnerCitizen)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("BuildPreviewMesh or OwnerCitizen is null"));
         return;
-    }
 
     if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
     {
         CurrentBuildingItem = InvenComp->GetCurrentSelectedSlot();
-
-        // 초기 프리뷰 위치 설정
-        FVector PlayerLocation = OwnerCitizen->GetActorLocation();
-        FVector ForwardVector = OwnerCitizen->GetActorForwardVector();
-        ForwardVector.Z = 0.0f;
-        ForwardVector.Normalize();
-
-        FVector InitialPreviewLocation;
-        if (CurrentBuildingItem == EInventorySlot::Plank)
-        {
-            InitialPreviewLocation = PlayerLocation + (ForwardVector * PlankPlacementDistance);
-            InitialPreviewLocation.Z = PlayerLocation.Z; // 발 밑 높이
-        }
-        else // Tent
-        {
-            InitialPreviewLocation = PlayerLocation + (ForwardVector * TentPlacementDistance);
-            InitialPreviewLocation.Z = PlayerLocation.Z + 100.0f; // 몸통 높이
-        }
-
-        BuildPreviewMesh->SetWorldLocation(InitialPreviewLocation);
 
         switch (CurrentBuildingItem)
         {
         case EInventorySlot::Plank:
             if (PlankClass)
             {
-                AItem_Plank* DefaultPlank = PlankClass.GetDefaultObject();
+                AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
                 if (DefaultPlank && DefaultPlank->MeshComponent)
                 {
-                    PlankMesh = DefaultPlank->MeshComponent->GetStaticMesh();
-                    BuildPreviewMesh->SetStaticMesh(PlankMesh);
-                    // 실제 판자와 동일한 스케일 사용
+                    BuildPreviewMesh->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
                     BuildPreviewMesh->SetRelativeScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
-                    BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
-                    BuildPreviewMesh->SetVisibility(true);
                 }
             }
             break;
@@ -97,20 +84,18 @@ void UBuildingComponent::OnBuildModeEntered()
         case EInventorySlot::Tent:
             if (TentClass)
             {
-                AItem_Tent* DefaultTent = TentClass.GetDefaultObject();
+                AItem_Tent* DefaultTent = Cast<AItem_Tent>(TentClass.GetDefaultObject());
                 if (DefaultTent && DefaultTent->MeshComponent)
                 {
-                    TentMesh = DefaultTent->MeshComponent->GetStaticMesh();
-                    BuildPreviewMesh->SetStaticMesh(TentMesh);
-                    // 실제 텐트와 동일한 스케일 사용
+                    BuildPreviewMesh->SetStaticMesh(DefaultTent->MeshComponent->GetStaticMesh());
                     BuildPreviewMesh->SetRelativeScale3D(DefaultTent->MeshComponent->GetRelativeScale3D());
-                    BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
-                    BuildPreviewMesh->SetVisibility(true);
                 }
             }
             break;
         }
     }
+
+    BuildPreviewMesh->SetVisibility(true);
 }
 
 void UBuildingComponent::UpdateBuildPreview()
@@ -118,30 +103,23 @@ void UBuildingComponent::UpdateBuildPreview()
     if (!BuildPreviewMesh || !OwnerCitizen)
         return;
 
-    // 1. 플레이어 위치와 방향 가져오기
+    APlayerController* PC = Cast<APlayerController>(OwnerCitizen->GetController());
+    if (!PC) return;
+
+    FVector CameraLocation;
+    FRotator CameraRotation;
+    PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+    FVector CameraForward = CameraRotation.Vector();
+
     FVector PlayerLocation = OwnerCitizen->GetActorLocation();
-    FRotator PlayerRotation = OwnerCitizen->GetActorRotation();
+    float CurrentPreviewDistance = (CurrentBuildingItem == EInventorySlot::Plank) ?
+        PlankPlacementDistance : TentPlacementDistance;
 
-    // 캐릭터의 전방 벡터 사용
-    FVector ForwardVector = OwnerCitizen->GetActorForwardVector();
-    ForwardVector.Z = 0.0f;
-    ForwardVector.Normalize();
+    FVector PreviewLocation = PlayerLocation + (CameraForward * CurrentPreviewDistance);
+    FRotator PreviewRotation = CameraRotation;
+    PreviewRotation.Pitch = 0.0f;
+    PreviewRotation.Roll = 0.0f;
 
-    // 고정된 프리뷰 거리 설정
-    float PreviewDistance = (CurrentBuildingItem == EInventorySlot::Plank) ? PlankPlacementDistance : TentPlacementDistance;
-    FVector BasePreviewLocation = PlayerLocation + (ForwardVector * PreviewDistance);
-
-    // 기본 높이 설정 (BuildableZone 밖에서의 프리뷰 높이)
-    if (CurrentBuildingItem == EInventorySlot::Plank)
-    {
-        BasePreviewLocation.Z = PlayerLocation.Z; // 발 밑 높이
-    }
-    else // Tent
-    {
-        BasePreviewLocation.Z = PlayerLocation.Z + 100.0f; // 몸통 높이
-    }
-
-    // 2. BuildableZone 체크
     TArray<AActor*> FoundZones;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABuildableZone::StaticClass(), FoundZones);
 
@@ -156,173 +134,212 @@ void UBuildingComponent::UpdateBuildPreview()
         {
             if (Zone->LeftBottomRope && Zone->RightBottomRope)
             {
-                FVector LeftPoint = Zone->LeftBottomRope->GetComponentLocation();
-                FVector RightPoint = Zone->RightBottomRope->GetComponentLocation();
+                FVector LeftStart = Zone->LeftBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+                FVector LeftEnd = Zone->LeftBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
+                FVector RightStart = Zone->RightBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+                FVector RightEnd = Zone->RightBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
 
-                // 로프 방향과 길이 계산
-                FVector RopeDirection = (RightPoint - LeftPoint).GetSafeNormal();
-                float RopeLength = FVector::Distance(LeftPoint, RightPoint);
+                FVector LocalPosition = PreviewLocation - LeftStart;
+                FVector RopeDirection = (LeftEnd - LeftStart).GetSafeNormal();
+                FVector WidthDirection = (RightStart - LeftStart).GetSafeNormal();
 
-                // 프리뷰 위치가 로프 영역 내에 있는지 확인
-                FBox BuildableArea = FBox(
-                    FVector(
-                        FMath::Min(LeftPoint.X, RightPoint.X) - Zone->BridgeWidth * 0.5f,
-                        FMath::Min(LeftPoint.Y, RightPoint.Y) - Zone->BridgeWidth * 0.5f,
-                        LeftPoint.Z - 50.0f
-                    ),
-                    FVector(
-                        FMath::Max(LeftPoint.X, RightPoint.X) + Zone->BridgeWidth * 0.5f,
-                        FMath::Max(LeftPoint.Y, RightPoint.Y) + Zone->BridgeWidth * 0.5f,
-                        LeftPoint.Z + 50.0f
-                    )
-                );
+                float LengthProjection = FVector::DotProduct(LocalPosition, RopeDirection);
+                float WidthProjection = FVector::DotProduct(LocalPosition, WidthDirection);
+                float ZoneLength = FVector::Distance(LeftStart, LeftEnd);
+                float ZoneWidth = FVector::Distance(LeftStart, RightStart);
 
-                // 프리뷰가 설치 가능 영역 내에 있는지 확인
-                if (BuildableArea.IsInsideOrOn(BasePreviewLocation))
+                bIsValidPlacement = (LengthProjection >= 0 && LengthProjection <= ZoneLength &&
+                    WidthProjection >= 0 && WidthProjection <= ZoneWidth);
+
+                if (bIsValidPlacement)
                 {
-                    bIsValidPlacement = true;
-
-                    // 높이만 로프 높이로 조정
-                    FVector NewLocation = BasePreviewLocation;
-                    NewLocation.Z = LeftPoint.Z;
-
-                    BuildPreviewMesh->SetWorldLocation(NewLocation);
-                    BuildPreviewMesh->SetWorldRotation(PlayerRotation);
+                    PreviewLocation.Z = LeftStart.Z;
+                    BuildPreviewMesh->SetWorldLocation(PreviewLocation);
+                    BuildPreviewMesh->SetWorldRotation(PreviewRotation);
                     BuildPreviewMesh->SetMaterial(0, ValidPlacementMaterial);
-
-                    // 디버그 시각화
-                    DrawDebugBox(GetWorld(), BuildableArea.GetCenter(), BuildableArea.GetExtent(),
-                        FQuat::Identity, FColor::Green, false, -1.0f, 0, 2.0f);
-                }
-                else
-                {
-                    BuildPreviewMesh->SetWorldLocation(BasePreviewLocation);
-                    BuildPreviewMesh->SetWorldRotation(PlayerRotation);
-                    BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
-
-                    // 디버그 시각화
-                    DrawDebugBox(GetWorld(), BuildableArea.GetCenter(), BuildableArea.GetExtent(),
-                        FQuat::Identity, FColor::Red, false, -1.0f, 0, 2.0f);
                 }
             }
         }
         else if (CurrentBuildingItem == EInventorySlot::Tent)
         {
-            if (Zone->LeftTopRope && Zone->LeftBottomRope)
+            if (Zone->LeftTopRope && Zone->LeftBottomRope && Zone->RightTopRope && Zone->RightBottomRope)
             {
-                FVector TopPoint = Zone->LeftTopRope->GetComponentLocation();
-                FVector BottomPoint = Zone->LeftBottomRope->GetComponentLocation();
+                // 왼쪽 로프와의 거리 계산
+                FVector LeftBottom = Zone->LeftBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+                FVector LeftEnd = Zone->LeftBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
+                FVector ToLeftStart = PreviewLocation - LeftBottom;
+                FVector LeftDir = (LeftEnd - LeftBottom).GetSafeNormal();
+                float LeftProj = FVector::DotProduct(ToLeftStart, LeftDir);
+                LeftProj = FMath::Clamp(LeftProj, 0.0f, FVector::Distance(LeftBottom, LeftEnd));
+                FVector LeftClosest = LeftBottom + LeftDir * LeftProj;
 
-                // 수직 로프와의 거리 계산
-                FVector VerticalDirection = (TopPoint - BottomPoint).GetSafeNormal();
-                FVector ToPreview = BasePreviewLocation - BottomPoint;
+                // 오른쪽 로프와의 거리 계산
+                FVector RightBottom = Zone->RightBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+                FVector RightEnd = Zone->RightBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
+                FVector ToRightStart = PreviewLocation - RightBottom;
+                FVector RightDir = (RightEnd - RightBottom).GetSafeNormal();
+                float RightProj = FVector::DotProduct(ToRightStart, RightDir);
+                RightProj = FMath::Clamp(RightProj, 0.0f, FVector::Distance(RightBottom, RightEnd));
+                FVector RightClosest = RightBottom + RightDir * RightProj;
 
-                // 수직 로프 길이
-                float RopeHeight = FVector::Distance(TopPoint, BottomPoint);
+                // 2D 거리 계산 (Z 값 제외)
+                FVector ToLeft = PreviewLocation - LeftClosest;
+                FVector ToRight = PreviewLocation - RightClosest;
+                ToLeft.Z = 0;
+                ToRight.Z = 0;
+                float DistToLeft = ToLeft.Size();
+                float DistToRight = ToRight.Size();
 
-                // 텐트 설치 가능 영역 체크 - 전체 영역
-                float HorizontalDistance = FVector::Distance(
-                    FVector(BasePreviewLocation.X, BasePreviewLocation.Y, BottomPoint.Z),
-                    FVector(BottomPoint.X, BottomPoint.Y, BottomPoint.Z));
+                // 가까운 쪽 선택
+                bool bUseLeftSide = DistToLeft < DistToRight;
+                FVector BottomPoint = bUseLeftSide ? LeftClosest : RightClosest;
+                USplineComponent* TopRope = bUseLeftSide ? Zone->LeftTopRope : Zone->RightTopRope;
+                float Ratio = bUseLeftSide ? (LeftProj / FVector::Distance(LeftBottom, LeftEnd)) :
+                    (RightProj / FVector::Distance(RightBottom, RightEnd));
 
-                if (HorizontalDistance <= Zone->BridgeWidth * 0.5f)
-                {
-                    bIsValidPlacement = true;
+                // 상단 위치 계산
+                FVector TopStart = TopRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+                FVector TopEnd = TopRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
+                FVector TopPoint = FMath::Lerp(TopStart, TopEnd, Ratio);
 
-                    // 프리뷰 높이 유지 (바닥에 붙지 않게)
-                    FVector NewLocation = BasePreviewLocation;
-                    // 원하는 높이로 조정 (예: 바닥에서 100 유닛 위)
-                    NewLocation.Z = BottomPoint.Z + 100.0f;
+                // 최종 스냅 위치 계산
+                FVector RopeDir = (TopPoint - BottomPoint).GetSafeNormal();
+                FVector VerticalOffset = RopeDir * (TopPoint - BottomPoint).Size() * 0.5f;
+                FVector SnapLocation = BottomPoint + VerticalOffset;
 
-                    BuildPreviewMesh->SetWorldLocation(NewLocation);
-                    BuildPreviewMesh->SetWorldRotation(PlayerRotation);
-                    BuildPreviewMesh->SetMaterial(0, ValidPlacementMaterial);
-                }
-                else
-                {
-                    BuildPreviewMesh->SetWorldLocation(BasePreviewLocation);
-                    BuildPreviewMesh->SetWorldRotation(PlayerRotation);
-                    BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
-                }
+                // 플레이어와의 거리 체크
+                FVector PlayerToSnap = SnapLocation - PlayerLocation;
+                PlayerToSnap.Z = 0;
+                float DistanceToPlayer = PlayerToSnap.Size();
+
+                bIsValidPlacement = (DistanceToPlayer >= 100.0f && DistanceToPlayer <= MaxBuildDistance);
+
+                FRotator SnapRotation = bUseLeftSide ? FRotator(0.0f, 0.0f, 0.0f) : FRotator(0.0f, 180.0f, 0.0f);
+                BuildPreviewMesh->SetWorldLocation(SnapLocation);
+                BuildPreviewMesh->SetWorldRotation(SnapRotation);
+                BuildPreviewMesh->SetMaterial(0, bIsValidPlacement ? ValidPlacementMaterial : InvalidPlacementMaterial);
             }
+        }
+
+        if (!bIsValidPlacement)
+        {
+            BuildPreviewMesh->SetWorldLocation(PreviewLocation);
+            BuildPreviewMesh->SetWorldRotation(PreviewRotation);
+            BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
         }
 
         if (bIsValidPlacement) break;
     }
 
     BuildPreviewMesh->SetVisibility(true);
-
-    // Debug 정보 표시
-    GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Yellow,
-        FString::Printf(TEXT("Preview Position: %s"), *BuildPreviewMesh->GetComponentLocation().ToString()));
-    GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Yellow,
-        FString::Printf(TEXT("Valid Placement: %s"), bIsValidPlacement ? TEXT("Yes") : TEXT("No")));
 }
-
-
 void UBuildingComponent::AttemptBuild()
 {
     if (!BuildPreviewMesh || !OwnerCitizen || !bCanBuildNow || !bIsValidPlacement || bIsBuilding)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("Cannot build now"));
         return;
-    }
 
-    bIsBuilding = true;
-    float BuildTime = (CurrentBuildingItem == EInventorySlot::Plank) ? PlankBuildTime : TentBuildTime;
-
+    bCanBuildNow = false;
     GetWorld()->GetTimerManager().SetTimer(
         BuildDelayTimerHandle,
         this,
-        &UBuildingComponent::FinishBuild,
-        BuildTime,
+        &UBuildingComponent::ResetBuildDelay,
+        2.0f,
         false
     );
-}
-
-void UBuildingComponent::FinishBuild()
-{
-    if (!BuildPreviewMesh || !OwnerCitizen || !bIsValidPlacement)
-        return;
 
     FVector Location = BuildPreviewMesh->GetComponentLocation();
     FRotator Rotation = BuildPreviewMesh->GetComponentRotation();
 
-    switch (CurrentBuildingItem)
+    if (PlankClass && CurrentBuildingItem == EInventorySlot::Plank)
     {
-    case EInventorySlot::Plank:
-        if (PlankClass && OwnerCitizen->UseItem(EInventorySlot::Plank))
+        if (OwnerCitizen->UseItem(EInventorySlot::Plank))
         {
             FActorSpawnParameters SpawnParams;
             SpawnParams.Owner = OwnerCitizen;
 
-            if (AItem_Plank* SpawnedPlank = GetWorld()->SpawnActor<AItem_Plank>(
-                PlankClass, Location, Rotation, SpawnParams))
+            AItem_Plank* SpawnedPlank = GetWorld()->SpawnActor<AItem_Plank>(
+                PlankClass,
+                Location,
+                Rotation,
+                SpawnParams
+            );
+
+            if (SpawnedPlank)
             {
-                SpawnedPlank->OnPlaced();
-                GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("Plank placed successfully!"));
+                SpawnedPlank->bIsBuiltItem = true;
+                if (SpawnedPlank->MeshComponent)
+                {
+                    SpawnedPlank->MeshComponent->SetSimulatePhysics(false);
+                    SpawnedPlank->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+                    SpawnedPlank->MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+                    SpawnedPlank->MeshComponent->SetMobility(EComponentMobility::Static);
+                }
+
+                // 아이템 개수 체크
+                if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
+                {
+                    FItemData* ItemData = InvenComp->GetItemData(EInventorySlot::Plank);
+                    if (ItemData && ItemData->Count <= 0)
+                    {
+                        if (UPlayerModeComponent* ModeComp = OwnerCitizen->GetPlayerModeComponent())
+                        {
+                            DeactivateBuildMode();
+                            ModeComp->SetPlayerMode(EPlayerMode::Normal);
+                            GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, TEXT("No more planks. Switching to Normal mode."));
+                        }
+                    }
+                }
             }
         }
-        break;
-
-    case EInventorySlot::Tent:
-        if (TentClass && OwnerCitizen->UseItem(EInventorySlot::Tent))
+    }
+    else if (TentClass && CurrentBuildingItem == EInventorySlot::Tent)
+    {
+        if (OwnerCitizen->UseItem(EInventorySlot::Tent))
         {
             FActorSpawnParameters SpawnParams;
             SpawnParams.Owner = OwnerCitizen;
 
-            if (AItem_Tent* SpawnedTent = GetWorld()->SpawnActor<AItem_Tent>(
-                TentClass, Location, Rotation, SpawnParams))
+            AItem_Tent* SpawnedTent = GetWorld()->SpawnActor<AItem_Tent>(
+                TentClass,
+                Location,
+                Rotation,
+                SpawnParams
+            );
+
+            if (SpawnedTent)
             {
-                SpawnedTent->OnPlaced();
-                GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("Tent placed successfully!"));
+                SpawnedTent->bIsBuiltItem = true;
+                if (SpawnedTent->MeshComponent)
+                {
+                    SpawnedTent->MeshComponent->SetSimulatePhysics(false);
+                    SpawnedTent->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+                    SpawnedTent->MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+                    SpawnedTent->MeshComponent->SetMobility(EComponentMobility::Static);
+                }
+
+                // 아이템 개수 체크
+                if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
+                {
+                    FItemData* ItemData = InvenComp->GetItemData(EInventorySlot::Tent);
+                    if (ItemData && ItemData->Count <= 0)
+                    {
+                        if (UPlayerModeComponent* ModeComp = OwnerCitizen->GetPlayerModeComponent())
+                        {
+                            DeactivateBuildMode();
+                            ModeComp->SetPlayerMode(EPlayerMode::Normal);
+                            GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, TEXT("No more tents. Switching to Normal mode."));
+                        }
+                    }
+                }
             }
         }
-        break;
     }
 
-    bIsBuilding = false;
-    bCanBuildNow = true;
+    if (bIsValidPlacement)
+    {
+        bIsBuilding = false;
+        bCanBuildNow = true;
+    }
 }
 
 void UBuildingComponent::DeactivateBuildMode()

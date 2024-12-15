@@ -8,11 +8,9 @@ ABuildableZone::ABuildableZone()
 {
     PrimaryActorTick.bCanEverTick = false;
 
-    // 루트 씬 컴포넌트 생성
     RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootSceneComponent"));
     RootComponent = RootSceneComponent;
 
-    // 스플라인 컴포넌트들을 모두 루트의 직계 자식으로 생성
     LeftBottomRope = CreateDefaultSubobject<USplineComponent>(TEXT("LeftBottomRope"));
     LeftBottomRope->SetupAttachment(RootComponent);
     LeftBottomRope->SetRelativeLocation(FVector::ZeroVector);
@@ -45,7 +43,6 @@ ABuildableZone::ABuildableZone()
     RightTopRope->ComponentTags.Add(FName("RightRope"));
     RightTopRope->SetCollisionProfileName(TEXT("OverlapAll"));
 
-    // 각 로프의 초기 포인트 설정
     for (auto* Rope : { LeftBottomRope, RightBottomRope, LeftTopRope, RightTopRope })
     {
         if (Rope)
@@ -55,8 +52,6 @@ ABuildableZone::ABuildableZone()
             Rope->AddSplinePoint(FVector(1000.0f, 0.0f, 0.0f), ESplineCoordinateSpace::Local);
             Rope->SetSplinePointType(0, ESplinePointType::Linear);
             Rope->SetSplinePointType(1, ESplinePointType::Linear);
-
-            // 콜리전 추가 설정
             Rope->SetGenerateOverlapEvents(true);
         }
     }
@@ -64,37 +59,117 @@ ABuildableZone::ABuildableZone()
 
 bool ABuildableZone::IsPlankPlacementValid(const FVector& StartPoint, const FVector& EndPoint)
 {
-    bool bStartValid = IsPointNearRope(StartPoint, LeftBottomRope);
-    bool bEndValid = IsPointNearRope(EndPoint, RightBottomRope);
+    if (!LeftBottomRope || !RightBottomRope) return false;
 
-    if (!bStartValid || !bEndValid)
-        return false;
+    // 로프 시작/끝점 가져오기
+    FVector LeftStart = LeftBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+    FVector LeftEnd = LeftBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
+    FVector RightStart = RightBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+    FVector RightEnd = RightBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
 
-    float Distance = FVector::Distance(StartPoint, EndPoint);
-    float MaxAllowedLength = BridgeWidth * 1.5f;
+    // 로프 방향 벡터
+    FVector LeftRopeDir = (LeftEnd - LeftStart).GetSafeNormal();
+    FVector RightRopeDir = (RightEnd - RightStart).GetSafeNormal();
 
-    return Distance <= MaxAllowedLength;
+    // 시작점과 끝점이 각각의 로프 근처에 있는지 확인
+    FVector PointToLeftStart = StartPoint - LeftStart;
+    FVector PointToRightStart = EndPoint - RightStart;
+
+    float LeftProjection = FVector::DotProduct(PointToLeftStart, LeftRopeDir);
+    float RightProjection = FVector::DotProduct(PointToRightStart, RightRopeDir);
+
+    float LeftRopeLength = FVector::Distance(LeftStart, LeftEnd);
+    float RightRopeLength = FVector::Distance(RightStart, RightEnd);
+
+    // 로프의 길이 범위 내에 있는지 확인
+    bool bInLeftRopeRange = (LeftProjection >= 0 && LeftProjection <= LeftRopeLength);
+    bool bInRightRopeRange = (RightProjection >= 0 && RightProjection <= RightRopeLength);
+
+    // 로프로부터의 수직 거리 계산
+    FVector LeftProjectedPoint = LeftStart + LeftRopeDir * LeftProjection;
+    FVector RightProjectedPoint = RightStart + RightRopeDir * RightProjection;
+
+    float LeftDistance = FVector::Distance(StartPoint, LeftProjectedPoint);
+    float RightDistance = FVector::Distance(EndPoint, RightProjectedPoint);
+
+    // 설치 가능 조건 확인
+    bool bValidLeft = bInLeftRopeRange && (LeftDistance <= BridgeWidth * 0.5f);
+    bool bValidRight = bInRightRopeRange && (RightDistance <= BridgeWidth * 0.5f);
+
+    return bValidLeft && bValidRight;
 }
 
 bool ABuildableZone::IsTentPlacementValid(const FVector& StartPoint, const FVector& EndPoint)
 {
-    bool bStartValid = IsPointNearRope(StartPoint, LeftTopRope);
-    bool bEndValid = IsPointNearRope(EndPoint, RightTopRope);
+    if (!LeftTopRope || !LeftBottomRope || !RightTopRope || !RightBottomRope) return false;
 
-    return bStartValid && bEndValid;
+    // 왼쪽 설치
+    bool bLeftValid = false;
+    {
+        FVector TopPoint = LeftTopRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector BottomPoint = LeftBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector TentPos = (StartPoint + EndPoint) * 0.5f;
+
+        FVector RopeDir = (TopPoint - BottomPoint).GetSafeNormal();
+        FVector PointToBottom = TentPos - BottomPoint;
+        float Projection = FVector::DotProduct(PointToBottom, RopeDir);
+
+        if (Projection >= 0 && Projection <= FVector::Distance(TopPoint, BottomPoint))
+        {
+            FVector ProjectedPoint = BottomPoint + RopeDir * Projection;
+            float Distance = FVector::Distance(TentPos, ProjectedPoint);
+            bLeftValid = Distance <= BridgeWidth * 0.25f;
+        }
+    }
+
+    // 오른쪽 설치
+    bool bRightValid = false;
+    {
+        FVector TopPoint = RightTopRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector BottomPoint = RightBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector TentPos = (StartPoint + EndPoint) * 0.5f;
+
+        FVector RopeDir = (TopPoint - BottomPoint).GetSafeNormal();
+        FVector PointToBottom = TentPos - BottomPoint;
+        float Projection = FVector::DotProduct(PointToBottom, RopeDir);
+
+        if (Projection >= 0 && Projection <= FVector::Distance(TopPoint, BottomPoint))
+        {
+            FVector ProjectedPoint = BottomPoint + RopeDir * Projection;
+            float Distance = FVector::Distance(TentPos, ProjectedPoint);
+            bRightValid = Distance <= BridgeWidth * 0.25f;
+        }
+    }
+
+    return bLeftValid || bRightValid;
 }
 
 float ABuildableZone::GetDistanceFromRope(const FVector& Point, USplineComponent* Rope)
 {
     if (!Rope) return MAX_FLT;
 
-    FVector ClosestPoint = Rope->FindLocationClosestToWorldLocation(Point, ESplineCoordinateSpace::World);
-    return FVector::Distance(Point, ClosestPoint);
+    FVector Start = Rope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+    FVector End = Rope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
+
+    FVector RopeDir = (End - Start).GetSafeNormal();
+    FVector PointToStart = Point - Start;
+    float Projection = FVector::DotProduct(PointToStart, RopeDir);
+
+    if (Projection >= 0 && Projection <= FVector::Distance(Start, End))
+    {
+        FVector ProjectedPoint = Start + RopeDir * Projection;
+        return FVector::Distance(Point, ProjectedPoint);
+    }
+
+    return MAX_FLT;
 }
 
 bool ABuildableZone::IsPointNearRope(const FVector& Point, USplineComponent* Rope, float Tolerance)
 {
-    return GetDistanceFromRope(Point, Rope) <= Tolerance;
+    if (!Rope) return false;
+
+    float Distance = GetDistanceFromRope(Point, Rope);
+    return Distance <= Tolerance && Distance != MAX_FLT;
 }
 
 void ABuildableZone::UpdateSplineMeshes()

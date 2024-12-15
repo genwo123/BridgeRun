@@ -20,6 +20,10 @@ public:
     UStaticMeshComponent* MeshComponent;
     UPROPERTY(VisibleAnywhere, Category = "Components")
     class UBoxComponent* CollisionComponent;
+
+    UPROPERTY()
+    bool bIsBuiltItem = false;
+
 protected:
     virtual void BeginPlay() override;
 
