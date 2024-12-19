@@ -233,6 +233,7 @@ void UBuildingComponent::UpdateBuildPreview()
 
     BuildPreviewMesh->SetVisibility(true);
 }
+
 void UBuildingComponent::AttemptBuild()
 {
     if (!BuildPreviewMesh || !OwnerCitizen || !bCanBuildNow || !bIsValidPlacement || bIsBuilding)
