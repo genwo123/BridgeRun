@@ -36,7 +36,8 @@
 | Sprint 1 | 2024.11.04 - 2024.11.17 | 기본 시스템 구축 및 컴포넌트 설계 | [1회차 개발일지](./docs/Sprints/BridgeRun_Sprint1.md) |
 | Sprint 2 | 2024.11.18 - 2024.12.01 | 점수/건설 시스템 구현 및 최적화 | [2회차 개발일지](./docs/Sprints/BridgeRun_Sprint2.md) |
 | Sprint 3 | 2024.12.02 - 2024.12.15 | 전투 시스템 구현 및 UI 개선 계획 | [3회차 개발일지](./docs/Sprints/BridgeRun_Sprint3.md) |
-| Sprint 4 | 2024.12.23 - 2025.01.05 | UI 시스템 개선 및 네트워크 기반 구축 | [4회차 개발일지 - 작성 예정](./docs/Sprints/BridgeRun_Sprint4.md) |
+| Sprint - | 2024.12.16 - 2024.12.29 | 건강 및 이사| 몸 건강 상태 및 이사 이슈로 인해 2주간 작업이 불가피했습니다. |
+| Sprint 4 | 2024.12.30 - 2025.01.12 | UI 시스템 개선 및 네트워크 기반 구축 | [4회차 개발일지 - 작성 예정](./docs/Sprints/BridgeRun_Sprint4.md) |
 
 ### 개발 일지 내용
 각 스프린트 기록에는 다음 내용이 포함됩니다:
