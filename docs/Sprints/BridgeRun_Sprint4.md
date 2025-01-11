@@ -189,3 +189,214 @@ Source/BridgeRun/
 - 버그 수정 및 안정화
 
 이번 스프린트에서 기본적인 네트워크 구조를 구축했으며, 다음 스프린트에서는 Zone 시스템의 네트워크 동기화와 실제 환경에서의 테스트를 진행할 예정입니다.
+
+
+# 브릿지런 개발일지 (스프린트 5)
+
+## 📅 개발 기간
+2025년 1월 1일 ~ 2025년 1월 14일
+
+## 👨‍💻 작성자
+김건우
+
+## 1. 주요 개발 목표
+
+스프린트 5에서는 네트워크 동기화와 아이템 시스템의 안정화에 집중했습니다:
+- 멀티플레이어 환경에서의 아이템 동기화
+- Trophy 시스템 개선
+- Item 클래스 구조 재설계
+
+## 2. Item 시스템 개선
+
+### 2.1 기본 클래스 재설계
+![아이템 동기화 문제](./images/sprint5/item_sync_issue.jpg)
+
+*초기 발생한 아이템 동기화 문제*
+
+기존의 Item 클래스를 네트워크 지원 구조로 개선했습니다:
+
+```cpp
+UCLASS()
+class BRIDGERUN_API AItem : public AActor
+{
+    GENERATED_BODY()
+    
+public:
+    // 복제될 속성들
+    UPROPERTY(ReplicatedUsing = OnRep_IsPickedUp)
+    bool bIsPickedUp;
+
+    UPROPERTY(ReplicatedUsing = OnRep_OwningPlayer)
+    class ACharacter* OwningPlayer;
+
+    // 네트워크 RPC 함수들
+    UFUNCTION(Server, Reliable)
+    void PickUp(ACharacter* Character);
+
+    UFUNCTION(Server, Reliable)
+    void Drop();
+
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastOnPickedUp(ACharacter* NewOwner);
+
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastOnDropped();
+};
+```
+
+### 2.2 Transform 시스템 도입
+
+아이템 위치/회전 문제 해결을 위한 새로운 Transform 시스템을 구현했습니다:
+
+```cpp
+// Item.h
+UFUNCTION(BlueprintNativeEvent, Category = "Item")
+FTransform GetPickupTransform(ACharacter* Player) const;
+
+// Item_Trophy.cpp
+FTransform AItem_Trophy::GetPickupTransform_Implementation(ACharacter* Player) const
+{
+    return FTransform(FRotator::ZeroRotator, FVector(100.0f, 0.0f, 50.0f));
+}
+
+// Item_Gun.cpp
+FTransform AItem_Gun::GetPickupTransform_Implementation(ACharacter* Player) const
+{
+    return FTransform(Player->GetActorRotation(), FVector(30.0f, 0.0f, 0.0f));
+}
+```
+
+## 3. Trophy 시스템 구현
+
+### 3.1 점수 시스템
+![트로피 점수 시스템](./images/sprint5/trophy_score_system.jpg)
+
+*트로피 점수 획득 시스템*
+
+```cpp
+void ATrophyZone::ServerUpdateScore_Implementation(int32 NewScore)
+{
+    if (!HasAuthority()) return;
+
+    CurrentScore = NewScore;
+    MulticastOnScoreUpdated(CurrentScore);
+}
+```
+
+### 3.2 타이머 시스템 개선
+![타이머 동기화](./images/sprint5/trophy_timer_sync.jpg)
+
+*실시간 타이머 동기화 구현*
+
+초기 버전의 문제점:
+```cpp
+// 문제가 있던 초기 구현
+UPROPERTY(Replicated)
+float RemainingTime;
+```
+
+개선된 버전:
+```cpp
+// 개선된 구현
+UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)
+float RemainingTime;
+
+void ATrophyZone::OnRep_RemainingTime()
+{
+    if (IsValid(TimerText))
+    {
+        FString TimerString = FString::Printf(TEXT("%.1f"), RemainingTime);
+        TimerText->SetText(FText::FromString(TimerString));
+    }
+}
+```
+
+## 4. 발생한 문제점과 해결
+
+### 4.1 아이템 부착 문제
+![아이템 부착 문제](./images/sprint5/item_attachment_issue.jpg)
+
+*클라이언트별 아이템 부착 불일치*
+
+초기 발생한 문제점:
+- 클라이언트마다 아이템 위치가 다르게 보이는 현상
+- 캐릭터와 아이템이 겹치는 현상
+- 아이템별 고유 위치가 적용되지 않는 문제
+
+문제 원인 분석:
+```cpp
+// 문제가 있던 코드
+void AItem::AttachToPlayer(ACharacter* Player)
+{
+    MeshComponent->AttachToComponent(
+        Player->GetMesh(),
+        AttachRules
+    );
+}
+```
+
+해결 방안:
+```cpp
+void AItem::AttachToPlayer(ACharacter* Player)
+{
+    if (!IsValid(Player)) return;
+
+    // Actor 전체를 부착
+    FAttachmentTransformRules AttachRules(
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::KeepWorld,
+        false
+    );
+
+    AttachToActor(Player, AttachRules);
+
+    // 아이템별 Transform 적용
+    FTransform ItemTransform = GetPickupTransform(Player);
+    SetActorRelativeLocation(ItemTransform.GetLocation());
+    SetActorRelativeRotation(ItemTransform.GetRotation());
+}
+```
+
+### 4.2 타이머 시각화 문제
+
+초기 문제점:
+- 타이머가 작동하지만 UI에 표시되지 않는 현상
+- 클라이언트 간 타이머 표시 불일치
+
+문제 해결:
+```cpp
+void ATrophyZone::UpdateTimer()
+{
+    if (!HasAuthority() || !IsValid(PlacedTrophy))
+        return;
+
+    if (UWorld* World = GetWorld())
+    {
+        RemainingTime = World->GetTimerManager().GetTimerRemaining(ScoreTimerHandle);
+        
+        // 타이머 텍스트 업데이트
+        if (IsValid(TimerText))
+        {
+            FString TimerString = FString::Printf(TEXT("%.1f"), RemainingTime);
+            TimerText->SetText(FText::FromString(TimerString));
+        }
+
+        ForceNetUpdate();
+    }
+}
+```
+
+## 5. 다음 스프린트 계획
+
+### 5.1 개선 필요 사항
+- 아이템 충돌 시스템 개선
+- 네트워크 성능 최적화
+- BuildableZone과의 연동 강화
+
+### 5.2 신규 기능 계획
+- 아이템 타입 확장
+- 팀 시스템 구현
+- UI/UX 개선
+
+이번 스프린트를 통해 멀티플레이어 환경에서의 아이템 시스템 안정성이 크게 향상되었습니다. 특히 Trophy 시스템의 실시간 동기화 구현으로 게임의 핵심 메커니즘이 더욱 견고해졌습니다.
