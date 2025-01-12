@@ -399,4 +399,190 @@ void ATrophyZone::UpdateTimer()
 - 팀 시스템 구현
 - UI/UX 개선
 
+
+# 브릿지런 개발일지 (스프린트 4)
+
+## 📅 개발 기간
+2024년 12월 16일 ~ 2024년 12월 29일
+
+## 👨‍💻 작성자
+김건우
+
+## 1. 주요 개발 목표
+스프린트 4에서는 건설 시스템의 네트워크 동기화와 물리 시스템 개선에 중점을 두었습니다:
+- 건설 시스템의 네트워크 동기화 구현
+- 물리 기반 건설 시스템 개선
+- BP와 C++ 간의 상호작용 최적화
+- 프리뷰 시스템 개선
+
+## 2. 건설 시스템 네트워크 동기화
+
+### 2.1 기존 문제점
+- 클라이언트와 서버의 건설 동작 불일치
+- 프리뷰가 클라이언트에 표시되지 않는 문제
+- 물리 시뮬레이션이 서버와 클라이언트에서 다르게 동작
+
+초기 코드의 문제점:
+```cpp
+void UBuildingComponent::AttemptBuild_Implementation()
+{
+    SpawnedPlank->MeshComponent->SetIsReplicated(true);
+    SpawnedPlank->MeshComponent->SetSimulatePhysics(true);
+    SpawnedPlank->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    SpawnedPlank->MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+    SpawnedPlank->MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+}
+```
+초기 코드에서는 설치된 오브젝트의 물리와 충돌이 클라이언트에서 제대로 동작하지 않았습니다. 물리 복제 설정이 부족했기 때문입니다.
+
+### 2.2 개선된 구현
+![건설 프리뷰 개선](./images/sprint4/building_preview_improvement.jpg)
+
+*개선된 건설 프리뷰 시스템*
+
+프리뷰와 건설 시스템을 클라이언트에서도 정상 작동하도록 수정:
+
+```cpp
+void UBuildingComponent::OnBuildModeEntered_Implementation()
+{
+    if (!OwnerCitizen)
+        return;
+
+    if (!BuildPreviewMesh)
+    {
+        BuildPreviewMesh = NewObject<UStaticMeshComponent>(OwnerCitizen, TEXT("BuildPreviewMesh"));
+        if (!BuildPreviewMesh)
+            return;
+
+        BuildPreviewMesh->SetupAttachment(OwnerCitizen->GetRootComponent());
+        BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        BuildPreviewMesh->SetVisibility(false);
+        BuildPreviewMesh->RegisterComponent();
+    }
+
+    if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
+    {
+        CurrentBuildingItem = InvenComp->GetCurrentSelectedSlot();
+
+        switch (CurrentBuildingItem)
+        {
+        case EInventorySlot::Plank:
+            if (PlankClass)
+            {
+                AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
+                if (DefaultPlank && DefaultPlank->MeshComponent)
+                {
+                    BuildPreviewMesh->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
+                    BuildPreviewMesh->SetWorldScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
+                    BuildPreviewMesh->SetRelativeLocation(DefaultPlank->MeshComponent->GetRelativeLocation());
+                    BuildPreviewMesh->SetRelativeRotation(DefaultPlank->MeshComponent->GetRelativeRotation());
+                }
+            }
+            break;
+        }
+    }
+}
+```
+
+### 2.3 물리 시뮬레이션 동기화
+![물리 동기화 개선](./images/sprint4/physics_sync_improvement.jpg)
+
+*서버-클라이언트 간 물리 동기화가 개선된 모습*
+
+물리 시뮬레이션 동기화를 위한 개선된 코드:
+```cpp
+void UBuildingComponent::AttemptBuild_Implementation()
+{
+    FVector Location = BuildPreviewMesh->GetComponentLocation();
+    FRotator Rotation = BuildPreviewMesh->GetComponentRotation();
+
+    AItem_Plank* SpawnedPlank = GetWorld()->SpawnActor<AItem_Plank>(
+        PlankClass,
+        Location,
+        Rotation,
+        SpawnParams
+    );
+
+    if (SpawnedPlank && SpawnedPlank->MeshComponent)
+    {
+        AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
+        if (DefaultPlank && DefaultPlank->MeshComponent)
+        {
+            SpawnedPlank->MeshComponent->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
+            SpawnedPlank->MeshComponent->SetWorldScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
+
+            FTransform NewTransform = DefaultPlank->MeshComponent->GetRelativeTransform();
+            NewTransform.SetLocation(Location);
+            NewTransform.SetRotation(Rotation.Quaternion());
+
+            SpawnedPlank->SetActorTransform(NewTransform);
+        }
+
+        SpawnedPlank->MeshComponent->SetIsReplicated(true);
+        SpawnedPlank->MeshComponent->SetMobility(EComponentMobility::Movable);
+        SpawnedPlank->MeshComponent->SetSimulatePhysics(true);
+        SpawnedPlank->MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+        SpawnedPlank->MeshComponent->SetEnableGravity(true);
+        SpawnedPlank->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        SpawnedPlank->MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+        SpawnedPlank->MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        SpawnedPlank->MeshComponent->SetGenerateOverlapEvents(true);
+
+        SpawnedPlank->MeshComponent->WakeAllRigidBodies();
+        SpawnedPlank->MeshComponent->UpdateComponentToWorld();
+    }
+}
+```
+
+## 3. 현재 한계점과 개선 계획
+
+### 3.1 식별된 문제점
+1. **프리뷰 시스템 안정성**
+   - 클라이언트에서 간헐적으로 프리뷰가 깜빡이는 현상 발생
+   - Build Mode 전환 시 프리뷰가 즉시 표시되지 않는 문제
+   - 프리뷰 메시의 색상이 서버와 클라이언트에서 다르게 표시되는 현상
+
+2. **물리 시뮬레이션 최적화**
+   - 설치된 판자의 물리가 서버와 클라이언트에서 약간의 차이를 보임
+   - 다수의 판자 설치 시 물리 연산 부하 증가
+   - 네트워크 지연 시 물리 동기화 품질 저하
+
+3. **Blueprint 연동**
+   - BP_Plank의 설정이 C++ 코드에서 완벽하게 복제되지 않는 경우 발생
+   - 메시와 물리 설정의 일관성 유지 필요성
+   - BP의 변경사항이 즉시 반영되지 않는 문제
+
+### 3.2 향후 개선 계획
+1. **물리 시뮬레이션 개선**
+   - 서버-클라이언트 간 물리 보간 시스템 도입
+   - 물리 시뮬레이션 최적화를 위한 LOD 시스템 구현
+   - 네트워크 지연 보상 메커니즘 도입
+
+2. **프리뷰 시스템 안정화**
+   - 프리뷰 메시 생성 로직 재작성
+   - 프리뷰 상태 동기화 시스템 개선
+   - 머티리얼 파라미터 동기화 방식 개선
+
+3. **코드 구조 개선**
+   - BuildingComponent 클래스 리팩토링
+   - BP와 C++ 간의 인터페이스 개선
+   - 네트워크 복제 로직 최적화
+
+## 4. 다음 스프린트 목표
+
+1. **물리 시뮬레이션 개선**
+   - 서버-클라이언트 간 물리 동기화 정확도 향상
+   - 네트워크 최적화를 통한 성능 개선
+   - 물리 시뮬레이션 디버깅 도구 개발
+
+2. **프리뷰 시스템 안정화**
+   - 프리뷰 메시 생성 및 업데이트 로직 개선
+   - 클라이언트 측 프리뷰 안정성 향상
+   - 네트워크 지연 시의 프리뷰 동작 개선
+
+3. **Blueprint 통합 강화**
+   - BP와 C++ 간의 데이터 동기화 개선
+   - Blueprint 인터페이스 확장
+   - 에디터 도구 개발을 통한 디버깅 효율 향상
+
 이번 스프린트를 통해 멀티플레이어 환경에서의 아이템 시스템 안정성이 크게 향상되었습니다. 특히 Trophy 시스템의 실시간 동기화 구현으로 게임의 핵심 메커니즘이 더욱 견고해졌습니다.
