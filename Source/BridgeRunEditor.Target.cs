@@ -5,10 +5,12 @@ using System.Collections.Generic;
 
 public class BridgeRunEditorTarget : TargetRules
 {
-	public BridgeRunEditorTarget(TargetInfo Target) : base(Target)
-	{
-		Type = TargetType.Editor;
-		DefaultBuildSettings = BuildSettingsVersion.V2;
-		ExtraModuleNames.Add("BridgeRun");
-	}
+    public BridgeRunEditorTarget(TargetInfo Target) : base(Target)
+    {
+        Type = TargetType.Editor;
+        DefaultBuildSettings = BuildSettingsVersion.V2;
+        ExtraModuleNames.AddRange(new string[] {
+            "BridgeRun",
+        });
+    }
 }
