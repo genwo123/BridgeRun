@@ -89,7 +89,15 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
     case EPlayerMode::Build:
         if (BuildingComponent)
         {
-            BuildingComponent->OnBuildModeEntered();
+            // 서버와 클라이언트 모두에서 처리되도록 수정
+            if (HasAuthority())
+            {
+                BuildingComponent->OnBuildModeEntered();
+            }
+            else if (IsLocallyControlled())  // 로컬 클라이언트인 경우에만
+            {
+                BuildingComponent->OnBuildModeEntered();  // _Implementation 제거
+            }
         }
         break;
 
@@ -115,8 +123,23 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
     }
 }
 
+
 void ACitizen::SelectInventorySlot(EInventorySlot Slot)
 {
+    // 로컬에서 먼저 처리
+    if (IsLocallyControlled())
+    {
+        FItemData* ItemData = InvenComponent->GetItemData(Slot);
+        if (ItemData && ItemData->Count > 0)
+        {
+            if (Slot == EInventorySlot::Plank || Slot == EInventorySlot::Tent)
+            {
+                OnPlayerModeChanged(EPlayerMode::Build, PlayerModeComponent->GetCurrentMode());
+            }
+        }
+    }
+
+    // 서버에도 전달
     if (HasAuthority())
     {
         ServerSelectInventorySlot_Implementation(Slot);
@@ -140,7 +163,6 @@ void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
     {
         InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
         PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
-
         if (CombatComponent)
         {
             if (CombatComponent->EquippedTelescope)
@@ -175,6 +197,15 @@ void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
     case EInventorySlot::Plank:
     case EInventorySlot::Tent:
         PlayerModeComponent->SetPlayerMode(EPlayerMode::Build);
+        // 클라이언트에서 직접 모드 변경 처리
+        if (!HasAuthority() && IsLocallyControlled())
+        {
+            OnPlayerModeChanged(EPlayerMode::Build, PlayerModeComponent->GetCurrentMode());
+            if (BuildingComponent)
+            {
+                BuildingComponent->OnBuildModeEntered();  // _Implementation 제거
+            }
+        }
         break;
 
     case EInventorySlot::Gun:
@@ -212,7 +243,6 @@ void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
         break;
     }
 }
-
 void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);

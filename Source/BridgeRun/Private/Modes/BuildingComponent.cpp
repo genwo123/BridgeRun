@@ -19,44 +19,42 @@ void UBuildingComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+    // bIsValidPlacement를 가장 먼저 복제
+    DOREPLIFETIME(UBuildingComponent, bIsValidPlacement);
     DOREPLIFETIME(UBuildingComponent, BuildPreviewMesh);
     DOREPLIFETIME(UBuildingComponent, CurrentBuildingItem);
     DOREPLIFETIME(UBuildingComponent, bCanBuildNow);
     DOREPLIFETIME(UBuildingComponent, bIsBuilding);
-    DOREPLIFETIME(UBuildingComponent, bIsValidPlacement);
 }
 
 void UBuildingComponent::BeginPlay()
 {
     Super::BeginPlay();
-
     OwnerCitizen = Cast<ACitizen>(GetOwner());
-    // 권한 체크 제거하여 클라이언트에서도 BuildPreviewMesh 생성
-    if (OwnerCitizen)
-    {
-        BuildPreviewMesh = NewObject<UStaticMeshComponent>(OwnerCitizen, TEXT("BuildPreviewMesh"));
-        if (BuildPreviewMesh)
-        {
-            BuildPreviewMesh->SetupAttachment(OwnerCitizen->GetRootComponent());
-            BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-            BuildPreviewMesh->SetVisibility(false);
-            BuildPreviewMesh->RegisterComponent();
 
-            if (PlankClass)
+    BuildPreviewMesh = NewObject<UStaticMeshComponent>(OwnerCitizen, TEXT("BuildPreviewMesh"));
+    if (BuildPreviewMesh)
+    {
+        BuildPreviewMesh->SetupAttachment(OwnerCitizen->GetRootComponent());
+        BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        BuildPreviewMesh->SetVisibility(false);
+        BuildPreviewMesh->SetIsReplicated(true);
+        BuildPreviewMesh->bOnlyOwnerSee = false;  // 다른 클라이언트도 볼 수 있도록
+        BuildPreviewMesh->SetEnableGravity(false); // 물리 비활성화
+        BuildPreviewMesh->RegisterComponent();
+
+        if (PlankClass)
+        {
+            AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
+            if (DefaultPlank && DefaultPlank->MeshComponent)
             {
-                AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
-                if (DefaultPlank && DefaultPlank->MeshComponent)
-                {
-                    PlankMesh = DefaultPlank->MeshComponent->GetStaticMesh();
-                    FVector PlankScale = DefaultPlank->MeshComponent->GetRelativeScale3D();
-                    BuildPreviewMesh->SetRelativeScale3D(PlankScale);
-                }
+                PlankMesh = DefaultPlank->MeshComponent->GetStaticMesh();
+                BuildPreviewMesh->SetRelativeScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
             }
         }
     }
     bCanBuildNow = true;
 }
-
 
 void UBuildingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
@@ -68,13 +66,12 @@ void UBuildingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
     }
 }
 
+
 void UBuildingComponent::OnBuildModeEntered_Implementation()
 {
-    // OwnerCitizen 검사
     if (!OwnerCitizen)
         return;
 
-    // BuildPreviewMesh가 없다면 생성
     if (!BuildPreviewMesh)
     {
         BuildPreviewMesh = NewObject<UStaticMeshComponent>(OwnerCitizen, TEXT("BuildPreviewMesh"));
@@ -84,10 +81,12 @@ void UBuildingComponent::OnBuildModeEntered_Implementation()
         BuildPreviewMesh->SetupAttachment(OwnerCitizen->GetRootComponent());
         BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         BuildPreviewMesh->SetVisibility(false);
+        BuildPreviewMesh->SetIsReplicated(true);
+        BuildPreviewMesh->bOnlyOwnerSee = false;
+        BuildPreviewMesh->SetEnableGravity(false);
         BuildPreviewMesh->RegisterComponent();
     }
 
-    // 인벤토리 체크 및 아이템 설정
     if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
     {
         CurrentBuildingItem = InvenComp->GetCurrentSelectedSlot();
@@ -100,7 +99,6 @@ void UBuildingComponent::OnBuildModeEntered_Implementation()
                 AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
                 if (DefaultPlank && DefaultPlank->MeshComponent)
                 {
-                    // 메시와 크기를 BP에서 직접 가져옴
                     BuildPreviewMesh->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
                     BuildPreviewMesh->SetWorldScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
                     BuildPreviewMesh->SetRelativeLocation(DefaultPlank->MeshComponent->GetRelativeLocation());
@@ -115,7 +113,6 @@ void UBuildingComponent::OnBuildModeEntered_Implementation()
                 AItem_Tent* DefaultTent = Cast<AItem_Tent>(TentClass.GetDefaultObject());
                 if (DefaultTent && DefaultTent->MeshComponent)
                 {
-                    // 메시와 크기를 BP에서 직접 가져옴
                     BuildPreviewMesh->SetStaticMesh(DefaultTent->MeshComponent->GetStaticMesh());
                     BuildPreviewMesh->SetWorldScale3D(DefaultTent->MeshComponent->GetRelativeScale3D());
                     BuildPreviewMesh->SetRelativeLocation(DefaultTent->MeshComponent->GetRelativeLocation());
@@ -126,30 +123,31 @@ void UBuildingComponent::OnBuildModeEntered_Implementation()
         }
     }
 
-    // 프리뷰 메시 표시 및 업데이트
     if (BuildPreviewMesh)
     {
+        bIsValidPlacement = false;
+        BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
         BuildPreviewMesh->SetVisibility(true);
         UpdateBuildPreview();
     }
 
-    // 네트워크 상태 업데이트
     if (GetOwner())
     {
         GetOwner()->ForceNetUpdate();
     }
 }
+
 void UBuildingComponent::UpdateBuildPreview()
 {
     if (!BuildPreviewMesh || !OwnerCitizen)
         return;
 
-    APlayerController* PC = Cast<APlayerController>(OwnerCitizen->GetController());
-    if (!PC) return;
+    AController* Controller = OwnerCitizen->GetController();
+    if (!Controller) return;
 
     FVector CameraLocation;
     FRotator CameraRotation;
-    PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+    Controller->GetPlayerViewPoint(CameraLocation, CameraRotation);
     FVector CameraForward = CameraRotation.Vector();
 
     FVector PlayerLocation = OwnerCitizen->GetActorLocation();
@@ -164,7 +162,7 @@ void UBuildingComponent::UpdateBuildPreview()
     TArray<AActor*> FoundZones;
     UGameplayStatics::GetAllActorsOfClass(GetWorld(), ABuildableZone::StaticClass(), FoundZones);
 
-    bIsValidPlacement = false;
+    bool NewValidPlacement = false;
 
     for (AActor* Actor : FoundZones)
     {
@@ -189,15 +187,12 @@ void UBuildingComponent::UpdateBuildPreview()
                 float ZoneLength = FVector::Distance(LeftStart, LeftEnd);
                 float ZoneWidth = FVector::Distance(LeftStart, RightStart);
 
-                bIsValidPlacement = (LengthProjection >= 0 && LengthProjection <= ZoneLength &&
+                NewValidPlacement = (LengthProjection >= 0 && LengthProjection <= ZoneLength &&
                     WidthProjection >= 0 && WidthProjection <= ZoneWidth);
 
-                if (bIsValidPlacement)
+                if (NewValidPlacement)
                 {
                     PreviewLocation.Z = LeftStart.Z;
-                    BuildPreviewMesh->SetWorldLocation(PreviewLocation);
-                    BuildPreviewMesh->SetWorldRotation(PreviewRotation);
-                    BuildPreviewMesh->SetMaterial(0, ValidPlacementMaterial);
                 }
             }
         }
@@ -205,25 +200,22 @@ void UBuildingComponent::UpdateBuildPreview()
         {
             if (Zone->LeftTopRope && Zone->LeftBottomRope && Zone->RightTopRope && Zone->RightBottomRope)
             {
-                // 왼쪽 로프와의 거리 계산
                 FVector LeftBottom = Zone->LeftBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
                 FVector LeftEnd = Zone->LeftBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
+                FVector RightBottom = Zone->RightBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+                FVector RightEnd = Zone->RightBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
                 FVector ToLeftStart = PreviewLocation - LeftBottom;
                 FVector LeftDir = (LeftEnd - LeftBottom).GetSafeNormal();
                 float LeftProj = FVector::DotProduct(ToLeftStart, LeftDir);
                 LeftProj = FMath::Clamp(LeftProj, 0.0f, FVector::Distance(LeftBottom, LeftEnd));
                 FVector LeftClosest = LeftBottom + LeftDir * LeftProj;
 
-                // 오른쪽 로프와의 거리 계산
-                FVector RightBottom = Zone->RightBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
-                FVector RightEnd = Zone->RightBottomRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
                 FVector ToRightStart = PreviewLocation - RightBottom;
                 FVector RightDir = (RightEnd - RightBottom).GetSafeNormal();
                 float RightProj = FVector::DotProduct(ToRightStart, RightDir);
                 RightProj = FMath::Clamp(RightProj, 0.0f, FVector::Distance(RightBottom, RightEnd));
                 FVector RightClosest = RightBottom + RightDir * RightProj;
 
-                // 2D 거리 계산 (Z 값 제외)
                 FVector ToLeft = PreviewLocation - LeftClosest;
                 FVector ToRight = PreviewLocation - RightClosest;
                 ToLeft.Z = 0;
@@ -231,53 +223,58 @@ void UBuildingComponent::UpdateBuildPreview()
                 float DistToLeft = ToLeft.Size();
                 float DistToRight = ToRight.Size();
 
-                // 가까운 쪽 선택
                 bool bUseLeftSide = DistToLeft < DistToRight;
                 FVector BottomPoint = bUseLeftSide ? LeftClosest : RightClosest;
                 USplineComponent* TopRope = bUseLeftSide ? Zone->LeftTopRope : Zone->RightTopRope;
                 float Ratio = bUseLeftSide ? (LeftProj / FVector::Distance(LeftBottom, LeftEnd)) :
                     (RightProj / FVector::Distance(RightBottom, RightEnd));
 
-                // 상단 위치 계산
                 FVector TopStart = TopRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
                 FVector TopEnd = TopRope->GetLocationAtSplinePoint(1, ESplineCoordinateSpace::World);
                 FVector TopPoint = FMath::Lerp(TopStart, TopEnd, Ratio);
 
-                // 최종 스냅 위치 계산
                 FVector RopeDir = (TopPoint - BottomPoint).GetSafeNormal();
                 FVector VerticalOffset = RopeDir * (TopPoint - BottomPoint).Size() * 0.5f;
                 FVector SnapLocation = BottomPoint + VerticalOffset;
 
-                // 플레이어와의 거리 체크
                 FVector PlayerToSnap = SnapLocation - PlayerLocation;
                 PlayerToSnap.Z = 0;
                 float DistanceToPlayer = PlayerToSnap.Size();
 
-                bIsValidPlacement = (DistanceToPlayer >= 100.0f && DistanceToPlayer <= MaxBuildDistance);
+                NewValidPlacement = (DistanceToPlayer >= 100.0f && DistanceToPlayer <= MaxBuildDistance);
 
                 FRotator SnapRotation = bUseLeftSide ? FRotator(0.0f, 0.0f, 0.0f) : FRotator(0.0f, 180.0f, 0.0f);
-                BuildPreviewMesh->SetWorldLocation(SnapLocation);
-                BuildPreviewMesh->SetWorldRotation(SnapRotation);
-                BuildPreviewMesh->SetMaterial(0, bIsValidPlacement ? ValidPlacementMaterial : InvalidPlacementMaterial);
+                PreviewRotation = SnapRotation;
+                PreviewLocation = SnapLocation;
             }
         }
 
-        if (!bIsValidPlacement)
-        {
-            BuildPreviewMesh->SetWorldLocation(PreviewLocation);
-            BuildPreviewMesh->SetWorldRotation(PreviewRotation);
-            BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
-        }
+        if (NewValidPlacement) break;
+    }
 
-        if (bIsValidPlacement) break;
+    BuildPreviewMesh->SetWorldLocation(PreviewLocation);
+    BuildPreviewMesh->SetWorldRotation(PreviewRotation);
+
+    if (GetOwner()->HasAuthority())
+    {
+        if (bIsValidPlacement != NewValidPlacement)
+        {
+            bIsValidPlacement = NewValidPlacement;
+            GetOwner()->ForceNetUpdate();
+        }
+    }
+
+    if (OwnerCitizen->IsLocallyControlled())
+    {
+        BuildPreviewMesh->SetMaterial(0, NewValidPlacement ? ValidPlacementMaterial : InvalidPlacementMaterial);
+    }
+    else
+    {
+        BuildPreviewMesh->SetMaterial(0, bIsValidPlacement ? ValidPlacementMaterial : InvalidPlacementMaterial);
     }
 
     BuildPreviewMesh->SetVisibility(true);
 }
-
-
-
-
 
 void UBuildingComponent::DeactivateBuildMode_Implementation()
 {
@@ -422,7 +419,9 @@ void UBuildingComponent::MulticastOnBuildComplete_Implementation()
 {
     if (BuildPreviewMesh)
     {
-        BuildPreviewMesh->SetVisibility(false);
+        BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
+        BuildPreviewMesh->SetVisibility(true);
+        UpdateBuildPreview();
     }
     bIsBuilding = false;
     bCanBuildNow = true;
@@ -466,35 +465,33 @@ void UBuildingComponent::AttemptBuild_Implementation()
                     AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
                     if (DefaultPlank && DefaultPlank->MeshComponent)
                     {
-                        // 메시와 크기 설정을 BP 그대로 복사
                         SpawnedPlank->MeshComponent->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
                         SpawnedPlank->MeshComponent->SetWorldScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
-
-                        // BP의 위치와 회전도 유지
                         FTransform NewTransform = DefaultPlank->MeshComponent->GetRelativeTransform();
                         NewTransform.SetLocation(Location);
                         NewTransform.SetRotation(Rotation.Quaternion());
-
                         SpawnedPlank->SetActorTransform(NewTransform);
                     }
 
-                    // 네트워크와 물리 설정
-                    SpawnedPlank->MeshComponent->SetIsReplicated(true);
-                    SpawnedPlank->MeshComponent->SetMobility(EComponentMobility::Movable);
-                    SpawnedPlank->MeshComponent->SetSimulatePhysics(true);
-                    SpawnedPlank->MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
-                    SpawnedPlank->MeshComponent->SetEnableGravity(true);
+                    // 물리/충돌 설정
+                    SpawnedPlank->MeshComponent->SetSimulatePhysics(false);
+                    SpawnedPlank->MeshComponent->SetEnableGravity(false);
                     SpawnedPlank->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
                     SpawnedPlank->MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
                     SpawnedPlank->MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-                    SpawnedPlank->MeshComponent->SetGenerateOverlapEvents(true);
 
-                    // 물리 상태 업데이트
-                    SpawnedPlank->MeshComponent->WakeAllRigidBodies();
-                    SpawnedPlank->MeshComponent->UpdateComponentToWorld();
+                    // 물리 상태 복제 설정
+                    SpawnedPlank->MeshComponent->SetIsReplicated(true);
+                    SpawnedPlank->MeshComponent->SetMobility(EComponentMobility::Movable);
+                    SpawnedPlank->MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+
+                    // 위치 고정을 위한 설정
+                    SpawnedPlank->MeshComponent->SetWorldLocation(Location);
+                    SpawnedPlank->MeshComponent->SetWorldRotation(Rotation);
+
+                    SpawnedPlank->ForceNetUpdate();
                 }
 
-                // 인벤토리 체크 및 모드 전환
                 if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
                 {
                     FItemData* ItemData = InvenComp->GetItemData(EInventorySlot::Plank);
@@ -507,9 +504,6 @@ void UBuildingComponent::AttemptBuild_Implementation()
                         }
                     }
                 }
-
-                // 네트워크 상태 업데이트
-                SpawnedPlank->ForceNetUpdate();
             }
         }
     }
@@ -536,36 +530,34 @@ void UBuildingComponent::AttemptBuild_Implementation()
 
                 if (SpawnedTent->MeshComponent)
                 {
-                    // BP의 기본 크기와 설정을 가져옴
                     AItem_Tent* DefaultTent = Cast<AItem_Tent>(TentClass.GetDefaultObject());
                     if (DefaultTent && DefaultTent->MeshComponent)
                     {
-                        // 메시와 크기 설정을 BP 그대로 복사
                         SpawnedTent->MeshComponent->SetStaticMesh(DefaultTent->MeshComponent->GetStaticMesh());
                         SpawnedTent->MeshComponent->SetWorldScale3D(DefaultTent->MeshComponent->GetRelativeScale3D());
-
-                        // BP의 위치와 회전도 유지
                         FTransform NewTransform = DefaultTent->MeshComponent->GetRelativeTransform();
                         NewTransform.SetLocation(Location);
                         NewTransform.SetRotation(Rotation.Quaternion());
-
                         SpawnedTent->SetActorTransform(NewTransform);
                     }
 
-                    // 네트워크와 물리 설정
-                    SpawnedTent->MeshComponent->SetIsReplicated(true);
-                    SpawnedTent->MeshComponent->SetMobility(EComponentMobility::Movable);
-                    SpawnedTent->MeshComponent->SetSimulatePhysics(true);
-                    SpawnedTent->MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
-                    SpawnedTent->MeshComponent->SetEnableGravity(true);
+                    // 물리/충돌 설정
+                    SpawnedTent->MeshComponent->SetSimulatePhysics(false);
+                    SpawnedTent->MeshComponent->SetEnableGravity(false);
                     SpawnedTent->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
                     SpawnedTent->MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
                     SpawnedTent->MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-                    SpawnedTent->MeshComponent->SetGenerateOverlapEvents(true);
 
-                    // 물리 상태 업데이트
-                    SpawnedTent->MeshComponent->WakeAllRigidBodies();
-                    SpawnedTent->MeshComponent->UpdateComponentToWorld();
+                    // 물리 상태 복제 설정
+                    SpawnedTent->MeshComponent->SetIsReplicated(true);
+                    SpawnedTent->MeshComponent->SetMobility(EComponentMobility::Movable);
+                    SpawnedTent->MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+
+                    // 위치 고정을 위한 설정
+                    SpawnedTent->MeshComponent->SetWorldLocation(Location);
+                    SpawnedTent->MeshComponent->SetWorldRotation(Rotation);
+
+                    SpawnedTent->ForceNetUpdate();
                 }
 
                 if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
@@ -580,8 +572,6 @@ void UBuildingComponent::AttemptBuild_Implementation()
                         }
                     }
                 }
-
-                SpawnedTent->ForceNetUpdate();
             }
         }
     }
@@ -603,6 +593,7 @@ void UBuildingComponent::AttemptBuild_Implementation()
         }
     }
 }
+
 bool UBuildingComponent::ValidateBuildLocation(const FVector& Location)
 {
     if (!GetOwner()->HasAuthority()) return false;
@@ -683,6 +674,38 @@ bool UBuildingComponent::ValidateBuildLocation(const FVector& Location)
 
     return false;  // 유효한 설치 영역을 찾지 못함
 }
+
+
+
+void UBuildingComponent::OnRep_BuildPreviewMesh()
+{
+    if (!BuildPreviewMesh)
+        return;
+
+    BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    BuildPreviewMesh->SetEnableGravity(false);
+    BuildPreviewMesh->SetMaterial(0, bIsValidPlacement ? ValidPlacementMaterial : InvalidPlacementMaterial);
+
+    if (BuildPreviewMesh->GetStaticMesh())
+    {
+        BuildPreviewMesh->SetVisibility(true);
+    }
+}
+
+
+
+void UBuildingComponent::OnRep_ValidPlacement()
+{
+    if (!BuildPreviewMesh || !OwnerCitizen)
+        return;
+
+    // 로컬 플레이어가 아닐 경우에만 머티리얼 업데이트
+    if (!OwnerCitizen->IsLocallyControlled())
+    {
+        BuildPreviewMesh->SetMaterial(0, bIsValidPlacement ? ValidPlacementMaterial : InvalidPlacementMaterial);
+    }
+}
+
 void UBuildingComponent::StartBuildTimer(float BuildTime)
 {
     if (GetOwner()->HasAuthority())
@@ -697,3 +720,4 @@ void UBuildingComponent::StartBuildTimer(float BuildTime)
         );
     }
 }
+

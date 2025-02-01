@@ -21,14 +21,48 @@ AItem_Plank::AItem_Plank()
 void AItem_Plank::BeginPlay()
 {
     Super::BeginPlay();
-
     if (MeshComponent)
     {
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
         MeshComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
-        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+        MeshComponent->SetMobility(EComponentMobility::Movable);
+        MeshComponent->SetSimulatePhysics(true);
+        MeshComponent->SetEnableGravity(true);
+        MeshComponent->SetGenerateOverlapEvents(true);
     }
 }
+
+void AItem_Plank::OnPlaced_Implementation()
+{
+    if (!HasAuthority()) return;
+
+    bIsBuiltPlank = true;
+
+    if (MeshComponent)
+    {
+        // 서버에서 설정
+        MeshComponent->SetMobility(EComponentMobility::Movable);
+        MeshComponent->SetSimulatePhysics(true);
+        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        MeshComponent->SetEnableGravity(true);
+        MeshComponent->SetGenerateOverlapEvents(true);
+
+        // Transform 업데이트를 강제
+        MeshComponent->UpdateComponentToWorld();
+
+        // 모든 클라이언트에 전파
+        MulticastSetMobility(EComponentMobility::Movable);
+    }
+
+    // 네트워크 상태 강제 업데이트
+    ForceNetUpdate();
+}
+
 
 void AItem_Plank::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -50,26 +84,4 @@ void AItem_Plank::OnRep_IsBuilt()
             MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
         }
     }
-}
-
-void AItem_Plank::OnPlaced_Implementation()
-{
-    if (!HasAuthority()) return;
-
-    bIsBuiltPlank = true;
-
-    if (MeshComponent)
-    {
-        // 서버에서 설정
-        MeshComponent->SetMobility(EComponentMobility::Movable);
-        MeshComponent->SetSimulatePhysics(true);
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-
-        // 모든 클라이언트에 전파
-        MulticastSetMobility(EComponentMobility::Movable);
-    }
-
-    // 네트워크 상태 강제 업데이트
-    ForceNetUpdate();
 }
