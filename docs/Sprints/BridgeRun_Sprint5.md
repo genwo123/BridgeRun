@@ -22,6 +22,16 @@
 * 클라이언트에서 판자가 설치될 때 공중에 떠있는 현상 발생
 * 클라이언트 간 물리 동작의 불일치 문제
 
+![판자 설치 시 물리/충돌 문제](./images/sprint5/plank_physics_collision_error.jpg)
+*서버에서는 정상이지만 클라이언트에서 판자 위에 올라가지 못하는 문제*
+
+![물리/충돌 문제 상세](./images/sprint5/plank_physics_collision_detail.jpg)
+*다른 각도에서 본 판자 물리/충돌 문제*
+
+![물리/충돌 문제 해결](./images/sprint5/plank_physics_collision_fixed.jpg)
+*물리/충돌 시스템 개선 후 정상 작동하는 모습*
+
+
 ### 2.2 해결 방법
 코드를 다음과 같이 수정하여 물리/충돌 시스템을 개선했습니다:
 
@@ -101,6 +111,10 @@ void AItem_Plank::OnPlaced_Implementation()
 * 머티리얼 업데이트 로직 불일치
   * UpdateBuildPreview에서 로컬 컨트롤 여부에 따라 다른 값 사용
   * 서버와 클라이언트간 시각적 상태 불일치 발생
+ 
+![프리뷰 메시 문제](./images/sprint5/plank_preview_mesh_error.jpg)
+*서버와 클라이언트 간 프리뷰 시스템 불일치 문제*
+
 
 ### 3.2 구현 코드
 프리뷰 메시의 네트워크 동기화를 위해 다음과 같이 코드를 수정했습니다:
@@ -174,6 +188,10 @@ void AItem_Telescope::OnRep_HeldState()
 
 ### 4.2 중복 지급 문제 해결
 서버에서만 아이템을 지급하도록 수정했습니다:
+
+![망원경 중복 수정](./images/sprint5/telescope_duplicate_fix.jpg)
+*망원경 아이템 중복 지급 문제 해결 (2개 → 1개로 수정)*
+
 
 ```cpp
 void ACitizen::BeginPlay()
