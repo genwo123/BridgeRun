@@ -329,17 +329,18 @@ void UBuildingComponent::CancelBuild()
 
 bool UBuildingComponent::ValidatePlankPlacement(const FVector& Location)
 {
-    // 이미 있는 구조물과의 충돌 체크
     TArray<FOverlapResult> Overlaps;
     FCollisionQueryParams QueryParams;
     QueryParams.AddIgnoredActor(OwnerCitizen);
 
+    // 플랭크 전용 채널을 사용하여 다른 플랭크와의 충돌만 체크
+    FCollisionShape BoxShape = FCollisionShape::MakeBox(FVector(50.0f));
     return !GetWorld()->OverlapMultiByChannel(
         Overlaps,
         Location,
         FQuat::Identity,
-        ECC_GameTraceChannel2,  // Building Channel
-        FCollisionShape::MakeBox(FVector(50.0f)),
+        ECC_GameTraceChannel2, // Plank 전용 채널 사용
+        BoxShape,
         QueryParams
     );
 }

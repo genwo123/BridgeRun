@@ -7,34 +7,37 @@
 UCLASS(Blueprintable)
 class BRIDGERUN_API AItem_Tent : public AItem
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	AItem_Tent();
+    AItem_Tent();
 
-	UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
-	bool bIsBuiltTent;
+    UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
+    bool bIsBuiltTent;
 
-	UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
-	float DamageReduction;
+    UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
+    float DamageReduction;
 
-	UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
-	bool bBlocksVision;
+    UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
+    bool bBlocksVision;
 
-	UPROPERTY(EditAnywhere, Category = "Preview Materials")
-	UMaterialInterface* ValidPlacementMaterial;
+    UPROPERTY(EditAnywhere, Category = "Preview Materials")
+    UMaterialInterface* ValidPlacementMaterial;
 
-	UPROPERTY(EditAnywhere, Category = "Preview Materials")
-	UMaterialInterface* InvalidPlacementMaterial;
+    UPROPERTY(EditAnywhere, Category = "Preview Materials")
+    UMaterialInterface* InvalidPlacementMaterial;
 
-	UFUNCTION(Server, Reliable)
-	void OnPlaced();
+    UFUNCTION(Server, Reliable)
+    void OnPlaced();
 
-	UFUNCTION(Server, Reliable)
-	void OnBulletHit();
+    UFUNCTION(Server, Reliable)
+    void OnBulletHit();
 
-	UMaterialInterface* GetValidPlacementMaterial() const { return ValidPlacementMaterial; }
-	UMaterialInterface* GetInvalidPlacementMaterial() const { return InvalidPlacementMaterial; }
+    UMaterialInterface* GetValidPlacementMaterial() const { return ValidPlacementMaterial; }
+    UMaterialInterface* GetInvalidPlacementMaterial() const { return InvalidPlacementMaterial; }
 
 protected:
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastSetPhysicsState();
 };

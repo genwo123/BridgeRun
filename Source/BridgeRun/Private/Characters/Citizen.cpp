@@ -48,21 +48,36 @@ void ACitizen::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (InventoryWidgetClass)
+    // UI 위젯은 로컬 플레이어에서만 생성
+    if (IsLocallyControlled())
     {
-        InventoryWidget = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
-        if (InventoryWidget)
+        if (InventoryWidgetClass)
         {
-            InventoryWidget->AddToViewport();
+            InventoryWidget = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
+            if (InventoryWidget)
+            {
+                InventoryWidget->AddToViewport();
+            }
         }
     }
 
+    // 플레이어 모드 변경 이벤트 바인딩
+    // 모든 머신에서 필요하므로 권한 체크 없이 실행
     if (PlayerModeComponent)
     {
         PlayerModeComponent->OnPlayerModeChanged.AddDynamic(this, &ACitizen::OnPlayerModeChanged);
     }
 
-    AddItem(EInventorySlot::Telescope);
+    // 초기 아이템 지급은 서버에서만 실행
+    if (HasAuthority())
+    {
+        // 망원경은 플레이어당 1개만 지급
+        FItemData* TelescopeData = InvenComponent ? InvenComponent->GetItemData(EInventorySlot::Telescope) : nullptr;
+        if (TelescopeData && TelescopeData->Count == 0)
+        {
+            AddItem(EInventorySlot::Telescope);
+        }
+    }
 }
 
 void ACitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

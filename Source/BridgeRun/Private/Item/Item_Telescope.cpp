@@ -32,9 +32,7 @@ void AItem_Telescope::OnRep_HeldState()
 
         if (ACharacter* Character = Cast<ACharacter>(GetOwner()))
         {
-            FVector ForwardOffset = Character->GetActorForwardVector() * 100.0f;
-            FVector UpOffset = FVector(0.0f, 0.0f, 50.0f);
-            SetActorRelativeLocation(ForwardOffset + UpOffset);
+            SetActorRelativeLocation(FVector(100.0f, 30.0f, 50.0f));  // 캐릭터 기준 앞쪽, 약간 오른쪽, 위쪽
             SetActorRotation(Character->GetActorRotation());
         }
     }
