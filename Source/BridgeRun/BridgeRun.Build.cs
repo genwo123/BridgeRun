@@ -40,7 +40,8 @@ public class BridgeRun : ModuleRules
                 "HeadMountedDisplay",
                 "UMG",
                 "Slate",
-                "SlateCore"
+                "SlateCore",
+                "NavigationSystem"
             }
         );
 

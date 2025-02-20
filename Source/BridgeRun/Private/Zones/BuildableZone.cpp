@@ -300,27 +300,32 @@ bool ABuildableZone::IsTentPlacementValid(const FVector& StartPoint, const FVect
         return false;
 
     FVector TestPoint = (StartPoint + EndPoint) * 0.5f;
-    bool bValidPlacement = false;
+    const float Tolerance = 1.0f;  // 약간의 허용 오차 추가
 
-    auto CheckRopeSide = [&](USplineComponent* TopRope, USplineComponent* BottomRope) -> bool
+    auto CheckArea = [&](USplineComponent* TopRope, USplineComponent* BottomRope) -> bool
         {
-            const int32 NumSamples = 10;  // 5에서 10으로 증가
+            float SplineLength = BottomRope->GetSplineLength();
+            FVector Bottom = BottomRope->GetLocationAtDistanceAlongSpline(0.0f, ESplineCoordinateSpace::World);
+            FVector Top = TopRope->GetLocationAtDistanceAlongSpline(0.0f, ESplineCoordinateSpace::World);
 
-            for (int32 i = 0; i < NumSamples; i++)
+            // 스플라인을 따라 이동하며 영역 체크
+            for (float Distance = 0.0f; Distance <= SplineLength; Distance += 10.0f)
             {
-                float Alpha = i / (float)(NumSamples - 1);
-                FVector BottomPoint = BottomRope->GetLocationAtSplineInputKey(Alpha, ESplineCoordinateSpace::World);
-                FVector TopPoint = TopRope->GetLocationAtSplineInputKey(Alpha, ESplineCoordinateSpace::World);
+                Bottom = BottomRope->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
+                Top = TopRope->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
 
-                FVector RopeDir = (TopPoint - BottomPoint).GetSafeNormal();
-                FVector PointToBottom = TestPoint - BottomPoint;
-                float Projection = FVector::DotProduct(PointToBottom, RopeDir);
+                FVector VerticalDir = (Top - Bottom).GetSafeNormal();
+                FVector ToPoint = TestPoint - Bottom;
 
-                if (Projection >= 0 && Projection <= FVector::Distance(TopPoint, BottomPoint))
+                float Height = FVector::Distance(Top, Bottom);
+                float ProjectedHeight = FVector::DotProduct(ToPoint, VerticalDir);
+
+                if (ProjectedHeight >= -Tolerance && ProjectedHeight <= Height + Tolerance)
                 {
-                    FVector ProjectedPoint = BottomPoint + RopeDir * Projection;
-                    float Distance = FVector::Distance(TestPoint, ProjectedPoint);
-                    if (Distance <= BridgeWidth * 0.4f)
+                    FVector ProjectedPoint = Bottom + VerticalDir * FMath::Clamp(ProjectedHeight, 0.0f, Height);
+                    float HorizontalDist = FVector::Distance(TestPoint, ProjectedPoint);
+
+                    if (HorizontalDist <= BridgeWidth * 0.5f)
                     {
                         return true;
                     }
@@ -329,11 +334,11 @@ bool ABuildableZone::IsTentPlacementValid(const FVector& StartPoint, const FVect
             return false;
         };
 
-    bValidPlacement = CheckRopeSide(LeftTopRope, LeftBottomRope) ||
-        CheckRopeSide(RightTopRope, RightBottomRope);
-
-    return bValidPlacement;
+    return CheckArea(LeftTopRope, LeftBottomRope) || CheckArea(RightTopRope, RightBottomRope);
 }
+
+
+
 void ABuildableZone::UpdateSplineMeshes()
 {
     if (!RopeMeshAsset) return;

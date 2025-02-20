@@ -24,12 +24,41 @@ public:
     UFUNCTION()
     UCameraComponent* GetFollowCamera() const { return CameraComponent; }
 
-protected:
-    virtual void BeginPlay() override;
-
     // 복제되어야 하는 속성
     UPROPERTY(Replicated)
     class AItem_Trophy* HeldTrophy;
+
+
+    // 사망/리스폰 처리
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastHandleDeath();
+
+
+
+
+    UFUNCTION(Server, Reliable, WithValidation)
+    void ServerRespawn(const FVector& RespawnLocation);
+
+    UFUNCTION()
+    bool ServerRespawn_Validate(const FVector& RespawnLocation);
+
+protected:
+    virtual void BeginPlay() override;
+
+
+
+    UPROPERTY(ReplicatedUsing = OnRep_IsDead)
+    bool bIsDead;
+
+    UFUNCTION()
+    void OnRep_IsDead();
+
+    
+
+    
+
+
+    
 
     // 서버 RPC
     UFUNCTION(Server, Reliable, WithValidation)

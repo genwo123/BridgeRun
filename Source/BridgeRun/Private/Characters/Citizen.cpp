@@ -13,6 +13,7 @@
 #include "Item/Item_Trophy.h"
 #include "Modes/CombatComponent.h"
 #include "Item/Item_Plank.h"
+#include "GameFramework/PlayerStart.h"
 #include "Item/Item_Tent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Net/UnrealNetwork.h"
@@ -84,13 +85,135 @@ void ACitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetime
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    DOREPLIFETIME(ACitizen, HeldTrophy);
+    DOREPLIFETIME(ACitizen, bIsDead);  // 기존 HeldTrophy 복제 아래에 추가
 }
 
 void ACitizen::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 }
+
+
+void ACitizen::OnRep_IsDead()
+{
+    // 죽었을 때
+    if (bIsDead)
+    {
+        if (GetCharacterMovement())
+        {
+            GetCharacterMovement()->DisableMovement();
+        }
+        // 들고 있는 트로피 드롭
+        if (HeldTrophy)
+        {
+            HeldTrophy->Drop();
+            HeldTrophy = nullptr;
+        }
+    }
+    // 리스폰됐을 때
+    else
+    {
+        if (GetCharacterMovement())
+        {
+            GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+        }
+    }
+}
+
+void ACitizen::MulticastHandleDeath_Implementation()
+{
+    bIsDead = true;
+
+    // 움직임 정지
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+        GetCharacterMovement()->DisableMovement(); 
+    }
+
+    // 입력 비활성화 추가
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        DisableInput(PC);
+    }
+}
+
+void ACitizen::ServerRespawn_Implementation(const FVector& RespawnLocation)
+{
+    if (!HasAuthority()) return;
+
+    // 위치 리셋
+    SetActorLocation(RespawnLocation);
+    bIsDead = false;
+
+    // 이동 컴포넌트 초기화
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->StopMovementImmediately();
+        GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+        GetCharacterMovement()->GravityScale = 1.0f;
+    }
+
+    // 모드 초기화
+    if (PlayerModeComponent)
+    {
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+    }
+
+    // 컴포넌트 초기화
+    if (BuildingComponent)
+    {
+        BuildingComponent->DeactivateBuildMode();
+    }
+
+    if (CombatComponent)
+    {
+        // 장착된 무기/장비 제거
+        if (CombatComponent->EquippedGun)
+        {
+            CombatComponent->OnGunUnequipped();
+        }
+        if (CombatComponent->EquippedTelescope)
+        {
+            CombatComponent->OnTelescopeUnequipped();
+        }
+    }
+
+    // 인벤토리 초기화
+    if (InvenComponent)
+    {
+        // 모든 아이템 제거
+        InvenComponent->UpdateItemCount(EInventorySlot::Plank, 0);
+        InvenComponent->UpdateItemCount(EInventorySlot::Tent, 0);
+        InvenComponent->UpdateItemCount(EInventorySlot::Gun, 0);
+
+        // 망원경 지급
+        FItemData* TelescopeData = InvenComponent->GetItemData(EInventorySlot::Telescope);
+        if (TelescopeData && TelescopeData->Count == 0)
+        {
+            AddItem(EInventorySlot::Telescope);
+        }
+    }
+
+    // 들고 있던 트로피 드롭
+    if (HeldTrophy)
+    {
+        HeldTrophy->Drop();
+        HeldTrophy = nullptr;
+    }
+
+    // 입력 재활성화
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        EnableInput(PC);
+    }
+}
+
+bool ACitizen::ServerRespawn_Validate(const FVector& RespawnLocation)
+{
+    return true;
+}
+
 
 void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
 {

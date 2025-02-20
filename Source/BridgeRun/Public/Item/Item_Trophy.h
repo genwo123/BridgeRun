@@ -21,6 +21,13 @@ public:
     virtual void MulticastOnPickedUp_Implementation(class ACharacter* Player) override;
 
 
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastHandleRespawn(const FVector& NewLocation);
+
+    UFUNCTION(Server, Reliable)
+    void ServerTryRespawn(const FVector& RespawnLocation);
+
+
 
 protected:
     virtual void BeginPlay() override;

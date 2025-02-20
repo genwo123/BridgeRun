@@ -1,6 +1,7 @@
 // Private/Item/Item_Gun.cpp
 #include "Item/Item_Gun.h"
 #include "Characters/Citizen.h"
+#include "Item/Item_Tent.h"
 #include "GameFramework/Character.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -127,7 +128,7 @@ void AItem_Gun::Fire_Implementation()
         FVector Start = GetActorLocation();
         FVector Forward = Player->GetActorForwardVector();
         FVector End = Start + (Forward * 5000.0f);
-
+        
         FHitResult HitResult;
         FCollisionQueryParams QueryParams;
         QueryParams.AddIgnoredActor(this);
@@ -137,16 +138,17 @@ void AItem_Gun::Fire_Implementation()
         {
             DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 2.0f);
 
-            if (AActor* HitActor = HitResult.GetActor())
+            // 텐트 히트 체크 추가
+            if (AItem_Tent* HitTent = Cast<AItem_Tent>(HitResult.GetActor()))
             {
-                // 히트 처리 로직 추가 가능
+                // 텐트에 데미지 전달
+                HitTent->OnBulletHit();
             }
         }
 
         CurrentAmmo--;
     }
 }
-
 void AItem_Gun::ToggleAim_Implementation()
 {
     if (!HasAuthority()) return;

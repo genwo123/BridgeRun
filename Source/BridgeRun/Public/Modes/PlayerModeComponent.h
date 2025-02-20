@@ -31,6 +31,8 @@ protected:
 	UFUNCTION()
 	void OnRep_CurrentMode(EPlayerMode OldMode);
 
+	bool IsValidModeTransition(EPlayerMode FromMode, EPlayerMode ToMode) const;
+
 private:
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentMode)
 	EPlayerMode CurrentMode;

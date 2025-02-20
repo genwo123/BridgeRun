@@ -18,15 +18,23 @@ AItem_Trophy::AItem_Trophy()
     PickupOffset = FVector(100.0f, 0.0f, 50.0f);
     PickupRotation = FRotator(0.0f, 0.0f, 0.0f);
 
+    // 네트워크 업데이트 빈도 증가
+    NetUpdateFrequency = 60.0f;
+    MinNetUpdateFrequency = 30.0f;
+
     // 메시 컴포넌트 설정
     if (MeshComponent)
     {
+        MeshComponent->SetIsReplicated(true);
+        MeshComponent->SetSimulatePhysics(true);
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
         MeshComponent->SetCollisionObjectType(ECollisionChannel::ECC_PhysicsBody);
         MeshComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
         MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-        MeshComponent->SetSimulatePhysics(true);
         MeshComponent->SetVisibility(true);
+
+        // 물리 시뮬레이션 권한 설정
+        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
     }
 
     // 콜리전 컴포넌트 설정
@@ -39,6 +47,9 @@ AItem_Trophy::AItem_Trophy()
         CollisionComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
         CollisionComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Overlap);
     }
+
+    // 움직임 복제 설정
+    SetReplicateMovement(true);
 }
 
 void AItem_Trophy::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -192,6 +203,59 @@ void AItem_Trophy::AttachTrophyToPlayer(ACharacter* Player)
     MeshComponent->SetRelativeRotation(PickupRotation);
 }
 
+
+void AItem_Trophy::ServerTryRespawn_Implementation(const FVector& RespawnLocation)
+{
+    if (!HasAuthority() || !MeshComponent) return;
+
+    // 초기화
+    if (MeshComponent)
+    {
+        MeshComponent->SetSimulatePhysics(false);
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    // 위치 설정
+    SetActorLocation(RespawnLocation + FVector(0, 0, 500.0f));
+
+    // 물리/충돌 재설정
+    FTimerHandle StateTimer;
+    GetWorld()->GetTimerManager().SetTimer(StateTimer, [this]()
+        {
+            if (!IsValid(this)) return;
+
+            // 순서대로 상태 설정
+            MeshComponent->SetCollisionProfileName(TEXT("PhysicsActor"));  // 물리 프로필 명시적 설정
+            MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+            MeshComponent->SetSimulatePhysics(true);
+
+            UpdateTrophyState();
+            ForceNetUpdate();
+
+            // 디버그 표시 추가
+            GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow,
+                FString::Printf(TEXT("Trophy Physics State: %d"), MeshComponent->IsSimulatingPhysics()));
+
+        }, 0.1f, false);
+}
+
+
+void AItem_Trophy::MulticastHandleRespawn_Implementation(const FVector& NewLocation)
+{
+    if (!MeshComponent) return;
+
+    // 기존 상태 초기화
+    bIsPickedUp = false;
+    OwningPlayer = nullptr;
+    bIsTrophyActive = true;
+
+    // 위치 설정 (높이 추가)
+    SetActorLocation(NewLocation + FVector(0, 0, 200.0f));
+
+    // 업데이트
+    UpdateTrophyState();  // 이 함수는 충돌과 물리를 모두 처리함
+}
+
 void AItem_Trophy::DetachTrophyFromPlayer()
 {
     if (!MeshComponent) return;
@@ -210,3 +274,4 @@ FTransform AItem_Trophy::GetPickupTransform_Implementation(ACharacter* Player) c
 {
     return FTransform(FRotator::ZeroRotator, FVector(100.0f, 0.0f, 50.0f));
 }
+

@@ -26,6 +26,15 @@ void UPlayerModeComponent::SetPlayerMode_Implementation(EPlayerMode NewMode)
 
     if (CurrentMode != NewMode)
     {
+        // 모드 전환 유효성 체크 추가
+        if (!IsValidModeTransition(CurrentMode, NewMode))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Invalid mode transition from %s to %s"),
+                *UEnum::GetValueAsString(CurrentMode),
+                *UEnum::GetValueAsString(NewMode));
+            return;
+        }
+
         EPlayerMode OldMode = CurrentMode;
         CurrentMode = NewMode;
         OnRep_CurrentMode(OldMode);
@@ -35,4 +44,22 @@ void UPlayerModeComponent::SetPlayerMode_Implementation(EPlayerMode NewMode)
 void UPlayerModeComponent::OnRep_CurrentMode(EPlayerMode OldMode)
 {
     OnPlayerModeChanged.Broadcast(CurrentMode, OldMode);
+}
+
+
+bool UPlayerModeComponent::IsValidModeTransition(EPlayerMode FromMode, EPlayerMode ToMode) const
+{
+    // Combat 모드에서 Build 모드로의 직접 전환 방지
+    if (FromMode == EPlayerMode::Combat && ToMode == EPlayerMode::Build)
+    {
+        return false;
+    }
+
+    // Combat 모드에서는 Normal 모드로만 전환 가능
+    if (FromMode == EPlayerMode::Combat && ToMode != EPlayerMode::Normal)
+    {
+        return false;
+    }
+
+    return true;
 }
