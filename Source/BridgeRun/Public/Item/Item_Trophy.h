@@ -27,6 +27,8 @@ public:
     UFUNCTION(Server, Reliable)
     void ServerTryRespawn(const FVector& RespawnLocation);
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Trophy")
+    int32 TrophyValue = 5;  // 기본값 5점
 
 
 protected:

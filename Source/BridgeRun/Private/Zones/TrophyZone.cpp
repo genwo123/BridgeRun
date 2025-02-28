@@ -188,9 +188,9 @@ void ATrophyZone::OnScoreTimerComplete()
     if (!HasAuthority() || !IsValid(PlacedTrophy))
         return;
 
-    UE_LOG(LogTemp, Warning, TEXT("OnScoreTimerComplete Called"));
-
-    ServerUpdateScore(CurrentScore + ScoreAmount);
+    // 고정된 ScoreAmount 대신 트로피의 값 사용
+    int32 ScoreToAdd = PlacedTrophy->TrophyValue;
+    ServerUpdateScore(CurrentScore + ScoreToAdd);
 
     if (UWorld* World = GetWorld())
     {
@@ -200,7 +200,6 @@ void ATrophyZone::OnScoreTimerComplete()
     PlacedTrophy->Destroy();
     PlacedTrophy = nullptr;
 
-    UE_LOG(LogTemp, Warning, TEXT("Score timer complete. Trophy destroyed"));
 }
 
 void ATrophyZone::ServerUpdateScore_Implementation(int32 NewScore)
@@ -243,7 +242,7 @@ void ATrophyZone::UpdateScoreText()
 {
     if (ScoreText)
     {
-        FString ScoreString = FString::Printf(TEXT("Score: %d"), CurrentScore);
+        FString ScoreString = FString::Printf(TEXT("%d"), CurrentScore);
         ScoreText->SetText(FText::FromString(ScoreString));
     }
 }

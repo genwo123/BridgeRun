@@ -1,10 +1,12 @@
 // Copyright BridgeRun Game, Inc. All Rights Reserved.
 
 #pragma once
-
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Item/Item_Trophy.h"
+#include "Engine/World.h"
+#include "Components/BoxComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "TrophyZone.generated.h"
 
 UCLASS()
@@ -15,10 +17,18 @@ class BRIDGERUN_API ATrophyZone : public AActor
 public:
     ATrophyZone();
 
+
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Gameplay")
+    int32 GetCurrentScore() const { return CurrentScore; }
+
+    UPROPERTY(BlueprintReadWrite, ReplicatedUsing = OnRep_CurrentScore, Category = "Gameplay")
+    int32 CurrentScore;
+
 protected:
     virtual void BeginPlay() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+    
     // Components
     UPROPERTY(VisibleAnywhere, Category = "Components")
     class UBoxComponent* TriggerBox;
@@ -36,8 +46,6 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Gameplay")
     float ScoreTime;
 
-    UPROPERTY(EditAnywhere, Category = "Gameplay")
-    int32 ScoreAmount = 100;
 
     UPROPERTY(ReplicatedUsing = OnRep_RemainingTime)  // Replicated만 되어있던 걸 수정
         float RemainingTime;
@@ -46,8 +54,7 @@ protected:
     UFUNCTION()
     void OnRep_RemainingTime();
 
-    UPROPERTY(ReplicatedUsing = OnRep_CurrentScore)
-    int32 CurrentScore;
+ 
 
     // Timers
     FTimerHandle ScoreTimerHandle;
@@ -90,6 +97,6 @@ protected:
     UFUNCTION(Server, Reliable)
     void ServerHandleTrophyPlacement(AItem_Trophy* Trophy);
 
-    UFUNCTION(NetMulticast, Reliable)
+    UFUNCTION(NetMulticast, Reliable, BlueprintCallable)
     void MulticastOnScoreUpdated(int32 NewScore);
 };
