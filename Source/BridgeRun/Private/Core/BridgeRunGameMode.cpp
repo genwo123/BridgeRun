@@ -2,6 +2,7 @@
 #include "Core/BridgeRunGameMode.h"
 #include "Characters/Citizen.h"
 #include "GameFramework/PlayerStart.h"
+#include "Core/BridgeRunGameInstance.h"
 #include "GameFramework/PlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
@@ -163,16 +164,19 @@ void ABridgeRunGameMode::EndGame()
     GetWorld()->GetTimerManager().ClearTimer(RoundTimerHandle);
     GetWorld()->GetTimerManager().ClearTimer(JobSystemTimerHandle);
 
-    // 승자 결정
-    int32 WinningTeam = -1;
-    int32 HighestScore = -1;
-
-    for (const FTeamInfo& Team : TeamInfo)
+    // 게임 인스턴스에서 승자 팀 가져오기
+    if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
     {
-        if (Team.Score > HighestScore)
+        int32 WinningTeam = GameInst->GetWinningTeam();
+
+        // 여기에 승자 처리 로직 추가
+        if (WinningTeam >= 0)
         {
-            HighestScore = Team.Score;
-            WinningTeam = Team.TeamID;
+            UE_LOG(LogTemp, Log, TEXT("Game Over! Winning Team: %d"), WinningTeam);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Log, TEXT("Game Over! No winner determined."));
         }
     }
 }
@@ -250,31 +254,6 @@ int32 ABridgeRunGameMode::GetOptimalTeamForTeam() const
     return OptimalTeam;
 }
 
-void ABridgeRunGameMode::AddTeamScore(int32 TeamID, int32 Score)
-{
-    if (CurrentGameState != EGameState::InProgress) return;
-
-    for (FTeamInfo& Team : TeamInfo)
-    {
-        if (Team.TeamID == TeamID)
-        {
-            Team.Score += Score;
-            break;
-        }
-    }
-}
-
-int32 ABridgeRunGameMode::GetTeamScore(int32 TeamID) const
-{
-    for (const FTeamInfo& Team : TeamInfo)
-    {
-        if (Team.TeamID == TeamID)
-        {
-            return Team.Score;
-        }
-    }
-    return 0;
-}
 
 bool ABridgeRunGameMode::CanStartGame() const
 {

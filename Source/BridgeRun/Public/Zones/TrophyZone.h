@@ -17,6 +17,9 @@ class BRIDGERUN_API ATrophyZone : public AActor
 public:
     ATrophyZone();
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
+    int32 TeamID = 0;  // 기본값은 0 (첫 번째 팀)
+
 
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Gameplay")
     int32 GetCurrentScore() const { return CurrentScore; }

@@ -1,4 +1,4 @@
-// Public/Core/BridgeRunGameMode.h
+// Copyright BridgeRun Game, Inc. All Rights Reserved.
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
@@ -21,15 +21,13 @@ struct BRIDGERUN_API FTeamInfo
     UPROPERTY()
     int32 TeamID;
 
-    UPROPERTY()
-    int32 Score;
+    // Score 멤버 변수 제거
 
     UPROPERTY()
     int32 PlayerCount;
 
     FTeamInfo()
         : TeamID(0)
-        , Score(0)
         , PlayerCount(0)
     {}
 };
@@ -38,10 +36,8 @@ UCLASS(minimalapi)
 class ABridgeRunGameMode : public AGameModeBase
 {
     GENERATED_BODY()
-
 public:
     ABridgeRunGameMode();
-
     virtual void BeginPlay() override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
@@ -60,12 +56,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Game")
     void EndCurrentRound();
 
-    // 점수 관리
-    UFUNCTION(BlueprintCallable, Category = "Score")
-    void AddTeamScore(int32 TeamID, int32 Score);
-
-    UFUNCTION(BlueprintPure, Category = "Score")
-    int32 GetTeamScore(int32 TeamID) const;
+    // 점수 관리 함수 제거
 
 protected:
     // 게임 설정

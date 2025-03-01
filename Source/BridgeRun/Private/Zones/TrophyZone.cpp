@@ -6,6 +6,7 @@
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
+#include "Core/BridgeRunGameInstance.h"
 #include "Net/UnrealNetwork.h"
 
 ATrophyZone::ATrophyZone()
@@ -215,6 +216,19 @@ void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
 {
     CurrentScore = NewScore;
     UpdateScoreText();
+
+    // 게임 인스턴스를 통해 점수 업데이트
+    if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
+    {
+        // 해당 팀의 점수 업데이트
+        GameInst->UpdateTeamScore(TeamID, NewScore);
+
+        // 또는 점수 추가 방식 사용
+        // GameInst->AddTeamScore(TeamID, ScoreToAdd);
+
+        // 로그 출력
+        GameInst->LogTeamScores();
+    }
 }
 
 void ATrophyZone::OnRep_PlacedTrophy()
