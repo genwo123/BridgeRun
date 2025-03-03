@@ -66,7 +66,7 @@ void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
 - 팀 수에 따른 동적 UI 활성화/비활성화
 - 주기적 Tick 대신 이벤트 기반 점수 업데이트 기능 구현
 
-![팀 스코어 UI 구현](./images/sprint7/Team_Score_UI_Implementation.png)
+![팀 스코어 UI 구현](./images/sprint7/Team_Score_UI_Implementation.jpg)
 
 ## 2. 성공 및 개선 사항
 
