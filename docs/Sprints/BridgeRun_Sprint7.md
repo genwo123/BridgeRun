@@ -92,14 +92,23 @@ void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
 
 ### 3.1 이벤트 기반 UI 업데이트 구현
 
-**문제 상황**: 초기에는 Tick 이벤트를 사용하여 UI를 업데이트했으나, 이는 불필요한 성능 소모의 원인이 되었습니다.
+**문제 상황**: 초기에는 Tick 이벤트를 사용하여 UI를 업데이트했으나, 이는 불필요한 성능 소모의 원인이 되었습니다. UI 업데이트를 최적화하기 위해 이벤트 기반 시스템으로 전환하고자 했습니다.
 
-**접근 방법**:
-- 초기 접근: Tick 이벤트에서 주기적으로 모든 팀 점수 확인 → 비효율적
-- 중간 접근: 타이머를 사용한 주기적 확인 → 부분적 개선
-- 최종 접근: 이벤트 기반 업데이트 시스템 → 해결
+**시도한 접근법**:
+- 초기 접근: Tick 이벤트에서 주기적으로 모든 팀 점수 확인 → 불필요한 연산으로 비효율적
+- 중간 접근: 타이머를 사용한 주기적 확인 → 일부 개선되었으나 여전히 주기적 호출 필요
+- 최종 접근: 이벤트 디스패처 기반 업데이트 시스템 구현 시도
+
+**이벤트 디스패처 구현 과정의 난관**:
+C++ 코드에 이벤트 디스패처를 추가하려 했으나, 컴파일 오류가 발생했습니다. 특히 DECLARE_DYNAMIC_MULTICAST_DELEGATE 매크로 사용 시 예상치 못한 컴파일러 문제가 발생했습니다.
+
+![이벤트 디스패처 빌드 오류](./images/sprint7/Delegate_Build_Error.JPG)
+
+이러한 컴파일 오류로 인해 디스패처 대신 대안적 접근법을 모색해야 했습니다.
 
 **최종 해결책**:
+디스패처 대신 BlueprintImplementableEvent를 활용한 이벤트 시스템을 구현했습니다:
+
 1. TrophyZone 클래스에 BlueprintImplementableEvent 추가:
 ```cpp
 UFUNCTION(BlueprintImplementableEvent, Category = "Gameplay")
@@ -117,11 +126,14 @@ BP_ScoreUpdated(TeamID, NewScore);
 BP_ScoreUpdated → Get All Widgets Of Class → ForEach → Update Team Score
 ```
 
-**학습 포인트**:
-- 이벤트 기반 프로그래밍의 효율성
-- 블루프린트와 C++ 통합 개발 기법
-- 성능 최적화 접근 방법
+이 방식을 통해 점수가 실제로 변경될 때만 UI가 업데이트되도록 구현할 수 있었습니다.
 
+**학습 포인트**:
+- 이벤트 기반 프로그래밍의 효율성과 성능 이점
+- 블루프린트와 C++ 통합 개발 기법의 실전 적용
+- 문제 발생 시 대안적 접근법을 모색하는 유연한 사고방식
+
+  
 ### 3.2 위젯 참조 관리 문제
 
 **문제 상황**: 트로피존에서 UI 위젯을 찾아 점수를 업데이트하는 과정에서 종종 "None에 접근" 오류가 발생했습니다.
