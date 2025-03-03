@@ -27,6 +27,14 @@ public:
     UPROPERTY(BlueprintReadWrite, ReplicatedUsing = OnRep_CurrentScore, Category = "Gameplay")
     int32 CurrentScore;
 
+    UFUNCTION(BlueprintCallable, Category = "Gameplay")
+    void OnScoreTimerComplete();
+
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Gameplay")
+    void BP_ScoreUpdated(int32 InTeamID, int32 InNewScore);
+
+
 protected:
     virtual void BeginPlay() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -90,8 +98,6 @@ protected:
     UFUNCTION()
     void UpdateTimer();
 
-    UFUNCTION()
-    void OnScoreTimerComplete();
 
     // Server Functions
     UFUNCTION(Server, Reliable)

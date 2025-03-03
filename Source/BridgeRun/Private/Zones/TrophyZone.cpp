@@ -104,23 +104,26 @@ void ATrophyZone::ServerHandleTrophyPlacement_Implementation(AItem_Trophy* Troph
 
     if (UWorld* World = GetWorld())
     {
+        // 타이머 설정 확인
         World->GetTimerManager().SetTimer(
             ScoreTimerHandle,
             this,
             &ATrophyZone::OnScoreTimerComplete,
-            ScoreTime,
-            false
+            ScoreTime,  // 여기가 총 지속 시간
+            false       // 반복 없음
         );
 
+        // 타이머 업데이트 설정 확인
         World->GetTimerManager().SetTimer(
             UpdateTimerHandle,
             this,
             &ATrophyZone::UpdateTimer,
-            0.1f,
-            true
+            0.1f,       // 0.1초마다 업데이트
+            true        // 반복
         );
     }
 
+    // 디버그 로그 추가
     UE_LOG(LogTemp, Warning, TEXT("Timers started. Score time: %.1f"), ScoreTime);
 }
 
@@ -159,6 +162,20 @@ void ATrophyZone::UpdateTimer()
     {
         RemainingTime = World->GetTimerManager().GetTimerRemaining(ScoreTimerHandle);
 
+        // 타이머가 거의 종료되었는지 확인
+        bool bIsTimerActive = World->GetTimerManager().IsTimerActive(ScoreTimerHandle);
+        float ElapsedTime = World->GetTimerManager().GetTimerElapsed(ScoreTimerHandle);
+
+        UE_LOG(LogTemp, Log, TEXT("Timer: Remaining=%.2f, Elapsed=%.2f, Active=%d"),
+            RemainingTime, ElapsedTime, bIsTimerActive ? 1 : 0);
+
+        // 타이머가 0.2초 미만이고 아직 활성화되어 있으면 강제 종료 고려
+        if (RemainingTime < 0.2f && bIsTimerActive)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Timer almost complete, considering force complete"));
+            // 필요시 여기서 OnScoreTimerComplete 직접 호출 가능
+        }
+
         // 타이머 텍스트 업데이트
         if (IsValid(TimerText))
         {
@@ -184,6 +201,8 @@ void ATrophyZone::OnRep_RemainingTime()
 
 
 
+
+
 void ATrophyZone::OnScoreTimerComplete()
 {
     if (!HasAuthority() || !IsValid(PlacedTrophy))
@@ -202,6 +221,7 @@ void ATrophyZone::OnScoreTimerComplete()
     PlacedTrophy = nullptr;
 
 }
+
 
 void ATrophyZone::ServerUpdateScore_Implementation(int32 NewScore)
 {
@@ -229,6 +249,8 @@ void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
         // 로그 출력
         GameInst->LogTeamScores();
     }
+
+    BP_ScoreUpdated(TeamID, NewScore);
 }
 
 void ATrophyZone::OnRep_PlacedTrophy()
