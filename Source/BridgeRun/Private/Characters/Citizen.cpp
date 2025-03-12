@@ -17,6 +17,8 @@
 #include "Item/Item_Tent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Net/UnrealNetwork.h"
+#include "Core/BridgeRunGameState.h"
+#include "Core/BridgeRunPlayerState.h"
 
 ACitizen::ACitizen()
 {
@@ -48,6 +50,23 @@ ACitizen::ACitizen()
 void ACitizen::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (HasAuthority())
+    {
+        // 기본 팀 머티리얼 설정 로직
+        if (GetController() && GetController()->PlayerState)
+        {
+            ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetController()->PlayerState);
+            if (BridgeRunPS)
+            {
+                int32 CurrentTeamID = BridgeRunPS->GetTeamID();
+                if (CurrentTeamID >= 0)
+                {
+                    SetTeamMaterial(CurrentTeamID);
+                }
+            }
+        }
+    }
 
     // UI 위젯은 로컬 플레이어에서만 생성
     if (IsLocallyControlled())
@@ -84,14 +103,18 @@ void ACitizen::BeginPlay()
 void ACitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
+    DOREPLIFETIME(ACitizen, TeamID);
+    DOREPLIFETIME(ACitizen, HeldTrophy);
     DOREPLIFETIME(ACitizen, bIsDead);  // 기존 HeldTrophy 복제 아래에 추가
 }
+
 
 void ACitizen::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
 }
+
 
 
 void ACitizen::OnRep_IsDead()
@@ -234,7 +257,7 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
             }
             else if (IsLocallyControlled())  // 로컬 클라이언트인 경우에만
             {
-                BuildingComponent->OnBuildModeEntered();  // _Implementation 제거
+                BuildingComponent->OnBuildModeEntered(); 
             }
         }
         break;
@@ -341,7 +364,7 @@ void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
             OnPlayerModeChanged(EPlayerMode::Build, PlayerModeComponent->GetCurrentMode());
             if (BuildingComponent)
             {
-                BuildingComponent->OnBuildModeEntered();  // _Implementation 제거
+                BuildingComponent->OnBuildModeEntered(); 
             }
         }
         break;
@@ -381,6 +404,8 @@ void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
         break;
     }
 }
+
+
 void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -602,7 +627,6 @@ void ACitizen::ServerInteract_Implementation()
                 {
                     AddItem(EInventorySlot::Gun, 1);
                     Gun->Destroy();
-                    UE_LOG(LogTemp, Warning, TEXT("Picked up gun with ammo: %d"), Gun->GetCurrentAmmo());
                     GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
                         FString::Printf(TEXT("Picked up gun with %d ammo"), Gun->GetCurrentAmmo()));
                 }
@@ -618,5 +642,101 @@ void ACitizen::ServerInteract_Implementation()
                 GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Picked up Item"));
             }
         }
+    }
+}
+
+
+
+// OnRep_TeamID 구현
+void ACitizen::OnRep_TeamID()
+{
+    // 머티리얼 적용
+    SetTeamMaterial(TeamID);
+}
+
+void ACitizen::OnRep_PlayerState()
+{
+    Super::OnRep_PlayerState();
+
+    UE_LOG(LogTemp, Warning, TEXT("OnRep_PlayerState called"));
+
+    // PlayerState에서 TeamID 가져와서 적용
+    if (GetPlayerState())
+    {
+        ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetPlayerState());
+        if (BridgeRunPS)
+        {
+            int32 CurrentTeamID = BridgeRunPS->GetTeamID();
+            UE_LOG(LogTemp, Warning, TEXT("OnRep_PlayerState: TeamID from PlayerState: %d"), CurrentTeamID);
+
+            if (CurrentTeamID >= 0)
+            {
+                TeamID = CurrentTeamID;
+                UE_LOG(LogTemp, Warning, TEXT("Setting team material to %d"), CurrentTeamID);
+                SetTeamMaterial(CurrentTeamID);
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to cast to BridgeRunPlayerState"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetPlayerState returned nullptr"));
+    }
+}
+// MulticastSetTeamMaterial 구현
+void ACitizen::MulticastSetTeamMaterial_Implementation(int32 InTeamID)
+{
+    SetTeamMaterial(InTeamID);
+}
+
+void ACitizen::SetTeamMaterial(int32 InTeamID)
+{
+    USkeletalMeshComponent* MeshComponent = GetMesh();
+    if (!MeshComponent) return;
+
+    // 머티리얼 선택
+    UMaterialInterface* TeamMaterial = nullptr;
+    switch (InTeamID)
+    {
+    case 0: TeamMaterial = M_Team_Red; break;
+    case 1: TeamMaterial = M_Team_Blue; break;
+    case 2: TeamMaterial = M_Team_Yellow; break;
+    case 3: TeamMaterial = M_Team_Green; break;
+    default: break;
+    }
+
+    if (!TeamMaterial)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Team material for TeamID %d is null"), InTeamID);
+        return;
+    }
+
+    // 기존 머티리얼 인스턴스 참조 저장
+    TArray<UMaterialInstanceDynamic*> PreviousDynamicInstances;
+
+    // 머티리얼 인스턴스 직접 생성 및 적용
+    UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(TeamMaterial, this);
+    if (DynamicMaterial)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Created dynamic material instance from %s"), *TeamMaterial->GetName());
+
+        // 슬롯 0에 적용
+        MeshComponent->SetMaterial(0, DynamicMaterial);
+        UE_LOG(LogTemp, Warning, TEXT("Applied to slot 0"));
+
+        // 슬롯 1에도 적용
+        if (MeshComponent->GetNumMaterials() > 1)
+        {
+            UMaterialInstanceDynamic* DynamicMaterial2 = UMaterialInstanceDynamic::Create(TeamMaterial, this);
+            MeshComponent->SetMaterial(1, DynamicMaterial2);
+            UE_LOG(LogTemp, Warning, TEXT("Applied to slot 1"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to create dynamic material instance"));
     }
 }

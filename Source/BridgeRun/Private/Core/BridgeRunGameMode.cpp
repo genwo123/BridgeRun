@@ -1,4 +1,4 @@
-// Private/Core/BridgeRunGameMode.cpp
+// Copyright BridgeRun Game, Inc. All Rights Reserved.
 #include "Core/BridgeRunGameMode.h"
 #include "Characters/Citizen.h"
 #include "GameFramework/PlayerStart.h"
@@ -7,22 +7,28 @@
 #include "Net/UnrealNetwork.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Core/TeamManagerComponent.h"
+#include "Core/BridgeRunPlayerState.h"
 
 ABridgeRunGameMode::ABridgeRunGameMode()
 {
     // 네트워크 활성화
     bReplicates = true;
 
-    // 기본 클래스 설정
-    static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPersonCPP/Blueprints/ThirdPersonCharacter"));
+    // 기본 캐릭터 클래스 설정 (BP_Citizen으로 변경)
+    static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/BP/BP_Citizen"));
     if (PlayerPawnBPClass.Class != NULL)
     {
         DefaultPawnClass = PlayerPawnBPClass.Class;
     }
 
+    // 커스텀 PlayerState 클래스 설정
+    PlayerStateClass = ABridgeRunPlayerState::StaticClass();
+
     // 초기 설정
     CurrentGameState = EGameState::WaitingToStart;
     CurrentRound = 0;
+    RoundTimeRemaining = 0.0f;
     bJobSystemActive = false;
 
     // 기본 스폰 위치 설정
@@ -31,13 +37,8 @@ ABridgeRunGameMode::ABridgeRunGameMode()
     PlayerStartLocations.Add(FVector(200.0f, 0.0f, 100.0f));
     PlayerStartLocations.Add(FVector(-200.0f, 0.0f, 100.0f));
 
-    // 팀 초기화
-    for (int32 i = 0; i < MaxTeams; i++)
-    {
-        FTeamInfo NewTeam;
-        NewTeam.TeamID = i;
-        TeamInfo.Add(NewTeam);
-    }
+    // 팀 관리 컴포넌트 생성
+    TeamManagerComponent = CreateDefaultSubobject<UTeamManagerComponent>(TEXT("TeamManager"));
 }
 
 void ABridgeRunGameMode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -48,7 +49,6 @@ void ABridgeRunGameMode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
     DOREPLIFETIME(ABridgeRunGameMode, CurrentRound);
     DOREPLIFETIME(ABridgeRunGameMode, RoundTimeRemaining);
     DOREPLIFETIME(ABridgeRunGameMode, bJobSystemActive);
-    DOREPLIFETIME(ABridgeRunGameMode, TeamInfo);
 }
 
 void ABridgeRunGameMode::BeginPlay()
@@ -66,10 +66,10 @@ void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
 
-    if (NewPlayer)
+    if (NewPlayer && TeamManagerComponent)
     {
-        // 팀 배정
-        AssignPlayerToTeam(NewPlayer);
+        // 팀 배정 (TeamManagerComponent 위임)
+        TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
 
         // 게임 시작 조건 체크
         if (CanStartGame() && CurrentGameState == EGameState::WaitingToStart)
@@ -81,17 +81,7 @@ void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
 
 void ABridgeRunGameMode::Logout(AController* Exiting)
 {
-    if (APlayerState* PS = Exiting->PlayerState)
-    {
-        for (FTeamInfo& Team : TeamInfo)
-        {
-            if (Team.PlayerCount > 0)
-            {
-                Team.PlayerCount--;
-            }
-        }
-    }
-
+    // 팀 관리는 TeamManagerComponent에 위임하므로 별도 처리 없음
     Super::Logout(Exiting);
 }
 
@@ -198,67 +188,18 @@ void ABridgeRunGameMode::HandleJobSystemActivation()
     bJobSystemActive = true;
 }
 
-void ABridgeRunGameMode::AssignPlayerToTeam(APlayerController* NewPlayer)
-{
-    if (!NewPlayer) return;
-
-    int32 TeamID = GetOptimalTeamForTeam();
-
-    // 팀 정보 업데이트
-    for (FTeamInfo& Team : TeamInfo)
-    {
-        if (Team.TeamID == TeamID)
-        {
-            Team.PlayerCount++;
-            break;
-        }
-    }
-
-    // 플레이어 스폰 처리
-    AActor* StartSpot = FindPlayerStart(NewPlayer, FString::FromInt(TeamID));
-    if (StartSpot)
-    {
-        if (NewPlayer->GetPawn())
-        {
-            NewPlayer->GetPawn()->Destroy();
-        }
-
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-        if (APawn* NewPawn = GetWorld()->SpawnActor<APawn>(
-            DefaultPawnClass,
-            StartSpot->GetActorLocation(),
-            StartSpot->GetActorRotation(),
-            SpawnParams))
-        {
-            NewPlayer->Possess(NewPawn);
-        }
-    }
-}
-
-int32 ABridgeRunGameMode::GetOptimalTeamForTeam() const
-{
-    int32 OptimalTeam = 0;
-    int32 MinPlayers = MAX_int32;
-
-    for (const FTeamInfo& Team : TeamInfo)
-    {
-        if (Team.PlayerCount < MinPlayers)
-        {
-            MinPlayers = Team.PlayerCount;
-            OptimalTeam = Team.TeamID;
-        }
-    }
-
-    return OptimalTeam;
-}
-
-
 bool ABridgeRunGameMode::CanStartGame() const
 {
+    if (!TeamManagerComponent)
+        return false;
+
     int32 TotalPlayers = 0;
-    for (const FTeamInfo& Team : TeamInfo)
+
+    // 팀 매니저에서 활성화된 팀 정보 가져오기
+    TArray<FTeamInfo> ActiveTeams = TeamManagerComponent->GetActiveTeams();
+
+    // 모든 팀의 플레이어 수 합산
+    for (const FTeamInfo& Team : ActiveTeams)
     {
         TotalPlayers += Team.PlayerCount;
     }

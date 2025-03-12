@@ -4,6 +4,9 @@
 #include "GameFramework/GameModeBase.h"
 #include "BridgeRunGameMode.generated.h"
 
+// 전방 선언
+class UTeamManagerComponent;
+
 UENUM(BlueprintType)
 enum class EGameState : uint8
 {
@@ -13,31 +16,14 @@ enum class EGameState : uint8
     GameOver
 };
 
-USTRUCT(BlueprintType)
-struct BRIDGERUN_API FTeamInfo
+UCLASS(Blueprintable)
+class BRIDGERUN_API ABridgeRunGameMode : public AGameModeBase
 {
     GENERATED_BODY()
 
-    UPROPERTY()
-    int32 TeamID;
-
-    // Score 멤버 변수 제거
-
-    UPROPERTY()
-    int32 PlayerCount;
-
-    FTeamInfo()
-        : TeamID(0)
-        , PlayerCount(0)
-    {}
-};
-
-UCLASS(minimalapi)
-class ABridgeRunGameMode : public AGameModeBase
-{
-    GENERATED_BODY()
 public:
     ABridgeRunGameMode();
+
     virtual void BeginPlay() override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
@@ -56,44 +42,43 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Game")
     void EndCurrentRound();
 
-    // 점수 관리 함수 제거
+    // 팀 관리 컴포넌트 접근자
+    UFUNCTION(BlueprintPure, Category = "Team")
+    UTeamManagerComponent* GetTeamManager() const { return TeamManagerComponent; }
 
 protected:
-    // 게임 설정
-    UPROPERTY(EditDefaultsOnly, Category = "Game Rules")
-    int32 MaxTeams = 4;
+    // 팀 관리 컴포넌트
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UTeamManagerComponent* TeamManagerComponent = nullptr;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Game Rules")
+    // 게임 설정
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Game Rules")
     int32 MinPlayersToStart = 6;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Game Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Game Rules")
     float RoundDuration = 300.0f;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Game Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Game Rules")
     float PostRoundDelay = 10.0f;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Game Rules")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Game Rules")
     float JobSystemActivationTime = 240.0f;
 
     // 스폰 위치
-    UPROPERTY(EditDefaultsOnly, Category = "Spawn")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Spawn")
     TArray<FVector> PlayerStartLocations;
 
-    // 게임 상태 변수
-    UPROPERTY(Replicated)
-    EGameState CurrentGameState;
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
+    EGameState CurrentGameState = EGameState::WaitingToStart;
 
-    UPROPERTY(Replicated)
-    int32 CurrentRound;
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
+    int32 CurrentRound = 0;
 
-    UPROPERTY(Replicated)
-    float RoundTimeRemaining;
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
+    float RoundTimeRemaining = 0.0f;
 
-    UPROPERTY(Replicated)
-    bool bJobSystemActive;
-
-    UPROPERTY(Replicated)
-    TArray<FTeamInfo> TeamInfo;
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
+    bool bJobSystemActive = false;
 
 private:
     // 타이머 핸들
@@ -104,8 +89,6 @@ private:
     // 내부 함수
     void HandleRoundTimer();
     void HandleJobSystemActivation();
-    void AssignPlayerToTeam(APlayerController* NewPlayer);
-    int32 GetOptimalTeamForTeam() const;
     bool CanStartGame() const;
     void UpdateGameState();
 };
