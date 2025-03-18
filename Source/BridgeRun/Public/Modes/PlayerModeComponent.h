@@ -5,35 +5,46 @@
 #include "Modes/PlayerModeTypes.h"
 #include "PlayerModeComponent.generated.h"
 
+// 모드 변경 시 발생하는 이벤트 델리게이트
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnPlayerModeChanged, EPlayerMode, NewMode, EPlayerMode, OldMode);
 
+/**
+ * 플레이어 모드를 관리하는 컴포넌트
+ */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class BRIDGERUN_API UPlayerModeComponent : public UActorComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UPlayerModeComponent();
+    // 기본 함수
+    UPlayerModeComponent();
 
-	UFUNCTION(Server, Reliable)
-	void SetPlayerMode(EPlayerMode NewMode);
+    // 모드 관리 함수
+    UFUNCTION(Server, Reliable)
+    void SetPlayerMode(EPlayerMode NewMode);
 
-	UFUNCTION(BlueprintPure, Category = "Player Mode")
-	EPlayerMode GetCurrentMode() const { return CurrentMode; }
+    UFUNCTION(BlueprintPure, Category = "Player Mode")
+    EPlayerMode GetCurrentMode() const { return CurrentMode; }
 
-	UPROPERTY(BlueprintAssignable, Category = "Player Mode")
-	FOnPlayerModeChanged OnPlayerModeChanged;
+    // 이벤트 델리게이트
+    UPROPERTY(BlueprintAssignable, Category = "Player Mode")
+    FOnPlayerModeChanged OnPlayerModeChanged;
 
 protected:
-	virtual void BeginPlay() override;
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    // 라이프사이클 함수
+    virtual void BeginPlay() override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	UFUNCTION()
-	void OnRep_CurrentMode(EPlayerMode OldMode);
+    // 복제 이벤트 처리
+    UFUNCTION()
+    void OnRep_CurrentMode(EPlayerMode OldMode);
 
-	bool IsValidModeTransition(EPlayerMode FromMode, EPlayerMode ToMode) const;
+    // 모드 전환 유효성 검사
+    bool IsValidModeTransition(EPlayerMode FromMode, EPlayerMode ToMode) const;
 
 private:
-	UPROPERTY(ReplicatedUsing = OnRep_CurrentMode)
-	EPlayerMode CurrentMode;
+    // 상태 데이터
+    UPROPERTY(ReplicatedUsing = OnRep_CurrentMode)
+    EPlayerMode CurrentMode;
 };

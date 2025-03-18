@@ -46,25 +46,29 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Team")
     void SetTeamMaterial(int32 InTeamID);
 
-
-
-
     UFUNCTION()
     UCameraComponent* GetFollowCamera() const { return CameraComponent; }
+
     // 복제되어야 하는 속성
     UPROPERTY(Replicated)
     class AItem_Trophy* HeldTrophy;
+
     // 사망/리스폰 처리
     UFUNCTION(NetMulticast, Reliable)
     void MulticastHandleDeath();
+
     UFUNCTION(Server, Reliable, WithValidation)
     void ServerRespawn(const FVector& RespawnLocation);
+
     UFUNCTION()
     bool ServerRespawn_Validate(const FVector& RespawnLocation);
+
 protected:
     virtual void BeginPlay() override;
+
     UPROPERTY(ReplicatedUsing = OnRep_IsDead)
     bool bIsDead;
+
     UFUNCTION()
     void OnRep_IsDead();
 
@@ -74,33 +78,45 @@ protected:
     // 서버 RPC
     UFUNCTION(Server, Reliable, WithValidation)
     void ServerInteract();
+
     UFUNCTION(Server, Reliable, WithValidation)
     void ServerSelectInventorySlot(EInventorySlot Slot);
+
     // 기본 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class USpringArmComponent* SpringArmComponent;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UCameraComponent* CameraComponent;
+
     // 기능별 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UInvenComponent* InvenComponent;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UPlayerModeComponent* PlayerModeComponent;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UBuildingComponent* BuildingComponent;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UCombatComponent* CombatComponent;
+
     // 상호작용
     UPROPERTY(EditAnywhere, Category = "Interaction")
     float InteractionRange = 100.0f;
+
     // UI
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     class UUserWidget* InventoryWidget;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<class UUserWidget> InventoryWidgetClass;
+
     // 모드 변경
     UFUNCTION()
     void OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode);
+
     // 입력 처리
     void MoveForward(float Value);
     void MoveRight(float Value);
@@ -109,12 +125,22 @@ protected:
     void Turn(float Value);
     void LookUp(float Value);
     void Interact();
+
     // 슬롯 선택
     void SelectSlot1() { SelectInventorySlot(EInventorySlot::Plank); }
     void SelectSlot2() { SelectInventorySlot(EInventorySlot::Tent); }
     void SelectSlot3() { SelectInventorySlot(EInventorySlot::Telescope); }
     void SelectSlot4() { SelectInventorySlot(EInventorySlot::Gun); }
     void SelectSlot5() { SelectInventorySlot(EInventorySlot::Trophy); }
+
+    // 상호작용 헬퍼 함수들
+    bool HandleHeldTrophyInteraction();
+    void InteractWithNearbyItems();
+    AActor* FindClosestInteractableItem(TArray<AActor*>& OutOverlappedActors);
+    void ProcessItemInteraction(AActor* Item);
+    void VisualizeInteractionRadius();
+    void VisualizeItemConnection(AActor* Item, bool IsClosest);
+
 public:
     void SelectInventorySlot(EInventorySlot Slot);
     UPlayerModeComponent* GetPlayerModeComponent() const { return PlayerModeComponent; }

@@ -18,19 +18,14 @@ AItem_Plank::AItem_Plank()
     }
 }
 
-// Item_Plank.cpp의 BeginPlay 함수
 void AItem_Plank::BeginPlay()
 {
     Super::BeginPlay();
 
     if (MeshComponent)
     {
-        // 다른 판자와는 충돌하도록 설정
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
-
-        // 천막과의 충돌만 무시하도록 설정
-        MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap); // 천막 전용 채널
+        // 판자의 초기 충돌 및 물리 설정
+        SetupCollisionSettings();
 
         // 물리 설정
         MeshComponent->SetSimulatePhysics(true);
@@ -42,29 +37,29 @@ void AItem_Plank::BeginPlay()
     }
 }
 
+void AItem_Plank::SetupCollisionSettings()
+{
+    if (!MeshComponent) return;
+
+    // 기본 충돌 설정
+    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+
+    // 천막과의 충돌만 무시하도록 설정
+    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap); // 천막 전용 채널
+}
+
 void AItem_Plank::OnPlaced_Implementation()
 {
     if (!HasAuthority()) return;
 
+    // 상태 업데이트
     bIsBuiltPlank = true;
 
     if (MeshComponent)
     {
-        // 물리 시뮬레이션 완전히 비활성화
-        MeshComponent->SetSimulatePhysics(false);
-        MeshComponent->SetEnableGravity(false);
-
-        // 고정 상태로 설정
-        MeshComponent->SetMobility(EComponentMobility::Stationary);
-
-        // 충돌 설정
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
-        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-        MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
-
-        // 위치 업데이트 강제
-        MeshComponent->UpdateComponentToWorld();
+        // 판자를 설치된 상태로 변경
+        ApplyBuiltPlankState();
 
         // 모든 클라이언트에 동기화
         MulticastSetPlankPhysicsState(EComponentMobility::Stationary);
@@ -73,6 +68,26 @@ void AItem_Plank::OnPlaced_Implementation()
     ForceNetUpdate();
 }
 
+void AItem_Plank::ApplyBuiltPlankState()
+{
+    if (!MeshComponent) return;
+
+    // 물리 시뮬레이션 완전히 비활성화
+    MeshComponent->SetSimulatePhysics(false);
+    MeshComponent->SetEnableGravity(false);
+
+    // 고정 상태로 설정
+    MeshComponent->SetMobility(EComponentMobility::Stationary);
+
+    // 충돌 설정
+    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+    MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+
+    // 위치 업데이트 강제
+    MeshComponent->UpdateComponentToWorld();
+}
 
 void AItem_Plank::MulticastSetPlankPhysicsState_Implementation(EComponentMobility::Type NewMobility)
 {

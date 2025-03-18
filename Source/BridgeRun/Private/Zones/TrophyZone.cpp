@@ -14,6 +14,26 @@ ATrophyZone::ATrophyZone()
     PrimaryActorTick.bCanEverTick = true;
     bReplicates = true;
 
+    InitializeComponents();
+
+    // 초기값 설정
+    PlacedTrophy = nullptr;
+    ScoreTime = 0.0f;
+    RemainingTime = 0.0f;
+    CurrentScore = 0;
+}
+
+void ATrophyZone::InitializeComponents()
+{
+    // 트리거 박스 설정
+    SetupTriggerBox();
+
+    // 텍스트 컴포넌트 설정
+    SetupTextComponents();
+}
+
+void ATrophyZone::SetupTriggerBox()
+{
     // TriggerBox 생성 및 기본 설정
     TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
     if (TriggerBox)
@@ -24,7 +44,10 @@ ATrophyZone::ATrophyZone()
         TriggerBox->SetBoxExtent(FVector(100.0f, 100.0f, 100.0f));
         TriggerBox->SetIsReplicated(true);
     }
+}
 
+void ATrophyZone::SetupTextComponents()
+{
     // TimerText 설정
     TimerText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TimerText"));
     if (TimerText)
@@ -46,12 +69,6 @@ ATrophyZone::ATrophyZone()
         ScoreText->SetWorldSize(70.0f);
         ScoreText->SetText(FText::FromString(TEXT("")));
     }
-
-    // 초기값 설정
-    PlacedTrophy = nullptr;
-    ScoreTime = 0.0f;
-    RemainingTime = 0.0f;
-    CurrentScore = 0;
 }
 
 void ATrophyZone::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -59,14 +76,13 @@ void ATrophyZone::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
     DOREPLIFETIME(ATrophyZone, PlacedTrophy);
-    DOREPLIFETIME_CONDITION(ATrophyZone, RemainingTime, COND_None);  // 또는 REPNOTIFY_Always 사용
+    DOREPLIFETIME_CONDITION(ATrophyZone, RemainingTime, COND_None);
     DOREPLIFETIME(ATrophyZone, CurrentScore);
 }
 
 void ATrophyZone::BeginPlay()
 {
     Super::BeginPlay();
-    UE_LOG(LogTemp, Warning, TEXT("TrophyZone BeginPlay Called"));
 }
 
 void ATrophyZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
@@ -76,55 +92,47 @@ void ATrophyZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
+    // 서버 검증 및 유효성 확인
     if (!HasAuthority() || !IsValid(OtherActor))
         return;
 
-    UE_LOG(LogTemp, Warning, TEXT("TrophyZone receiving: %s of class %s"),
-        *OtherActor->GetName(),
-        *OtherActor->GetClass()->GetName());
-
+    // 트로피 확인
     if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(OtherActor))
     {
-        UE_LOG(LogTemp, Warning, TEXT("TrophyZone detected Trophy"));
         ServerHandleTrophyPlacement(Trophy);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Actor is not a Trophy"));
     }
 }
 
 void ATrophyZone::ServerHandleTrophyPlacement_Implementation(AItem_Trophy* Trophy)
 {
+    // 유효성 검증
     if (!IsValid(Trophy) || PlacedTrophy)
         return;
 
+    // 트로피 설정 및 타이머 초기화
     PlacedTrophy = Trophy;
     RemainingTime = ScoreTime;
 
     if (UWorld* World = GetWorld())
     {
-        // 타이머 설정 확인
+        // 점수 타이머 설정
         World->GetTimerManager().SetTimer(
             ScoreTimerHandle,
             this,
             &ATrophyZone::OnScoreTimerComplete,
-            ScoreTime,  // 여기가 총 지속 시간
-            false       // 반복 없음
+            ScoreTime,
+            false
         );
 
-        // 타이머 업데이트 설정 확인
+        // 업데이트 타이머 설정
         World->GetTimerManager().SetTimer(
             UpdateTimerHandle,
             this,
             &ATrophyZone::UpdateTimer,
-            0.1f,       // 0.1초마다 업데이트
-            true        // 반복
+            0.1f,
+            true
         );
     }
-
-    // 디버그 로그 추가
-    UE_LOG(LogTemp, Warning, TEXT("Timers started. Score time: %.1f"), ScoreTime);
 }
 
 void ATrophyZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
@@ -132,22 +140,22 @@ void ATrophyZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
     UPrimitiveComponent* OtherComp,
     int32 OtherBodyIndex)
 {
+    // 서버 검증 및 유효성 확인
     if (!HasAuthority() || !IsValid(OtherActor))
         return;
 
-    UE_LOG(LogTemp, Warning, TEXT("TrophyZone: OnOverlapEnd Called"));
-
+    // 트로피 확인 및 처리
     AItem_Trophy* Trophy = Cast<AItem_Trophy>(OtherActor);
     if (Trophy && Trophy == PlacedTrophy)
     {
-        UE_LOG(LogTemp, Warning, TEXT("TrophyZone: Trophy removed, resetting timer"));
-
+        // 타이머 정리
         if (UWorld* World = GetWorld())
         {
             World->GetTimerManager().ClearTimer(ScoreTimerHandle);
             World->GetTimerManager().ClearTimer(UpdateTimerHandle);
         }
 
+        // 상태 초기화
         PlacedTrophy = nullptr;
         RemainingTime = 0.0f;
     }
@@ -155,41 +163,26 @@ void ATrophyZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
 
 void ATrophyZone::UpdateTimer()
 {
+    // 서버 검증 및 유효성 확인
     if (!HasAuthority() || !IsValid(PlacedTrophy))
         return;
 
     if (UWorld* World = GetWorld())
     {
+        // 남은 시간 업데이트
         RemainingTime = World->GetTimerManager().GetTimerRemaining(ScoreTimerHandle);
 
-        // 타이머가 거의 종료되었는지 확인
-        bool bIsTimerActive = World->GetTimerManager().IsTimerActive(ScoreTimerHandle);
-        float ElapsedTime = World->GetTimerManager().GetTimerElapsed(ScoreTimerHandle);
-
-        UE_LOG(LogTemp, Log, TEXT("Timer: Remaining=%.2f, Elapsed=%.2f, Active=%d"),
-            RemainingTime, ElapsedTime, bIsTimerActive ? 1 : 0);
-
-        // 타이머가 0.2초 미만이고 아직 활성화되어 있으면 강제 종료 고려
-        if (RemainingTime < 0.2f && bIsTimerActive)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Timer almost complete, considering force complete"));
-            // 필요시 여기서 OnScoreTimerComplete 직접 호출 가능
-        }
-
         // 타이머 텍스트 업데이트
-        if (IsValid(TimerText))
-        {
-            FString TimerString = FString::Printf(TEXT("%.1f"), RemainingTime);
-            TimerText->SetText(FText::FromString(TimerString));
-        }
+        UpdateTimerText();
 
         // 네트워크 상태 업데이트
         ForceNetUpdate();
     }
 }
 
-void ATrophyZone::OnRep_RemainingTime()
+void ATrophyZone::UpdateTimerText()
 {
+    // 타이머 텍스트 업데이트
     if (IsValid(TimerText))
     {
         FString TimerString = FString::Printf(TEXT("%.1f"), RemainingTime);
@@ -197,64 +190,63 @@ void ATrophyZone::OnRep_RemainingTime()
     }
 }
 
-
-
-
-
-
+void ATrophyZone::OnRep_RemainingTime()
+{
+    // 남은 시간 복제 시 텍스트 업데이트
+    UpdateTimerText();
+}
 
 void ATrophyZone::OnScoreTimerComplete()
 {
+    // 서버 검증 및 유효성 확인
     if (!HasAuthority() || !IsValid(PlacedTrophy))
         return;
 
-    // 고정된 ScoreAmount 대신 트로피의 값 사용
+    // 트로피 값 기반 점수 추가
     int32 ScoreToAdd = PlacedTrophy->TrophyValue;
     ServerUpdateScore(CurrentScore + ScoreToAdd);
 
+    // 타이머 정리
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(UpdateTimerHandle);
     }
 
+    // 트로피 정리
     PlacedTrophy->Destroy();
     PlacedTrophy = nullptr;
-
 }
-
 
 void ATrophyZone::ServerUpdateScore_Implementation(int32 NewScore)
 {
+    // 서버 검증
     if (!HasAuthority())
         return;
 
+    // 점수 업데이트 및 멀티캐스트 전파
     CurrentScore = NewScore;
     MulticastOnScoreUpdated(CurrentScore);
 }
 
 void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
 {
+    // 모든 클라이언트에서 점수 업데이트
     CurrentScore = NewScore;
     UpdateScoreText();
 
-    // 게임 인스턴스를 통해 점수 업데이트
+    // 게임 인스턴스를 통한 팀 점수 업데이트
     if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
     {
-        // 해당 팀의 점수 업데이트
         GameInst->UpdateTeamScore(TeamID, NewScore);
-
-        // 또는 점수 추가 방식 사용
-        // GameInst->AddTeamScore(TeamID, ScoreToAdd);
-
-        // 로그 출력
-        GameInst->LogTeamScores();
     }
 
+    // 블루프린트 이벤트 호출
     BP_ScoreUpdated(TeamID, NewScore);
 }
 
 void ATrophyZone::OnRep_PlacedTrophy()
 {
+    // 트로피 상태 변경 시 타이머 텍스트 업데이트
     if (IsValid(TimerText))
     {
         if (PlacedTrophy)
@@ -271,11 +263,13 @@ void ATrophyZone::OnRep_PlacedTrophy()
 
 void ATrophyZone::OnRep_CurrentScore()
 {
+    // 점수 변경 시 텍스트 업데이트
     UpdateScoreText();
 }
 
 void ATrophyZone::UpdateScoreText()
 {
+    // 점수 텍스트 업데이트
     if (ScoreText)
     {
         FString ScoreString = FString::Printf(TEXT("%d"), CurrentScore);

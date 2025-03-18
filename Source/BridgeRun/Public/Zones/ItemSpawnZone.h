@@ -1,12 +1,8 @@
 // Copyright BridgeRun Game, Inc. All Rights Reserved.
-
 #pragma once
-
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Components/BoxComponent.h"
 #include "Item/Item.h"
-#include "Item/Item_Gun.h"
 #include "ItemSpawnZone.generated.h"
 
 UCLASS()
@@ -15,14 +11,15 @@ class BRIDGERUN_API AItemSpawnZone : public AActor
     GENERATED_BODY()
 
 public:
+    // 생성자 및 기본 함수
     AItemSpawnZone();
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-    // Components
+    // 컴포넌트
     UPROPERTY(VisibleAnywhere, Category = "Components")
     class UBoxComponent* SpawnVolume;
 
-    // Spawn Settings
+    // 스폰 설정
     UPROPERTY(EditAnywhere, Category = "Spawn")
     TArray<TSubclassOf<AItem>> ItemsToSpawn;
 
@@ -32,7 +29,7 @@ public:
     UPROPERTY(EditAnywhere, Category = "Spawn")
     int32 MaxItemCount;
 
-    // Replicated Properties
+    // 복제 속성
     UPROPERTY(ReplicatedUsing = OnRep_CurrentItemCount)
     int32 CurrentItemCount;
 
@@ -40,10 +37,11 @@ public:
     TArray<AItem*> SpawnedItems;
 
 protected:
+    // 라이프사이클 함수
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-    // Spawn Functions
+    // 스폰 함수
     UFUNCTION(Server, Reliable)
     void ServerSpawnItem();
 
@@ -53,7 +51,7 @@ protected:
     UFUNCTION()
     FVector GetRandomPointInVolume();
 
-    // Network Functions
+    // 네트워크 함수
     UFUNCTION()
     void OnRep_CurrentItemCount();
 
@@ -63,7 +61,9 @@ protected:
     UFUNCTION(NetMulticast, Reliable)
     void MulticastOnItemRemoved(AItem* RemovedItem);
 
-    // Overlap Events
+    
+
+    // 오버랩 이벤트
     UFUNCTION()
     void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
         AActor* OtherActor,
@@ -79,10 +79,13 @@ protected:
         int32 OtherBodyIndex);
 
 private:
+    // 타이머 핸들
     FTimerHandle SpawnTimer;
 
-    // Helper Functions
+    // 헬퍼 함수
     bool ValidateSpawnConditions() const;
     void CleanupSpawnedItems();
     void UpdateSpawnState();
+    void InitializeSpawnVolume();
+    void ConfigureSpawnedItem(AItem* SpawnedItem);
 };

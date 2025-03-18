@@ -12,20 +12,8 @@ AItem::AItem()
     bReplicates = true;
     bAlwaysRelevant = true;  // 항상 네트워크 복제 활성화
 
-    // Mesh Component 설정
-    MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
-    RootComponent = MeshComponent;
-    MeshComponent->SetIsReplicated(true);
-    MeshComponent->SetMobility(EComponentMobility::Movable);  // Mobility를 Movable로 설정
-    MeshComponent->SetSimulatePhysics(true);
-    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-
-    // Collision Component 설정
-    CollisionComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionComponent"));
-    CollisionComponent->SetupAttachment(MeshComponent);
-    CollisionComponent->SetCollisionProfileName(TEXT("OverlapAll"));
-    CollisionComponent->SetIsReplicated(true);
-    CollisionComponent->SetGenerateOverlapEvents(true);
+    // 컴포넌트 초기화
+    InitializeComponents();
 
     // 기본값 초기화
     Amount = 1;
@@ -39,21 +27,35 @@ AItem::AItem()
     MinNetUpdateFrequency = 30.0f;
 }
 
+void AItem::InitializeComponents()
+{
+    // Mesh Component 설정
+    MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
+    RootComponent = MeshComponent;
+    MeshComponent->SetIsReplicated(true);
+    MeshComponent->SetMobility(EComponentMobility::Movable);
+    MeshComponent->SetSimulatePhysics(true);
+    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+    // Collision Component 설정
+    CollisionComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionComponent"));
+    CollisionComponent->SetupAttachment(MeshComponent);
+    CollisionComponent->SetCollisionProfileName(TEXT("OverlapAll"));
+    CollisionComponent->SetIsReplicated(true);
+    CollisionComponent->SetGenerateOverlapEvents(true);
+}
+
 void AItem::BeginPlay()
 {
     Super::BeginPlay();
 
     if (MeshComponent)
     {
-        // 물리 시뮬레이션 설정
-        MeshComponent->SetMobility(EComponentMobility::Movable);
-        MeshComponent->SetSimulatePhysics(true);
-
-        // 네트워크 물리 설정
+        // 물리 및 네트워크 설정 추가
         MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
-        MeshComponent->SetIsReplicated(true);
     }
 
+    // 초기 상태 설정
     SetupInitialState();
 }
 
@@ -81,20 +83,10 @@ void AItem::MulticastSetMobility_Implementation(EComponentMobility::Type NewMobi
     }
 }
 
-
 void AItem::SetupInitialState()
 {
-    if (MeshComponent)
-    {
-        MeshComponent->SetSimulatePhysics(!bIsPickedUp);
-    }
-
-    if (CollisionComponent)
-    {
-        CollisionComponent->SetCollisionEnabled(
-            bIsPickedUp ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics
-        );
-    }
+    // 물리 및 충돌 상태 초기화
+    SetItemPhysicsState(!bIsPickedUp);
 }
 
 void AItem::PickUp_Implementation(ACharacter* Character)
@@ -103,12 +95,9 @@ void AItem::PickUp_Implementation(ACharacter* Character)
     if (!IsValid(Character)) return;
     if (bIsPickedUp || OwningPlayer) return;
 
+    // 상태 업데이트
     bIsPickedUp = true;
     OwningPlayer = Character;
-
-    // 물리/충돌 상태 업데이트
-    UpdatePhysicsState(false);
-    UpdateCollisionState(false);
 
     // 모든 클라이언트에 알림
     MulticastOnPickedUp(Character);
@@ -122,12 +111,9 @@ void AItem::Drop_Implementation()
     if (!HasAuthority()) return;
     if (!bIsPickedUp || !OwningPlayer) return;
 
+    // 상태 업데이트
     bIsPickedUp = false;
     OwningPlayer = nullptr;
-
-    // 물리/충돌 상태 업데이트
-    UpdatePhysicsState(true);
-    UpdateCollisionState(true);
 
     // 모든 클라이언트에 알림
     MulticastOnDropped();
@@ -142,20 +128,12 @@ void AItem::MulticastOnPickedUp_Implementation(ACharacter* NewOwner)
 
     // 소유자에게 부착
     AttachToPlayer(NewOwner);
-
-    // 물리/충돌 상태 업데이트
-    UpdatePhysicsState(false);
-    UpdateCollisionState(false);
 }
 
 void AItem::MulticastOnDropped_Implementation()
 {
     // 부착 해제
     DetachFromPlayer();
-
-    // 물리/충돌 상태 업데이트
-    UpdatePhysicsState(true);
-    UpdateCollisionState(true);
 }
 
 void AItem::OnRep_IsPickedUp()
@@ -173,14 +151,10 @@ void AItem::UpdateItemState()
     if (bIsPickedUp && IsValid(OwningPlayer))
     {
         AttachToPlayer(OwningPlayer);
-        UpdatePhysicsState(false);
-        UpdateCollisionState(false);
     }
     else
     {
         DetachFromPlayer();
-        UpdatePhysicsState(true);
-        UpdateCollisionState(true);
     }
 }
 
@@ -189,6 +163,11 @@ void AItem::UpdatePhysicsState(bool bEnablePhysics)
     if (MeshComponent)
     {
         MeshComponent->SetSimulatePhysics(bEnablePhysics);
+
+        // 물리 비활성화 시 충돌 모드 조정
+        ECollisionEnabled::Type CollisionType = bEnablePhysics ?
+            ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision;
+        MeshComponent->SetCollisionEnabled(CollisionType);
     }
 }
 
@@ -196,27 +175,27 @@ void AItem::UpdateCollisionState(bool bEnableCollision)
 {
     if (CollisionComponent)
     {
-        CollisionComponent->SetCollisionEnabled(
-            bEnableCollision ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision
-        );
+        ECollisionEnabled::Type CollisionType = bEnableCollision ?
+            ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision;
+        CollisionComponent->SetCollisionEnabled(CollisionType);
     }
+}
+
+void AItem::SetItemPhysicsState(bool bEnablePhysics)
+{
+    // 물리 상태 업데이트
+    UpdatePhysicsState(bEnablePhysics);
+
+    // 충돌 상태 업데이트
+    UpdateCollisionState(bEnablePhysics);
 }
 
 void AItem::AttachToPlayer(ACharacter* Player)
 {
     if (!IsValid(Player)) return;
 
-    // 물리/충돌 비활성화
-    if (MeshComponent)
-    {
-        MeshComponent->SetSimulatePhysics(false);
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
-
-    if (CollisionComponent)
-    {
-        CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
+    // 물리 및 충돌 비활성화
+    SetItemPhysicsState(false);
 
     // Actor 전체를 부착
     FAttachmentTransformRules AttachRules(
@@ -238,18 +217,10 @@ void AItem::AttachToPlayer(ACharacter* Player)
 
 void AItem::DetachFromPlayer()
 {
-    // 물리/충돌 활성화
-    if (MeshComponent)
-    {
-        MeshComponent->SetSimulatePhysics(true);
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    }
+    // 물리 및 충돌 활성화
+    SetItemPhysicsState(true);
 
-    if (CollisionComponent)
-    {
-        CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    }
-
+    // 액터 분리
     FDetachmentTransformRules DetachRules(
         EDetachmentRule::KeepWorld,
         EDetachmentRule::KeepWorld,
@@ -257,7 +228,6 @@ void AItem::DetachFromPlayer()
         true
     );
 
-    // Actor 전체를 분리
     DetachFromActor(DetachRules);
 
     // 네트워크 상태 강제 업데이트

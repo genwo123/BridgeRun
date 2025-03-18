@@ -14,12 +14,13 @@ class BRIDGERUN_API UBuildingComponent : public UActorComponent
 {
     GENERATED_BODY()
 public:
+    // 기본 함수
     UBuildingComponent();
     virtual void BeginPlay() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-    // Network RPCs
+    // 네트워크 RPC
     UFUNCTION(Server, Reliable)
     void OnBuildModeEntered();
     UFUNCTION(Server, Reliable)
@@ -28,80 +29,86 @@ public:
     void RotateBuildPreview();
     UFUNCTION(Server, Reliable)
     void AttemptBuild();
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastOnBuildComplete();
 
-    // Building Functions
+    // 건설 함수
     void UpdateBuildPreview();
     void StartBuildTimer(float BuildTime);
     void CancelBuild();
     bool ValidateBuildLocation(const FVector& Location);
     void FinishBuild();
 
+    // 아이템 물리 설정 및 인벤토리 체크
+    void ConfigureBuildingItemPhysics(UStaticMeshComponent* MeshComp, const FVector& Location, const FRotator& Rotation);
+    void CheckInventoryAfterBuilding(AItem* BuiltItem);
+
 protected:
-    // Implementation ÇÔ¼öµé
+    // 구현 함수
     virtual void AttemptBuild_Implementation();
     virtual void OnBuildModeEntered_Implementation();
     virtual void DeactivateBuildMode_Implementation();
     virtual void RotateBuildPreview_Implementation();
     virtual void MulticastOnBuildComplete_Implementation();
 
-    // Components
+    // 컴포넌트
     UPROPERTY(ReplicatedUsing = OnRep_BuildPreviewMesh)
     class UStaticMeshComponent* BuildPreviewMesh;
 
-    // Materials
+    // 재질
     UPROPERTY(EditAnywhere, Category = "Building|Preview")
     UMaterialInterface* ValidPlacementMaterial;
     UPROPERTY(EditAnywhere, Category = "Building|Preview")
     UMaterialInterface* InvalidPlacementMaterial;
 
-    // Meshes
+    // 메시
     UPROPERTY()
     UStaticMesh* PlankMesh;
     UPROPERTY()
     UStaticMesh* TentMesh;
 
-    // Item Classes
+    // 아이템 클래스
     UPROPERTY(EditDefaultsOnly, Category = "Building|Items")
     TSubclassOf<AItem_Plank> PlankClass;
     UPROPERTY(EditDefaultsOnly, Category = "Building|Items")
     TSubclassOf<AItem_Tent> TentClass;
 
-    // Settings
+    // 설정
     UPROPERTY(EditAnywhere, Category = "Building|Settings")
     float MaxBuildDistance = 300.0f;
     UPROPERTY(EditAnywhere, Category = "Building|Settings")
     float BuildRotationStep = 15.0f;
 
-    // Plank Settings
+    // 널빤지 설정
     UPROPERTY(EditAnywhere, Category = "Building|Plank")
     float PlankPlacementDistance = 50.0f;
     UPROPERTY(EditAnywhere, Category = "Building|Plank")
     float PlankBuildTime = 2.0f;
 
-    // Tent Settings
+    // 텐트 설정
     UPROPERTY(EditAnywhere, Category = "Building|Tent")
     float TentPlacementDistance = 50.0f;
     UPROPERTY(EditAnywhere, Category = "Building|Tent")
     float TentBuildTime = 2.0f;
 
-    // Replicated States
+    // 복제 상태
     UPROPERTY(Replicated)
     EInventorySlot CurrentBuildingItem;
 
-    // Visual Feedback
+    // 시각 피드백
     UPROPERTY(EditAnywhere, Category = "Building|Feedback")
     class USoundCue* BuildingBlockedSound;
     UPROPERTY(EditAnywhere, Category = "Building|Feedback")
     class UParticleSystem* BuildingBlockedEffect;
 
 private:
-    // References
+    // 참조
     UPROPERTY()
     class ACitizen* OwnerCitizen;
     UPROPERTY()
     class UCharacterMovementComponent* MovementComponent;
 
-    // Build States
+    // 건설 상태
     UPROPERTY(ReplicatedUsing = OnRep_BuildState)
     bool bCanBuildNow = true;
     UPROPERTY(ReplicatedUsing = OnRep_BuildState)
@@ -109,20 +116,90 @@ private:
     UPROPERTY(ReplicatedUsing = OnRep_ValidPlacement)
     bool bIsValidPlacement = false;
 
-    // Timers
+    // 타이머
     FTimerHandle BuildDelayTimerHandle;
     FTimerHandle BuildTimerHandle;
 
-    // Functions
+    // 위치 추적 변수
+    FVector PreviewLocation;
+    FRotator PreviewRotation;
+
+    // 초기화 및 설정 함수
+    void InitializeBuildPreviewMesh();
+    void SetupPreviewMeshForCurrentItem();
+    void SetupPlankPreviewMesh();
+    void SetupTentPreviewMesh();
+
+    // 배치 검증 함수
+    bool DetermineValidPlacement(FVector& PreviewLocation, FRotator& PreviewRotation);
+    bool ValidatePlankZonePlacement(class ABuildableZone* Zone, FVector& PreviewLocation);
+    bool ValidateTentZonePlacement(class ABuildableZone* Zone, FVector& PreviewLocation, FRotator& PreviewRotation);
+    bool ValidatePlankPlacement(const FVector& Location);
+    bool ValidateTentPlacement(const FVector& Location);
+
+    // 건설 관련 함수
+    void UpdatePreviewVisuals(bool bValid);
+    void UpdateOwnerBuildState();
+    void ResetBuildDelay();
+
+    // 복제 함수
     UFUNCTION()
     void OnRep_BuildState();
     UFUNCTION()
     void OnRep_BuildPreviewMesh();
     UFUNCTION()
     void OnRep_ValidPlacement();
-    bool ValidatePlankPlacement(const FVector& Location);
-    bool ValidateTentPlacement(const FVector& Location);
-    void ResetBuildDelay();
-    UFUNCTION(NetMulticast, Reliable)
-    void MulticastOnBuildComplete();
+
+    // 템플릿 함수 - 헤더에 구현 포함
+    template<class T>
+    T* SpawnBuildingItem(TSubclassOf<T> ItemClass, const FVector& Location, const FRotator& Rotation)
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.Owner = OwnerCitizen;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        T* SpawnedItem = GetWorld()->SpawnActor<T>(
+            ItemClass,
+            Location,
+            Rotation,
+            SpawnParams
+        );
+
+        if (SpawnedItem)
+        {
+            // 공통 설정
+            SpawnedItem->SetReplicates(true);
+            SpawnedItem->SetReplicateMovement(true);
+            SpawnedItem->bIsBuiltItem = true;
+
+            if (SpawnedItem->MeshComponent)
+            {
+                // 기본 객체에서 트랜스폼 설정 가져오기
+                T* DefaultItem = Cast<T>(ItemClass.GetDefaultObject());
+                if (DefaultItem && DefaultItem->MeshComponent)
+                {
+                    // 원본 스케일 저장
+                    FVector OriginalScale = DefaultItem->MeshComponent->GetRelativeScale3D();
+
+                    SpawnedItem->MeshComponent->SetStaticMesh(DefaultItem->MeshComponent->GetStaticMesh());
+                    SpawnedItem->MeshComponent->SetWorldScale3D(OriginalScale);
+
+                    FTransform NewTransform = DefaultItem->MeshComponent->GetRelativeTransform();
+                    NewTransform.SetLocation(Location);
+                    NewTransform.SetRotation(Rotation.Quaternion());
+                    SpawnedItem->SetActorTransform(NewTransform);
+                }
+
+                // 물리 및 충돌 설정
+                ConfigureBuildingItemPhysics(SpawnedItem->MeshComponent, Location, Rotation);
+            }
+
+            // 인벤토리 상태 체크 및 건설 모드 업데이트
+            CheckInventoryAfterBuilding(SpawnedItem);
+
+            return SpawnedItem;
+        }
+
+        return nullptr;
+    }
 };

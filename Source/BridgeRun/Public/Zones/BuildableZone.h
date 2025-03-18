@@ -47,16 +47,16 @@ class BRIDGERUN_API ABuildableZone : public AActor
     GENERATED_BODY()
 
 public:
+    // 생성자 및 기본 함수
     ABuildableZone();
-
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
     virtual bool ReplicateSubobjects(class UActorChannel* Channel, class FOutBunch* Bunch, FReplicationFlags* RepFlags) override;
 
-    // Components
+    // 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class USceneComponent* RootSceneComponent;
 
-    // Rope Components
+    // 로프 컴포넌트
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Ropes")
     class USplineComponent* LeftBottomRope;
 
@@ -69,7 +69,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Ropes")
     class USplineComponent* RightTopRope;
 
-    // Rope Meshes
+    // 로프 메시
     UPROPERTY(VisibleAnywhere, Category = "Components|Visuals")
     TArray<class USplineMeshComponent*> LeftBottomRopeMeshes;
 
@@ -82,7 +82,7 @@ public:
     UPROPERTY(VisibleAnywhere, Category = "Components|Visuals")
     TArray<class USplineMeshComponent*> RightTopRopeMeshes;
 
-    // Settings
+    // 설정
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zone Settings", ReplicatedUsing = OnRep_ZoneSettings)
     FZoneSettings ZoneSettings;
 
@@ -101,7 +101,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zone Settings")
     float MinPlankSpacing = 50.0f;
 
-    // Visual Settings
+    // 시각적 설정
     UPROPERTY(EditAnywhere, Category = "Visuals")
     class UStaticMesh* RopeMeshAsset;
 
@@ -111,7 +111,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visuals")
     FVector2D RopeScale = FVector2D(0.1f, 0.1f);
 
-    // Building Functions
+    // 건설 함수
     UFUNCTION(BlueprintCallable, Category = "Building")
     bool IsPlankPlacementValid(const FVector& StartPoint, const FVector& EndPoint);
 
@@ -120,7 +120,7 @@ public:
 
     FBox CalculateBuildableArea() const;
 
-    // Team Management
+    // 팀 관리
     UFUNCTION(BlueprintCallable, Category = "Teams")
     bool IsTeamActive(EBuildableTeam Team) const;
 
@@ -130,25 +130,25 @@ public:
     UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable, Category = "Teams")
     void EliminateTeam(EBuildableTeam Team);
 
-    // Round Management
+    // 라운드 관리
     UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable, Category = "Rounds")
     void StartNewRound();
 
     UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable, Category = "Rounds")
     void EndCurrentRound();
 
-    // Network Functions
+    // 네트워크 함수
     UFUNCTION(Server, Reliable, WithValidation)
     void ServerRequestPlacePlank(const FVector& StartPoint, const FVector& EndPoint, class APlayerState* RequestingPlayer);
 
     UFUNCTION(Server, Reliable, WithValidation)
     void ServerRequestPlaceTent(const FVector& StartPoint, const FVector& EndPoint, class APlayerState* RequestingPlayer);
 
-    // Visual Updates
+    // 시각적 업데이트
     UFUNCTION(BlueprintCallable, Category = "Visuals")
     void UpdateSplineMeshes();
 
-    // Events
+    // 이벤트
     UFUNCTION(BlueprintImplementableEvent, Category = "Events")
     void OnRoundStarted(int32 RoundNumber);
 
@@ -165,16 +165,29 @@ protected:
     UFUNCTION()
     void OnRep_ZoneSettings();
 
-    // Helpers
+    // 도우미 함수
     bool ValidateTeamAccess(class APlayerState* PlayerState) const;
     float GetDistanceFromRope(const FVector& Point, class USplineComponent* Rope) const;
     bool IsPointNearRope(const FVector& Point, class USplineComponent* Rope, float Tolerance = 50.0f) const;
+    bool CheckPlankSpacing(const FVector& StartPoint, const FVector& EndPoint);
+    bool CheckTentAlignment(const FVector& TentCenter, const FVector& TentDirection,
+        USplineComponent* TopRope, USplineComponent* BottomRope);
 
 private:
+    // 초기화 및 설정
     void InitializeComponents();
+    void SetupRopeComponents();
+    void SetRopePositions();
     void SetupRopeDefaults();
-    void UpdateZoneState();
+    void DrawDebugRopes();
 
+    // 상태 업데이트
+    void UpdateZoneState();
+    void UpdateRopeVisibility(bool bVisible);
+    void UpdateRopeMeshSet(USplineComponent* Spline, TArray<USplineMeshComponent*>& MeshArray);
+    void ClearAllRopeMeshes();
+
+    // 복제된 상태
     UPROPERTY(Replicated)
     TArray<FVector> PlacedPlankPositions;
 

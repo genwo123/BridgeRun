@@ -6,6 +6,8 @@ AItem_Tent::AItem_Tent()
 {
     bReplicates = true;
     ItemType = EInventorySlot::Tent;
+
+    // 기본 속성 초기화
     bIsBuiltTent = false;
     DamageReduction = 0.5f;
     bBlocksVision = true;
@@ -19,48 +21,46 @@ AItem_Tent::AItem_Tent()
     }
 }
 
-// Item_Tent.cpp의 BeginPlay 함수
 void AItem_Tent::BeginPlay()
 {
     Super::BeginPlay();
 
+    // 머티리얼 초기화
+    InitializeMaterials();
 
-    // DynamicMaterial 초기화 추가
+    // 충돌 설정
+    SetupCollisionSettings();
+}
+
+void AItem_Tent::InitializeMaterials()
+{
+    // DynamicMaterial 초기화
     if (MeshComponent && MeshComponent->GetMaterial(0))
     {
         DynamicMaterial = MeshComponent->CreateAndSetMaterialInstanceDynamic(0);
     }
-
-    if (MeshComponent)
-    {
-        // 기본 충돌 설정 구성
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-
-        // 모든 채널에 대해 기본적으로 Block 응답
-        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
-
-
-        MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap); // 판자 전용 채널
-
-
-        // 물리 설정
-        MeshComponent->SetSimulatePhysics(true);
-        MeshComponent->SetEnableGravity(true);
-        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
-
-        // 네트워크 업데이트 강제
-        ForceNetUpdate();
-    }
 }
 
-void AItem_Tent::MulticastOnTentPlaced_Implementation()
+void AItem_Tent::SetupCollisionSettings()
 {
-    if (!HasAuthority() && MeshComponent)
-    {
-        MeshComponent->SetSimulatePhysics(false);
-        MeshComponent->SetMobility(EComponentMobility::Stationary);
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    }
+    if (!MeshComponent) return;
+
+    // 기본 충돌 설정 구성
+    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+    // 모든 채널에 대해 기본적으로 Block 응답
+    MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+
+    // 판자와는 겹칠 수 있도록 설정
+    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap); // 판자 전용 채널
+
+    // 물리 설정
+    MeshComponent->SetSimulatePhysics(true);
+    MeshComponent->SetEnableGravity(true);
+    MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+
+    // 네트워크 업데이트 강제
+    ForceNetUpdate();
 }
 
 void AItem_Tent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -78,32 +78,51 @@ void AItem_Tent::OnPlaced_Implementation()
 {
     if (!HasAuthority()) return;
 
+    // 상태 업데이트
     bIsBuiltTent = true;
     CurrentHealth = MaxHealth;
 
     if (MeshComponent)
     {
-        // 물리 시뮬레이션 완전히 비활성화
-        MeshComponent->SetSimulatePhysics(false);
-        MeshComponent->SetEnableGravity(false);
-
-        // 고정 상태로 설정
-        MeshComponent->SetMobility(EComponentMobility::Stationary);
-
-        // 충돌 설정
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
-        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-        MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
-
-        // 위치 업데이트 강제
-        MeshComponent->UpdateComponentToWorld();
+        // 텐트를 설치된 상태로 변경
+        ApplyBuiltTentState();
 
         // 모든 클라이언트에 동기화
         MulticastSetPhysicsState();
     }
 
     ForceNetUpdate();
+}
+
+void AItem_Tent::ApplyBuiltTentState()
+{
+    if (!MeshComponent) return;
+
+    // 물리 시뮬레이션 완전히 비활성화
+    MeshComponent->SetSimulatePhysics(false);
+    MeshComponent->SetEnableGravity(false);
+
+    // 고정 상태로 설정
+    MeshComponent->SetMobility(EComponentMobility::Stationary);
+
+    // 충돌 설정
+    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+    MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+
+    // 위치 업데이트 강제
+    MeshComponent->UpdateComponentToWorld();
+}
+
+void AItem_Tent::MulticastOnTentPlaced_Implementation()
+{
+    if (!HasAuthority() && MeshComponent)
+    {
+        MeshComponent->SetSimulatePhysics(false);
+        MeshComponent->SetMobility(EComponentMobility::Stationary);
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    }
 }
 
 void AItem_Tent::MulticastSetPhysicsState_Implementation()
@@ -133,11 +152,13 @@ void AItem_Tent::OnBulletHit_Implementation()
 {
     if (!HasAuthority()) return;
 
+    // 체력 감소
     CurrentHealth--;
 
     // 피격 효과
     MulticastPlayHitEffect();
 
+    // 체력 확인
     if (CurrentHealth <= 0)
     {
         // 바로 Destroy하지 않고 1초 후에 파괴
@@ -148,7 +169,6 @@ void AItem_Tent::OnBulletHit_Implementation()
     ForceNetUpdate();
 }
 
-// 새로운 함수 추가
 void AItem_Tent::DestroyTent()
 {
     if (HasAuthority())
@@ -157,24 +177,28 @@ void AItem_Tent::DestroyTent()
     }
 }
 
-
 void AItem_Tent::MulticastPlayHitEffect_Implementation()
 {
-    if (DynamicMaterial)
-    {
-        // 발광 효과 켜기 (GlowIntensity는 기본값 5.0f)
-        DynamicMaterial->SetScalarParameterValue("EmissiveIntensity", GlowIntensity);
+    // 발광 효과 재생
+    PlayGlowEffect(GlowIntensity);
+}
 
-        // 0.2초 후에 발광 효과 끄기
-        FTimerHandle TimerHandle;
-        GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+void AItem_Tent::PlayGlowEffect(float Intensity)
+{
+    if (!DynamicMaterial) return;
+
+    // 발광 효과 켜기
+    DynamicMaterial->SetScalarParameterValue("EmissiveIntensity", Intensity);
+
+    // 일정 시간 후에 발광 효과 끄기
+    FTimerHandle TimerHandle;
+    GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+        {
+            if (DynamicMaterial)
             {
-                if (DynamicMaterial)
-                {
-                    DynamicMaterial->SetScalarParameterValue("EmissiveIntensity", 0.0f);
-                }
-            }, GlowDuration, false);
-    }
+                DynamicMaterial->SetScalarParameterValue("EmissiveIntensity", 0.0f);
+            }
+        }, GlowDuration, false);
 }
 
 void AItem_Tent::OnRep_CurrentHealth()

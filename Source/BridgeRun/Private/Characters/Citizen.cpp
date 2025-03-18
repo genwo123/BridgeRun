@@ -23,7 +23,7 @@
 ACitizen::ACitizen()
 {
     PrimaryActorTick.bCanEverTick = true;
-    bReplicates = true;  // 네트워크 복제 활성화
+    bReplicates = true;
 
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw = false;
@@ -53,7 +53,7 @@ void ACitizen::BeginPlay()
 
     if (HasAuthority())
     {
-        // 기본 팀 머티리얼 설정 로직
+        // 팀 머티리얼 초기화
         if (GetController() && GetController()->PlayerState)
         {
             ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetController()->PlayerState);
@@ -66,37 +66,29 @@ void ACitizen::BeginPlay()
                 }
             }
         }
-    }
 
-    // UI 위젯은 로컬 플레이어에서만 생성
-    if (IsLocallyControlled())
-    {
-        if (InventoryWidgetClass)
-        {
-            InventoryWidget = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
-            if (InventoryWidget)
-            {
-                InventoryWidget->AddToViewport();
-            }
-        }
-    }
-
-    // 플레이어 모드 변경 이벤트 바인딩
-    // 모든 머신에서 필요하므로 권한 체크 없이 실행
-    if (PlayerModeComponent)
-    {
-        PlayerModeComponent->OnPlayerModeChanged.AddDynamic(this, &ACitizen::OnPlayerModeChanged);
-    }
-
-    // 초기 아이템 지급은 서버에서만 실행
-    if (HasAuthority())
-    {
-        // 망원경은 플레이어당 1개만 지급
+        // 초기 망원경 지급
         FItemData* TelescopeData = InvenComponent ? InvenComponent->GetItemData(EInventorySlot::Telescope) : nullptr;
         if (TelescopeData && TelescopeData->Count == 0)
         {
             AddItem(EInventorySlot::Telescope);
         }
+    }
+
+    // UI 위젯 생성 (로컬 플레이어만)
+    if (IsLocallyControlled() && InventoryWidgetClass)
+    {
+        InventoryWidget = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
+        if (InventoryWidget)
+        {
+            InventoryWidget->AddToViewport();
+        }
+    }
+
+    // 플레이어 모드 변경 이벤트 바인딩
+    if (PlayerModeComponent)
+    {
+        PlayerModeComponent->OnPlayerModeChanged.AddDynamic(this, &ACitizen::OnPlayerModeChanged);
     }
 }
 
@@ -105,27 +97,24 @@ void ACitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetime
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(ACitizen, TeamID);
     DOREPLIFETIME(ACitizen, HeldTrophy);
-    DOREPLIFETIME(ACitizen, bIsDead);  // 기존 HeldTrophy 복제 아래에 추가
+    DOREPLIFETIME(ACitizen, bIsDead);
 }
-
 
 void ACitizen::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-
 }
-
-
 
 void ACitizen::OnRep_IsDead()
 {
-    // 죽었을 때
     if (bIsDead)
     {
+        // 죽었을 때 처리
         if (GetCharacterMovement())
         {
             GetCharacterMovement()->DisableMovement();
         }
+
         // 들고 있는 트로피 드롭
         if (HeldTrophy)
         {
@@ -133,9 +122,9 @@ void ACitizen::OnRep_IsDead()
             HeldTrophy = nullptr;
         }
     }
-    // 리스폰됐을 때
     else
     {
+        // 리스폰 됐을 때 처리
         if (GetCharacterMovement())
         {
             GetCharacterMovement()->SetMovementMode(MOVE_Walking);
@@ -151,16 +140,17 @@ void ACitizen::MulticastHandleDeath_Implementation()
     if (GetCharacterMovement())
     {
         GetCharacterMovement()->StopMovementImmediately();
-        GetCharacterMovement()->DisableMovement(); 
+        GetCharacterMovement()->DisableMovement();
     }
 
-    // 입력 비활성화 추가
+    // 입력 비활성화
     if (APlayerController* PC = Cast<APlayerController>(GetController()))
     {
         DisableInput(PC);
     }
 }
 
+// ServerRespawn_Implementation 함수 수정
 void ACitizen::ServerRespawn_Implementation(const FVector& RespawnLocation)
 {
     if (!HasAuthority()) return;
@@ -183,20 +173,21 @@ void ACitizen::ServerRespawn_Implementation(const FVector& RespawnLocation)
         PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
     }
 
-    // 컴포넌트 초기화
+    // 건설 모드 비활성화
     if (BuildingComponent)
     {
         BuildingComponent->DeactivateBuildMode();
     }
 
+    // 전투 아이템 초기화
     if (CombatComponent)
     {
-        // 장착된 무기/장비 제거
-        if (CombatComponent->EquippedGun)
+        // 접근자 메서드 사용
+        if (CombatComponent->GetEquippedGun())
         {
             CombatComponent->OnGunUnequipped();
         }
-        if (CombatComponent->EquippedTelescope)
+        if (CombatComponent->GetEquippedTelescope())
         {
             CombatComponent->OnTelescopeUnequipped();
         }
@@ -205,12 +196,12 @@ void ACitizen::ServerRespawn_Implementation(const FVector& RespawnLocation)
     // 인벤토리 초기화
     if (InvenComponent)
     {
-        // 모든 아이템 제거
+        // 소모품 제거
         InvenComponent->UpdateItemCount(EInventorySlot::Plank, 0);
         InvenComponent->UpdateItemCount(EInventorySlot::Tent, 0);
         InvenComponent->UpdateItemCount(EInventorySlot::Gun, 0);
 
-        // 망원경 지급
+        // 망원경 재지급
         FItemData* TelescopeData = InvenComponent->GetItemData(EInventorySlot::Telescope);
         if (TelescopeData && TelescopeData->Count == 0)
         {
@@ -232,11 +223,104 @@ void ACitizen::ServerRespawn_Implementation(const FVector& RespawnLocation)
     }
 }
 
+void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
+{
+    if (!InvenComponent || !PlayerModeComponent) return;
+
+    // 항상 이전 장비 해제
+    if (CombatComponent)
+    {
+        if (CombatComponent->GetEquippedTelescope())
+        {
+            CombatComponent->OnTelescopeUnequipped();
+        }
+        if (CombatComponent->GetEquippedGun())
+        {
+            CombatComponent->OnGunUnequipped();
+        }
+    }
+
+    // 같은 슬롯 다시 선택 시 해제 처리
+    if (InvenComponent->GetCurrentSelectedSlot() == Slot)
+    {
+        InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+        return;
+    }
+
+    // 아이템 소유 여부 확인
+    FItemData* ItemData = InvenComponent->GetItemData(Slot);
+    if (!ItemData || ItemData->Count <= 0)
+    {
+        // 아이템이 없으면 슬롯을 해제하고 일반 모드로 전환
+        InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+        return;
+    }
+
+    // 새 슬롯 선택
+    InvenComponent->SetCurrentSelectedSlot(Slot);
+
+    // 슬롯 유형에 따른 처리
+    switch (Slot)
+    {
+    case EInventorySlot::Plank:
+    case EInventorySlot::Tent:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Build);
+        // 클라이언트 모드 변경 처리
+        if (!HasAuthority() && IsLocallyControlled())
+        {
+            OnPlayerModeChanged(EPlayerMode::Build, PlayerModeComponent->GetCurrentMode());
+            if (BuildingComponent)
+            {
+                BuildingComponent->OnBuildModeEntered();
+            }
+        }
+        break;
+
+    case EInventorySlot::Gun:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
+        if (CombatComponent && CombatComponent->GetGunClass())
+        {
+            // 총 생성 및 장착
+            FActorSpawnParameters SpawnParams;
+            SpawnParams.Owner = this;
+            AItem_Gun* NewGun = GetWorld()->SpawnActor<AItem_Gun>(CombatComponent->GetGunClass(),
+                GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+            if (NewGun)
+            {
+                CombatComponent->OnGunEquipped(NewGun);
+            }
+        }
+        break;
+
+    case EInventorySlot::Telescope:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
+        if (CombatComponent && CombatComponent->GetTelescopeClass())
+        {
+            // 망원경 생성 및 장착
+            FActorSpawnParameters SpawnParams;
+            SpawnParams.Owner = this;
+            AItem_Telescope* NewTelescope = GetWorld()->SpawnActor<AItem_Telescope>(
+                CombatComponent->GetTelescopeClass(), GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+            if (NewTelescope)
+            {
+                CombatComponent->OnTelescopeEquipped(NewTelescope);
+            }
+        }
+        break;
+
+    case EInventorySlot::Trophy:
+        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
+        break;
+    }
+}
+
+
 bool ACitizen::ServerRespawn_Validate(const FVector& RespawnLocation)
 {
     return true;
 }
-
 
 void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
 {
@@ -245,14 +329,10 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
     case EPlayerMode::Build:
         if (BuildingComponent)
         {
-            // 서버와 클라이언트 모두에서 처리되도록 수정
-            if (HasAuthority())
+            // 서버와 클라이언트 모두에서 처리
+            if (HasAuthority() || IsLocallyControlled())
             {
                 BuildingComponent->OnBuildModeEntered();
-            }
-            else if (IsLocallyControlled())  // 로컬 클라이언트인 경우에만
-            {
-                BuildingComponent->OnBuildModeEntered(); 
             }
         }
         break;
@@ -279,7 +359,6 @@ void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
     }
 }
 
-
 void ACitizen::SelectInventorySlot(EInventorySlot Slot)
 {
     // 로컬에서 먼저 처리
@@ -295,7 +374,7 @@ void ACitizen::SelectInventorySlot(EInventorySlot Slot)
         }
     }
 
-    // 서버에도 전달
+    // 서버에 전달
     if (HasAuthority())
     {
         ServerSelectInventorySlot_Implementation(Slot);
@@ -311,109 +390,39 @@ bool ACitizen::ServerSelectInventorySlot_Validate(EInventorySlot Slot)
     return true;
 }
 
-void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
-{
-    if (!InvenComponent || !PlayerModeComponent) return;
-
-    if (InvenComponent->GetCurrentSelectedSlot() == Slot)
-    {
-        InvenComponent->SetCurrentSelectedSlot(EInventorySlot::None);
-        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
-        if (CombatComponent)
-        {
-            if (CombatComponent->EquippedTelescope)
-            {
-                CombatComponent->OnTelescopeUnequipped();
-            }
-            if (CombatComponent->EquippedGun)
-            {
-                CombatComponent->OnGunUnequipped();
-            }
-        }
-        return;
-    }
-
-
-    InvenComponent->SetCurrentSelectedSlot(Slot);
-    switch (Slot)
-    {
-    case EInventorySlot::Plank:
-    case EInventorySlot::Tent:
-        PlayerModeComponent->SetPlayerMode(EPlayerMode::Build);
-        // 클라이언트에서 직접 모드 변경 처리
-        if (!HasAuthority() && IsLocallyControlled())
-        {
-            OnPlayerModeChanged(EPlayerMode::Build, PlayerModeComponent->GetCurrentMode());
-            if (BuildingComponent)
-            {
-                BuildingComponent->OnBuildModeEntered(); 
-            }
-        }
-        break;
-
-    case EInventorySlot::Gun:
-        PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
-        if (CombatComponent && CombatComponent->GunClass)
-        {
-            FActorSpawnParameters SpawnParams;
-            SpawnParams.Owner = this;
-            AItem_Gun* NewGun = GetWorld()->SpawnActor<AItem_Gun>(CombatComponent->GunClass,
-                GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
-            if (NewGun)
-            {
-                CombatComponent->OnGunEquipped(NewGun);
-            }
-        }
-        break;
-
-    case EInventorySlot::Telescope:
-        PlayerModeComponent->SetPlayerMode(EPlayerMode::Combat);
-        if (CombatComponent && CombatComponent->TelescopeClass)
-        {
-            FActorSpawnParameters SpawnParams;
-            SpawnParams.Owner = this;
-            AItem_Telescope* NewTelescope = GetWorld()->SpawnActor<AItem_Telescope>(
-                CombatComponent->TelescopeClass, GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
-            if (NewTelescope)
-            {
-                CombatComponent->OnTelescopeEquipped(NewTelescope);
-            }
-        }
-        break;
-
-    case EInventorySlot::Trophy:
-        PlayerModeComponent->SetPlayerMode(EPlayerMode::Normal);
-        break;
-    }
-}
-
 
 void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+    // 이동 입력
     PlayerInputComponent->BindAxis("MoveForward", this, &ACitizen::MoveForward);
     PlayerInputComponent->BindAxis("MoveRight", this, &ACitizen::MoveRight);
     PlayerInputComponent->BindAxis("Turn", this, &ACitizen::Turn);
     PlayerInputComponent->BindAxis("LookUp", this, &ACitizen::LookUp);
 
+    // 점프
     PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACitizen::StartJump);
     PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACitizen::StopJump);
 
+    // 인벤토리 슬롯
     PlayerInputComponent->BindAction("Slot1", IE_Pressed, this, &ACitizen::SelectSlot1);
     PlayerInputComponent->BindAction("Slot2", IE_Pressed, this, &ACitizen::SelectSlot2);
     PlayerInputComponent->BindAction("Slot3", IE_Pressed, this, &ACitizen::SelectSlot3);
     PlayerInputComponent->BindAction("Slot4", IE_Pressed, this, &ACitizen::SelectSlot4);
     PlayerInputComponent->BindAction("Slot5", IE_Pressed, this, &ACitizen::SelectSlot5);
 
+    // 상호작용
     PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &ACitizen::Interact);
 
+    // 건설 관련 입력
     if (BuildingComponent)
     {
         PlayerInputComponent->BindAction("RotateBuild", IE_Pressed, BuildingComponent, &UBuildingComponent::RotateBuildPreview);
         PlayerInputComponent->BindAction("PrimaryAction", IE_Pressed, BuildingComponent, &UBuildingComponent::AttemptBuild);
     }
 
+    // 전투 관련 입력
     if (CombatComponent)
     {
         PlayerInputComponent->BindAction("Zoom", IE_Pressed, CombatComponent, &UCombatComponent::HandleAim);
@@ -496,7 +505,6 @@ bool ACitizen::UseItem(EInventorySlot Slot, int32 Amount)
                 break;
 
             case EInventorySlot::Trophy:
-                ItemData->Count -= Amount;
                 InvenComponent->UpdateItemCount(Slot, -Amount);
                 if (ItemData->Count == 0)
                 {
@@ -529,15 +537,44 @@ bool ACitizen::ServerInteract_Validate()
 
 void ACitizen::ServerInteract_Implementation()
 {
+    // 트로피 처리
+    if (HandleHeldTrophyInteraction())
+        return;
+
+    // 주변 아이템과 상호작용
+    InteractWithNearbyItems();
+}
+
+bool ACitizen::HandleHeldTrophyInteraction()
+{
     if (HeldTrophy)
     {
         HeldTrophy->Drop();
         HeldTrophy = nullptr;
-        return;
+        return true;
     }
+    return false;
+}
 
+void ACitizen::InteractWithNearbyItems()
+{
     TArray<AActor*> OverlappedActors;
 
+    // 상호작용 범위 시각화
+    VisualizeInteractionRadius();
+
+    // 가장 가까운 아이템 찾기
+    AActor* ClosestItem = FindClosestInteractableItem(OverlappedActors);
+
+    if (ClosestItem)
+    {
+        // 아이템 상호작용 처리
+        ProcessItemInteraction(ClosestItem);
+    }
+}
+
+void ACitizen::VisualizeInteractionRadius()
+{
     DrawDebugSphere(
         GetWorld(),
         GetActorLocation(),
@@ -549,6 +586,12 @@ void ACitizen::ServerInteract_Implementation()
         0,
         1.0f
     );
+}
+
+AActor* ACitizen::FindClosestInteractableItem(TArray<AActor*>& OutOverlappedActors)
+{
+    AActor* ClosestItem = nullptr;
+    float ClosestDistance = InteractionRange;
 
     if (UKismetSystemLibrary::SphereOverlapActors(
         GetWorld(),
@@ -557,27 +600,14 @@ void ACitizen::ServerInteract_Implementation()
         TArray<TEnumAsByte<EObjectTypeQuery>>(),
         AItem::StaticClass(),
         TArray<AActor*>(),
-        OverlappedActors))
+        OutOverlappedActors))
     {
-        AActor* ClosestItem = nullptr;
-        float ClosestDistance = InteractionRange;
-
-        for (AActor* Actor : OverlappedActors)
+        for (AActor* Actor : OutOverlappedActors)
         {
             float Distance = FVector::Distance(GetActorLocation(), Actor->GetActorLocation());
             if (Distance < ClosestDistance)
             {
-                DrawDebugLine(
-                    GetWorld(),
-                    GetActorLocation(),
-                    Actor->GetActorLocation(),
-                    FColor::Yellow,
-                    false,
-                    0.1f,
-                    0,
-                    1.0f
-                );
-
+                VisualizeItemConnection(Actor, false);
                 ClosestDistance = Distance;
                 ClosestItem = Actor;
             }
@@ -585,54 +615,52 @@ void ACitizen::ServerInteract_Implementation()
 
         if (ClosestItem)
         {
-            DrawDebugLine(
-                GetWorld(),
-                GetActorLocation(),
-                ClosestItem->GetActorLocation(),
-                FColor::Red,
-                false,
-                0.1f,
-                0,
-                2.0f
-            );
-
-            if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(ClosestItem))
-            {
-                Trophy->PickUp(this);
-                HeldTrophy = Trophy;
-                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Picked up Trophy"));
-            }
-            else if (AItem_Gun* Gun = Cast<AItem_Gun>(ClosestItem))
-            {
-                FItemData* GunData = InvenComponent->GetItemData(EInventorySlot::Gun);
-                if (!GunData || GunData->Count == 0)
-                {
-                    AddItem(EInventorySlot::Gun, 1);
-                    Gun->Destroy();
-                    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
-                        FString::Printf(TEXT("Picked up gun with %d ammo"), Gun->GetCurrentAmmo()));
-                }
-                else
-                {
-                    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Already has a gun"));
-                }
-            }
-            else if (AItem* Item = Cast<AItem>(ClosestItem))
-            {
-                AddItem(Item->ItemType, Item->Amount);
-                Item->Destroy();
-                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Picked up Item"));
-            }
+            VisualizeItemConnection(ClosestItem, true);
         }
+    }
+
+    return ClosestItem;
+}
+
+void ACitizen::VisualizeItemConnection(AActor* Item, bool IsClosest)
+{
+    DrawDebugLine(
+        GetWorld(),
+        GetActorLocation(),
+        Item->GetActorLocation(),
+        IsClosest ? FColor::Red : FColor::Yellow,
+        false,
+        0.1f,
+        0,
+        IsClosest ? 2.0f : 1.0f
+    );
+}
+
+void ACitizen::ProcessItemInteraction(AActor* Item)
+{
+    if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(Item))
+    {
+        Trophy->PickUp(this);
+        HeldTrophy = Trophy;
+    }
+    else if (AItem_Gun* Gun = Cast<AItem_Gun>(Item))
+    {
+        FItemData* GunData = InvenComponent->GetItemData(EInventorySlot::Gun);
+        if (!GunData || GunData->Count == 0)
+        {
+            AddItem(EInventorySlot::Gun, 1);
+            Gun->Destroy();
+        }
+    }
+    else if (AItem* GenericItem = Cast<AItem>(Item))
+    {
+        AddItem(GenericItem->ItemType, GenericItem->Amount);
+        GenericItem->Destroy();
     }
 }
 
-
-
-// OnRep_TeamID 구현
 void ACitizen::OnRep_TeamID()
 {
-    // 머티리얼 적용
     SetTeamMaterial(TeamID);
 }
 
@@ -640,35 +668,21 @@ void ACitizen::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
 
-    UE_LOG(LogTemp, Warning, TEXT("OnRep_PlayerState called"));
-
-    // PlayerState에서 TeamID 가져와서 적용
     if (GetPlayerState())
     {
         ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetPlayerState());
         if (BridgeRunPS)
         {
             int32 CurrentTeamID = BridgeRunPS->GetTeamID();
-            UE_LOG(LogTemp, Warning, TEXT("OnRep_PlayerState: TeamID from PlayerState: %d"), CurrentTeamID);
-
             if (CurrentTeamID >= 0)
             {
                 TeamID = CurrentTeamID;
-                UE_LOG(LogTemp, Warning, TEXT("Setting team material to %d"), CurrentTeamID);
                 SetTeamMaterial(CurrentTeamID);
             }
         }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Failed to cast to BridgeRunPlayerState"));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("GetPlayerState returned nullptr"));
     }
 }
-// MulticastSetTeamMaterial 구현
+
 void ACitizen::MulticastSetTeamMaterial_Implementation(int32 InTeamID)
 {
     SetTeamMaterial(InTeamID);
@@ -679,7 +693,7 @@ void ACitizen::SetTeamMaterial(int32 InTeamID)
     USkeletalMeshComponent* MeshComponent = GetMesh();
     if (!MeshComponent) return;
 
-    // 머티리얼 선택
+    // 팀 ID에 맞는 머티리얼 선택
     UMaterialInterface* TeamMaterial = nullptr;
     switch (InTeamID)
     {
@@ -687,38 +701,23 @@ void ACitizen::SetTeamMaterial(int32 InTeamID)
     case 1: TeamMaterial = M_Team_Blue; break;
     case 2: TeamMaterial = M_Team_Yellow; break;
     case 3: TeamMaterial = M_Team_Green; break;
-    default: break;
+    default: return;
     }
 
-    if (!TeamMaterial)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Team material for TeamID %d is null"), InTeamID);
-        return;
-    }
+    if (!TeamMaterial) return;
 
-    // 기존 머티리얼 인스턴스 참조 저장
-    TArray<UMaterialInstanceDynamic*> PreviousDynamicInstances;
-
-    // 머티리얼 인스턴스 직접 생성 및 적용
+    // 머티리얼 인스턴스 생성 및 적용
     UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(TeamMaterial, this);
     if (DynamicMaterial)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Created dynamic material instance from %s"), *TeamMaterial->GetName());
-
         // 슬롯 0에 적용
         MeshComponent->SetMaterial(0, DynamicMaterial);
-        UE_LOG(LogTemp, Warning, TEXT("Applied to slot 0"));
 
         // 슬롯 1에도 적용
         if (MeshComponent->GetNumMaterials() > 1)
         {
             UMaterialInstanceDynamic* DynamicMaterial2 = UMaterialInstanceDynamic::Create(TeamMaterial, this);
             MeshComponent->SetMaterial(1, DynamicMaterial2);
-            UE_LOG(LogTemp, Warning, TEXT("Applied to slot 1"));
         }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Failed to create dynamic material instance"));
     }
 }

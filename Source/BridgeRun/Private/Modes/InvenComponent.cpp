@@ -4,6 +4,7 @@
 
 UInvenComponent::UInvenComponent()
 {
+    // 기본 설정
     PrimaryComponentTick.bCanEverTick = false;
     SetIsReplicatedByDefault(true);
 
@@ -32,6 +33,7 @@ void UInvenComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+    // 모든 인벤토리 변수 복제
     DOREPLIFETIME(UInvenComponent, CurrentSelectedSlot);
     DOREPLIFETIME(UInvenComponent, PlankData);
     DOREPLIFETIME(UInvenComponent, TentData);
@@ -42,6 +44,7 @@ void UInvenComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 
 FItemData* UInvenComponent::GetItemData(EInventorySlot Slot)
 {
+    // 슬롯에 해당하는 아이템 데이터 반환
     switch (Slot)
     {
     case EInventorySlot::Plank:
@@ -61,6 +64,7 @@ FItemData* UInvenComponent::GetItemData(EInventorySlot Slot)
 
 FItemData UInvenComponent::GetItemDataForBP(EInventorySlot Slot)
 {
+    // 블루프린트용 아이템 데이터 반환
     if (FItemData* Data = GetItemData(Slot))
     {
         return *Data;
@@ -70,28 +74,41 @@ FItemData UInvenComponent::GetItemDataForBP(EInventorySlot Slot)
 
 void UInvenComponent::SetCurrentSelectedSlot_Implementation(EInventorySlot Slot)
 {
+    // 서버에서만 실행
     if (!GetOwner()->HasAuthority()) return;
+
+    // 현재 선택된 슬롯 업데이트
     CurrentSelectedSlot = Slot;
 }
 
 void UInvenComponent::UpdateItemCount_Implementation(EInventorySlot Slot, int32 Amount)
 {
+    // 서버에서만 실행
     if (!GetOwner()->HasAuthority()) return;
 
+    // 대상 아이템 데이터 찾기
     FItemData* ItemData = GetItemData(Slot);
     if (ItemData)
     {
+        // 수량 업데이트
         ItemData->Count += Amount;
+
+        // 음수 방지
         if (ItemData->Count < 0)
         {
             ItemData->Count = 0;
         }
+
+        // 디버그 메시지
         GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green,
             FString::Printf(TEXT("After Update: Count = %d"), ItemData->Count));
+
+        // 이벤트 발생
         OnItemCountChanged.Broadcast(Slot, ItemData->Count);
     }
     else
     {
+        // 데이터 없음 경고
         GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
             TEXT("ItemData is null!"));
     }

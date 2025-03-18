@@ -4,6 +4,7 @@
 
 UPlayerModeComponent::UPlayerModeComponent()
 {
+    // 컴포넌트 기본 설정
     PrimaryComponentTick.bCanEverTick = false;
     CurrentMode = EPlayerMode::Normal;
     SetIsReplicatedByDefault(true);
@@ -12,29 +13,37 @@ UPlayerModeComponent::UPlayerModeComponent()
 void UPlayerModeComponent::BeginPlay()
 {
     Super::BeginPlay();
+    // 초기화 로직이 필요하면 여기에 추가
 }
 
 void UPlayerModeComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+    // 모드 상태 복제
     DOREPLIFETIME(UPlayerModeComponent, CurrentMode);
 }
 
 void UPlayerModeComponent::SetPlayerMode_Implementation(EPlayerMode NewMode)
 {
-    if (!GetOwner()->HasAuthority()) return;
+    // 서버 권한 검사
+    if (!GetOwner()->HasAuthority())
+        return;
 
+    // 모드 변경이 필요한 경우에만 처리
     if (CurrentMode != NewMode)
     {
-        // 모드 전환 유효성 체크 추가
+        // 모드 전환 유효성 검사
         if (!IsValidModeTransition(CurrentMode, NewMode))
         {
+            // 원본 코드의 로그 형식 그대로 유지
             UE_LOG(LogTemp, Warning, TEXT("Invalid mode transition from %s to %s"),
                 *UEnum::GetValueAsString(CurrentMode),
                 *UEnum::GetValueAsString(NewMode));
             return;
         }
 
+        // 모드 변경 및 이벤트 발생
         EPlayerMode OldMode = CurrentMode;
         CurrentMode = NewMode;
         OnRep_CurrentMode(OldMode);
@@ -43,23 +52,24 @@ void UPlayerModeComponent::SetPlayerMode_Implementation(EPlayerMode NewMode)
 
 void UPlayerModeComponent::OnRep_CurrentMode(EPlayerMode OldMode)
 {
+    // 모드 변경 이벤트 방송
     OnPlayerModeChanged.Broadcast(CurrentMode, OldMode);
 }
 
-
 bool UPlayerModeComponent::IsValidModeTransition(EPlayerMode FromMode, EPlayerMode ToMode) const
 {
-    // Combat 모드에서 Build 모드로의 직접 전환 방지
+    // 전투 모드에서 건설 모드로 직접 전환 금지
     if (FromMode == EPlayerMode::Combat && ToMode == EPlayerMode::Build)
     {
         return false;
     }
 
-    // Combat 모드에서는 Normal 모드로만 전환 가능
+    // 전투 모드에서는 일반 모드로만 전환 가능
     if (FromMode == EPlayerMode::Combat && ToMode != EPlayerMode::Normal)
     {
         return false;
     }
 
+    // 그 외 전환은 모두 허용
     return true;
 }
