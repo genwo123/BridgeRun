@@ -19,16 +19,47 @@ AItem_Tent::AItem_Tent()
     }
 }
 
+// Item_Tent.cpp의 BeginPlay 함수
 void AItem_Tent::BeginPlay()
 {
     Super::BeginPlay();
-    CurrentHealth = MaxHealth;
 
-    // 다이나믹 머티리얼 생성
+
+    // DynamicMaterial 초기화 추가
     if (MeshComponent && MeshComponent->GetMaterial(0))
     {
-        DynamicMaterial = UMaterialInstanceDynamic::Create(MeshComponent->GetMaterial(0), this);
-        MeshComponent->SetMaterial(0, DynamicMaterial);
+        DynamicMaterial = MeshComponent->CreateAndSetMaterialInstanceDynamic(0);
+    }
+
+    if (MeshComponent)
+    {
+        // 기본 충돌 설정 구성
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+        // 모든 채널에 대해 기본적으로 Block 응답
+        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+
+
+        MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap); // 판자 전용 채널
+
+
+        // 물리 설정
+        MeshComponent->SetSimulatePhysics(true);
+        MeshComponent->SetEnableGravity(true);
+        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+
+        // 네트워크 업데이트 강제
+        ForceNetUpdate();
+    }
+}
+
+void AItem_Tent::MulticastOnTentPlaced_Implementation()
+{
+    if (!HasAuthority() && MeshComponent)
+    {
+        MeshComponent->SetSimulatePhysics(false);
+        MeshComponent->SetMobility(EComponentMobility::Stationary);
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     }
 }
 
@@ -52,12 +83,23 @@ void AItem_Tent::OnPlaced_Implementation()
 
     if (MeshComponent)
     {
-        MeshComponent->SetMobility(EComponentMobility::Stationary);
+        // 물리 시뮬레이션 완전히 비활성화
         MeshComponent->SetSimulatePhysics(false);
         MeshComponent->SetEnableGravity(false);
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 
+        // 고정 상태로 설정
+        MeshComponent->SetMobility(EComponentMobility::Stationary);
+
+        // 충돌 설정
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+        MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+
+        // 위치 업데이트 강제
+        MeshComponent->UpdateComponentToWorld();
+
+        // 모든 클라이언트에 동기화
         MulticastSetPhysicsState();
     }
 
@@ -66,16 +108,24 @@ void AItem_Tent::OnPlaced_Implementation()
 
 void AItem_Tent::MulticastSetPhysicsState_Implementation()
 {
-    if (!IsNetMode(NM_DedicatedServer))
+    // 서버 체크 제거 - 모든 클라이언트에서 실행
+    if (MeshComponent)
     {
-        if (MeshComponent)
-        {
-            MeshComponent->SetMobility(EComponentMobility::Stationary);
-            MeshComponent->SetSimulatePhysics(false);
-            MeshComponent->SetEnableGravity(false);
-            MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-            MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-        }
+        // 물리 시뮬레이션 비활성화
+        MeshComponent->SetSimulatePhysics(false);
+        MeshComponent->SetEnableGravity(false);
+
+        // 고정 상태로 설정
+        MeshComponent->SetMobility(EComponentMobility::Stationary);
+
+        // 충돌 설정
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+        MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
+        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
+        // 위치 업데이트 강제
+        MeshComponent->UpdateComponentToWorld();
     }
 }
 

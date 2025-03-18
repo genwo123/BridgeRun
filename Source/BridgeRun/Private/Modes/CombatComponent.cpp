@@ -134,22 +134,37 @@ void UCombatComponent::DropCurrentWeapon_Implementation()
 {
     if (!GetOwner()->HasAuthority() || !EquippedGun) return;
 
+    // 1. 조준 상태 확인 및 해제
+    if (EquippedGun->IsAiming())
+    {
+        EquippedGun->ToggleAim();
+    }
+
+    // 2. 인벤토리 업데이트
     if (OwnerCitizen && OwnerCitizen->GetInvenComponent())
     {
         OwnerCitizen->GetInvenComponent()->UpdateItemCount(EInventorySlot::Gun, -1);
     }
 
-    EquippedGun->ThrowForward();
+    // 3. 참조 저장 및 상태 업데이트
+    AItem_Gun* GunToThrow = EquippedGun;
     bHasGun = false;
     EquippedGun = nullptr;
 
+    // 4. 카메라 및 플레이어 모드 리셋
     if (OwnerCitizen)
     {
+        ResetCameraSettings();
         OwnerCitizen->GetPlayerModeComponent()->SetPlayerMode(EPlayerMode::Normal);
         OwnerCitizen->GetInvenComponent()->SetCurrentSelectedSlot(EInventorySlot::None);
     }
-}
 
+    // 5. 저장된 참조로 총기 던지기
+    if (GunToThrow)
+    {
+        GunToThrow->ThrowForward();
+    }
+}
 void UCombatComponent::HandleShoot_Implementation()
 {
     if (!GetOwner()->HasAuthority()) return;

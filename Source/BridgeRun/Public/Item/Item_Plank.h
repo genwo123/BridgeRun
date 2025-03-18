@@ -7,32 +7,36 @@
 UCLASS(Blueprintable)
 class BRIDGERUN_API AItem_Plank : public AItem
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 public:
-	AItem_Plank();
+    AItem_Plank();
 
-	UPROPERTY(ReplicatedUsing = OnRep_IsBuilt, EditAnywhere, Category = "Plank")
-	bool bIsBuiltPlank;
+    UPROPERTY(ReplicatedUsing = OnRep_IsBuilt, EditAnywhere, Category = "Plank")
+    bool bIsBuiltPlank;
 
-	UPROPERTY(Replicated, EditAnywhere, Category = "Plank")
-	float MaxPlankLength;
+    UPROPERTY(Replicated, EditAnywhere, Category = "Plank")
+    float MaxPlankLength;
 
-	UPROPERTY(EditAnywhere, Category = "Preview Materials")
-	UMaterialInterface* ValidPlacementMaterial;
+    UPROPERTY(EditAnywhere, Category = "Preview Materials")
+    UMaterialInterface* ValidPlacementMaterial;
 
-	UPROPERTY(EditAnywhere, Category = "Preview Materials")
-	UMaterialInterface* InvalidPlacementMaterial;
+    UPROPERTY(EditAnywhere, Category = "Preview Materials")
+    UMaterialInterface* InvalidPlacementMaterial;
 
-	UFUNCTION(Server, Reliable)
-	void OnPlaced();
+    UFUNCTION(Server, Reliable)
+    void OnPlaced();
 
-	UMaterialInterface* GetValidPlacementMaterial() const { return ValidPlacementMaterial; }
-	UMaterialInterface* GetInvalidPlacementMaterial() const { return InvalidPlacementMaterial; }
+    // 추가: 멀티캐스트 모빌리티 설정 함수
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastSetPlankPhysicsState(EComponentMobility::Type NewMobility);
+
+    UMaterialInterface* GetValidPlacementMaterial() const { return ValidPlacementMaterial; }
+    UMaterialInterface* GetInvalidPlacementMaterial() const { return InvalidPlacementMaterial; }
 
 protected:
-	virtual void BeginPlay() override;
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    virtual void BeginPlay() override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	UFUNCTION()
-	void OnRep_IsBuilt();
+    UFUNCTION()
+    void OnRep_IsBuilt();
 };

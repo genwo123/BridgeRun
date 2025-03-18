@@ -26,6 +26,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Preview Materials")
 	UMaterialInterface* InvalidPlacementMaterial;
 
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastOnTentPlaced();
+
 	// 체력 시스템
 	UPROPERTY(EditDefaultsOnly, Replicated, Category = "Tent|Properties")
 	float MaxHealth = 3.0f;

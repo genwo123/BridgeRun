@@ -27,12 +27,30 @@ void AItem_Gun::BeginPlay()
 {
     Super::BeginPlay();
 
+    // 초기 상태 설정
+    CurrentAmmo = MaxAmmo;
+
     if (MeshComponent)
     {
-        MeshComponent->SetSimulatePhysics(true);
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        MeshComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
-        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+        if (bIsHeld)
+        {
+            // 들고 있을 때 설정
+            MeshComponent->SetSimulatePhysics(false);
+            MeshComponent->SetEnableGravity(false);
+            MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        }
+        else
+        {
+            // 바닥에 있을 때 설정
+            MeshComponent->SetSimulatePhysics(true);
+            MeshComponent->SetEnableGravity(true);
+            MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+            MeshComponent->SetCollisionObjectType(ECC_PhysicsBody);
+            MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+        }
+
+        // 네트워크 복제 설정
+        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
     }
 }
 
@@ -40,9 +58,10 @@ void AItem_Gun::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    DOREPLIFETIME(AItem_Gun, CurrentAmmo);
     DOREPLIFETIME(AItem_Gun, bIsHeld);
     DOREPLIFETIME(AItem_Gun, bIsAiming);
+    DOREPLIFETIME(AItem_Gun, CurrentAmmo);
+
 }
 
 void AItem_Gun::OnRep_HeldState()
@@ -98,12 +117,29 @@ void AItem_Gun::OnRep_AimState()
 
 void AItem_Gun::PickUp_Implementation(ACharacter* Character)
 {
-    Super::PickUp_Implementation(Character);
-
-    if (!Character || !HasAuthority()) return;
+    if (!Character) return;
 
     bIsHeld = true;
-    OnRep_HeldState();
+    SetOwner(Character);
+
+    if (MeshComponent)
+    {
+        // 물리 및 충돌 비활성화
+        MeshComponent->SetSimulatePhysics(false);
+        MeshComponent->SetEnableGravity(false);
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    // 캐릭터에 부착
+    FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
+    AttachToActor(Character, AttachRules);
+
+    // 상대적 위치 설정
+    SetActorRelativeLocation(FVector(30.0f, 10.0f, 0.0f));
+    SetActorRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+
+    // 네트워크 업데이트
+    ForceNetUpdate();
 }
 
 void AItem_Gun::Drop_Implementation()
@@ -158,18 +194,45 @@ void AItem_Gun::ToggleAim_Implementation()
 
 void AItem_Gun::ThrowForward_Implementation()
 {
-    if (!HasAuthority()) return;
+    if (!GetOwner() || !HasAuthority()) return;
 
-    if (ACitizen* Player = Cast<ACitizen>(GetOwner()))
+    // 1. 소유자로부터 분리
+    DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+    // 2. 물리 상태 초기화
+    if (MeshComponent)
     {
-        FVector ThrowDirection = Player->GetActorForwardVector();
-        FVector ThrowVelocity = ThrowDirection * 1000.0f + FVector(0, 0, 300.0f);
+        // 충돌 설정 활성화
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MeshComponent->SetCollisionObjectType(ECC_PhysicsBody);
+        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
 
-        Drop();
+        // 물리 시뮬레이션 활성화
+        MeshComponent->SetSimulatePhysics(true);
+        MeshComponent->SetEnableGravity(true);
 
-        if (MeshComponent)
+        // 물리 특성 설정
+        MeshComponent->SetLinearDamping(0.5f);    // 공기 저항
+        MeshComponent->SetAngularDamping(0.5f);   // 회전 저항
+
+        // 네트워크 동기화 설정
+        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+
+        // 컴포넌트 업데이트
+        MeshComponent->UpdateComponentToWorld();
+
+        // 5. 임펄스 추가 (충돌 설정 후)
+        if (GetOwner())
         {
-            MeshComponent->AddImpulse(ThrowVelocity);
+            FVector ThrowDirection = GetOwner()->GetActorForwardVector();
+            MeshComponent->AddImpulse(ThrowDirection * 500.0f, NAME_None, true);
         }
     }
+
+    // 상태 업데이트
+    bIsHeld = false;
+    SetOwner(nullptr);
+
+    // 네트워크 업데이트 강제
+    ForceNetUpdate();
 }

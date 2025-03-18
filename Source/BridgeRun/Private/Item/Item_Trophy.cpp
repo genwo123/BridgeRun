@@ -75,13 +75,13 @@ void AItem_Trophy::PickUp_Implementation(ACharacter* Character)
     UpdateTrophyCollision();
     UpdateTrophyVisibility(true);
 
-    // 모든 클라이언트에 동일한 부착 위치 전달
+    // 여기서 AttachTrophyToPlayer를 호출하지 않고 
+    // 멀티캐스트로만 부착 처리
     MulticastOnPickedUp(Character);
 
     // 네트워크 동기화를 위한 상태 업데이트
     ForceNetUpdate();
 }
-
 
 
 void AItem_Trophy::Drop_Implementation()
@@ -92,42 +92,72 @@ void AItem_Trophy::Drop_Implementation()
 
     if (MeshComponent)
     {
-        // 먼저 충돌 설정을 변경
+        // 물리 설정 전에 콜리전 프로필 설정
+        MeshComponent->SetCollisionProfileName(TEXT("PhysicsActor"));
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+        MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
         // 그 다음 물리 활성화
         MeshComponent->SetSimulatePhysics(true);
+        MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
     }
 
     DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+    // 모든 클라이언트에 충돌 상태 동기화
+    MulticastOnTrophyDropped();
 
     // 네트워크 상태 업데이트 강제
     ForceNetUpdate();
 }
 
+// Item_Trophy.cpp
+void AItem_Trophy::MulticastOnTrophyDropped_Implementation()
+{
+    if (!MeshComponent) return;
+
+    // 클라이언트에서도 동일한 충돌 설정 적용
+    MeshComponent->SetCollisionProfileName(TEXT("PhysicsActor"));
+    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+    MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
+    // 물리 설정
+    MeshComponent->SetSimulatePhysics(true);
+    MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+}
+
 void AItem_Trophy::MulticastOnPickedUp_Implementation(ACharacter* Player)
 {
-    if (!IsValid(Player)) return;
+    if (!IsValid(Player) || !MeshComponent) return;
 
-    if (MeshComponent)
-    {
-        MeshComponent->SetSimulatePhysics(false);
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
+    // 물리 비활성화
+    MeshComponent->SetSimulatePhysics(false);
 
-    // 위치 먼저 설정
-    SetActorRelativeLocation(FVector(150.0f, 0.0f, 100.0f));
+    // 충돌 유지 설정
+    MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+    MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 
-    // 그 다음 부착
+    // 캐릭터 전체 액터에 부착 (메시 컴포넌트가 아닌 액터에 부착)
     FAttachmentTransformRules AttachRules(
-        EAttachmentRule::KeepRelative,  // SnapToTarget 대신 KeepRelative 사용
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
         EAttachmentRule::KeepRelative,
-        EAttachmentRule::KeepWorld,
         false
     );
 
+    // 액터에 부착
     AttachToActor(Player, AttachRules);
-}
 
+    // 캐릭터 앞쪽에 트로피 위치 설정
+    SetActorRelativeLocation(FVector(100.0f, 0.0f, 50.0f));
+    SetActorRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
+
+    // 모든 네트워크에서 변경사항 적용 강제
+    ForceNetUpdate();
+}
 
 void AItem_Trophy::OnRep_TrophyState()
 {
@@ -141,7 +171,20 @@ void AItem_Trophy::UpdateTrophyState()
         SetTrophyPhysics(false);
         UpdateTrophyCollision();
         UpdateTrophyVisibility(true);
-        AttachTrophyToPlayer(OwningPlayer);
+
+        // 부착 방식 유지 (액터에 부착)
+        FAttachmentTransformRules AttachRules(
+            EAttachmentRule::SnapToTarget,
+            EAttachmentRule::SnapToTarget,
+            EAttachmentRule::KeepRelative,
+            false
+        );
+
+        AttachToActor(OwningPlayer, AttachRules);
+
+        // 클라이언트와 동일한 위치 사용
+        SetActorRelativeLocation(FVector(100.0f, 0.0f, 50.0f));
+        SetActorRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
     }
     else
     {
@@ -182,27 +225,23 @@ void AItem_Trophy::UpdateTrophyCollision()
 
 void AItem_Trophy::AttachTrophyToPlayer(ACharacter* Player)
 {
-    if (!IsValid(Player) || !MeshComponent) return;
+    if (!IsValid(Player)) return;
 
-    // 부착 규칙 설정
+    // 액터 부착 방식 사용
     FAttachmentTransformRules AttachRules(
         EAttachmentRule::SnapToTarget,
         EAttachmentRule::SnapToTarget,
-        EAttachmentRule::KeepWorld,
+        EAttachmentRule::KeepRelative,
         false
     );
 
-    // 메시 부착
-    MeshComponent->AttachToComponent(
-        Player->GetMesh(),
-        AttachRules
-    );
+    // 액터에 부착
+    AttachToActor(Player, AttachRules);
 
-    // 상대적 위치와 회전 설정
-    MeshComponent->SetRelativeLocation(PickupOffset);
-    MeshComponent->SetRelativeRotation(PickupRotation);
+    // 클라이언트와 동일한 위치
+    SetActorRelativeLocation(FVector(100.0f, 0.0f, 50.0f));
+    SetActorRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
 }
-
 
 void AItem_Trophy::ServerTryRespawn_Implementation(const FVector& RespawnLocation)
 {

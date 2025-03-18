@@ -240,11 +240,6 @@ bool ACitizen::ServerRespawn_Validate(const FVector& RespawnLocation)
 
 void ACitizen::OnPlayerModeChanged(EPlayerMode NewMode, EPlayerMode OldMode)
 {
-    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow,
-        FString::Printf(TEXT("Mode Changed: %s -> %s"),
-            *UEnum::GetValueAsString(OldMode),
-            *UEnum::GetValueAsString(NewMode)));
-
     switch (NewMode)
     {
     case EPlayerMode::Build:
@@ -338,19 +333,6 @@ void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
         return;
     }
 
-    if (PlayerModeComponent->GetCurrentMode() != EPlayerMode::Normal)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Must return to Normal mode before selecting new item"));
-        return;
-    }
-
-    FItemData* ItemData = InvenComponent->GetItemData(Slot);
-    if (!ItemData || ItemData->Count <= 0)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red,
-            FString::Printf(TEXT("Cannot select slot: No items available in slot %d"), static_cast<int32>(Slot)));
-        return;
-    }
 
     InvenComponent->SetCurrentSelectedSlot(Slot);
     switch (Slot)

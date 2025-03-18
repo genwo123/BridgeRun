@@ -30,6 +30,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Trophy")
     int32 TrophyValue = 5;  // 기본값 5점
 
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastOnTrophyDropped();
 
 protected:
     virtual void BeginPlay() override;

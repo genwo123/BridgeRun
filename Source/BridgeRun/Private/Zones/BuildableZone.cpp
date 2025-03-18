@@ -299,45 +299,71 @@ bool ABuildableZone::IsTentPlacementValid(const FVector& StartPoint, const FVect
     if (!LeftTopRope || !LeftBottomRope || !RightTopRope || !RightBottomRope || !ZoneSettings.bIsActive)
         return false;
 
-    FVector TestPoint = (StartPoint + EndPoint) * 0.5f;
-    const float Tolerance = 1.0f;  // 약간의 허용 오차 추가
+    // 텐트 중앙점 계산
+    FVector TentCenter = (StartPoint + EndPoint) * 0.5f;
 
-    auto CheckArea = [&](USplineComponent* TopRope, USplineComponent* BottomRope) -> bool
-        {
-            float SplineLength = BottomRope->GetSplineLength();
-            FVector Bottom = BottomRope->GetLocationAtDistanceAlongSpline(0.0f, ESplineCoordinateSpace::World);
-            FVector Top = TopRope->GetLocationAtDistanceAlongSpline(0.0f, ESplineCoordinateSpace::World);
+    // 텐트의 방향 계산 - 위아래 방향으로 설치되어야 함
+    FVector TentDirection = (EndPoint - StartPoint).GetSafeNormal();
 
-            // 스플라인을 따라 이동하며 영역 체크
-            for (float Distance = 0.0f; Distance <= SplineLength; Distance += 10.0f)
-            {
-                Bottom = BottomRope->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
-                Top = TopRope->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
+    // 왼쪽 로프 확인
+    bool bLeftValid = false;
+    {
+        FVector TopPoint = LeftTopRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector BottomPoint = LeftBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector RopeDir = (TopPoint - BottomPoint).GetSafeNormal();
 
-                FVector VerticalDir = (Top - Bottom).GetSafeNormal();
-                FVector ToPoint = TestPoint - Bottom;
+        // 텐트 방향과 로프 방향이 거의 평행한지 확인 (텐트가 로프와 같은 방향을 향해야 함)
+        float DirAlignment = FMath::Abs(FVector::DotProduct(TentDirection, RopeDir));
 
-                float Height = FVector::Distance(Top, Bottom);
-                float ProjectedHeight = FVector::DotProduct(ToPoint, VerticalDir);
+        // 텐트 위치가 왼쪽 로프 선에 거의 정확히 있는지 확인
+        FVector PointToRope = TentCenter - BottomPoint;
+        FVector CrossDir = FVector::CrossProduct(RopeDir, PointToRope).GetSafeNormal();
+        float Distance = FVector::DotProduct(PointToRope, CrossDir);
 
-                if (ProjectedHeight >= -Tolerance && ProjectedHeight <= Height + Tolerance)
-                {
-                    FVector ProjectedPoint = Bottom + VerticalDir * FMath::Clamp(ProjectedHeight, 0.0f, Height);
-                    float HorizontalDist = FVector::Distance(TestPoint, ProjectedPoint);
+        // 거의 완벽하게 로프 위에 있는지 확인 (아주 작은 허용 오차)
+        bLeftValid = (FMath::Abs(Distance) <= 5.0f) && (DirAlignment >= 0.95f);
+    }
 
-                    if (HorizontalDist <= BridgeWidth * 0.5f)
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        };
+    // 오른쪽 로프에 대해서도 같은 검증
+    bool bRightValid = false;
+    {
+        FVector TopPoint = RightTopRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector BottomPoint = RightBottomRope->GetLocationAtSplinePoint(0, ESplineCoordinateSpace::World);
+        FVector RopeDir = (TopPoint - BottomPoint).GetSafeNormal();
 
-    return CheckArea(LeftTopRope, LeftBottomRope) || CheckArea(RightTopRope, RightBottomRope);
+        float DirAlignment = FMath::Abs(FVector::DotProduct(TentDirection, RopeDir));
+
+        FVector PointToRope = TentCenter - BottomPoint;
+        FVector CrossDir = FVector::CrossProduct(RopeDir, PointToRope).GetSafeNormal();
+        float Distance = FVector::DotProduct(PointToRope, CrossDir);
+
+        bRightValid = (FMath::Abs(Distance) <= 5.0f) && (DirAlignment >= 0.95f);
+    }
+
+    // 한 로프에 정확히 일치해야만 유효
+    return (bLeftValid || bRightValid) && ZoneSettings.bAllowTentBuilding;
 }
 
 
+FBox ABuildableZone::CalculateBuildableArea() const
+{
+    FBox Area(ForceInit);
+
+    // 모든 로프의 끝점들을 사용하여 영역 계산
+    if (LeftBottomRope && RightBottomRope && LeftTopRope && RightTopRope)
+    {
+        for (int32 i = 0; i < LeftBottomRope->GetNumberOfSplinePoints(); i++)
+        {
+            Area += LeftBottomRope->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+            Area += RightBottomRope->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+            Area += LeftTopRope->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+            Area += RightTopRope->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+        }
+    }
+
+    // 약간 더 큰 영역으로 확장
+    return Area.ExpandBy(50.0f);
+}
 
 void ABuildableZone::UpdateSplineMeshes()
 {

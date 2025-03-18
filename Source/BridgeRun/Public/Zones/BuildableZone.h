@@ -118,6 +118,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Building")
     bool IsTentPlacementValid(const FVector& StartPoint, const FVector& EndPoint);
 
+    FBox CalculateBuildableArea() const;
+
     // Team Management
     UFUNCTION(BlueprintCallable, Category = "Teams")
     bool IsTeamActive(EBuildableTeam Team) const;

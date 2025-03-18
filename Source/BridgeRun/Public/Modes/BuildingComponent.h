@@ -1,4 +1,4 @@
-// Copyright BridgeRun Game, Inc. All Rights Reserved.
+﻿// Copyright BridgeRun Game, Inc. All Rights Reserved.
 #pragma once
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -37,7 +37,7 @@ public:
     void FinishBuild();
 
 protected:
-    // Implementation �Լ���
+    // Implementation ÇÔ¼öµé
     virtual void AttemptBuild_Implementation();
     virtual void OnBuildModeEntered_Implementation();
     virtual void DeactivateBuildMode_Implementation();
