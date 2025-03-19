@@ -2,23 +2,25 @@
 #include "Core/BridgeRunPlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "Characters/Citizen.h"
-#include <BridgeRunGameMode.h>
+#include "BridgeRunGameMode.h"
 
 ABridgeRunPlayerState::ABridgeRunPlayerState()
 {
-    // 기본 설정
+    // 초기 팀 ID는 -1 (미할당)
     TeamID = -1;
 }
 
 void ABridgeRunPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
     // TeamID 복제 설정
     DOREPLIFETIME(ABridgeRunPlayerState, TeamID);
 }
 
 void ABridgeRunPlayerState::SetTeamID(int32 NewTeamID)
 {
+    // 팀 ID 변경
     TeamID = NewTeamID;
 }
 

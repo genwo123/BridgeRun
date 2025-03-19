@@ -9,7 +9,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
-#include "Engine/TargetPoint.h" 
+#include "Engine/TargetPoint.h"
 #include "GameFramework/PlayerStart.h"
 
 ADeathVolume::ADeathVolume()
@@ -51,51 +51,61 @@ void ADeathVolume::HandleOverlap(UPrimitiveComponent* OverlappedComponent,
     // 시민 캐릭터 처리
     if (ACitizen* Citizen = Cast<ACitizen>(OtherActor))
     {
-        // 트로피를 들고 있는 경우
-        if (Citizen->HeldTrophy)
-        {
-            AItem_Trophy* Trophy = Citizen->HeldTrophy;
+        // 트로피를 들고 있는 경우 처리
+        HandleCitizenWithTrophy(Citizen);
 
-            // 떨어진 위치에서 가장 가까운 NavMesh 위치 찾기
-            FVector DeathLocation = Citizen->GetActorLocation();
-            FVector SafeLocation = FindSafeLocationNearby(DeathLocation);
-
-            // 트로피 드롭
-            Trophy->Drop();
-            Citizen->HeldTrophy = nullptr;
-
-            Trophy->ServerTryRespawn(SafeLocation);
-        }
-
-        // 멀티캐스트로 사망 처리
+        // 캐릭터 사망 처리
         Citizen->MulticastHandleDeath();
 
         // 리스폰 타이머 설정
-        FTimerHandle RespawnTimer;
-        GetWorld()->GetTimerManager().SetTimer(
-            RespawnTimer,
-            [this, Citizen]()
-            {
-                if (IsValid(Citizen))
-                {
-                    FVector SpawnLocation = GetRespawnLocation();
-                    Citizen->ServerRespawn(SpawnLocation);
-                }
-            },
-            PlayerRespawnDelay,
-            false
-        );
+        ScheduleRespawn(Citizen);
     }
     // 트로피 자체가 낙사한 경우
     else if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(OtherActor))
     {
-        FVector DeathLocation = Trophy->GetActorLocation();
-        FVector SafeLocation = FindSafeLocationNearby(DeathLocation);
+        FVector SafeLocation = FindSafeLocationNearby(Trophy->GetActorLocation());
         Trophy->ServerTryRespawn(SafeLocation);
     }
 }
 
+void ADeathVolume::HandleCitizenWithTrophy(ACitizen* Citizen)
+{
+    if (!Citizen || !Citizen->HeldTrophy)
+        return;
 
+    AItem_Trophy* Trophy = Citizen->HeldTrophy;
+
+    // 떨어진 위치에서 가장 가까운 안전 위치 찾기
+    FVector SafeLocation = FindSafeLocationNearby(Citizen->GetActorLocation());
+
+    // 트로피 드롭
+    Trophy->Drop();
+    Citizen->HeldTrophy = nullptr;
+
+    // 트로피 리스폰
+    Trophy->ServerTryRespawn(SafeLocation);
+}
+
+void ADeathVolume::ScheduleRespawn(ACitizen* Citizen)
+{
+    if (!IsValid(Citizen))
+        return;
+
+    FTimerHandle RespawnTimer;
+    GetWorld()->GetTimerManager().SetTimer(
+        RespawnTimer,
+        [this, Citizen]()
+        {
+            if (IsValid(Citizen))
+            {
+                FVector SpawnLocation = GetRespawnLocation();
+                Citizen->ServerRespawn(SpawnLocation);
+            }
+        },
+        PlayerRespawnDelay,
+        false
+    );
+}
 
 FVector ADeathVolume::FindSafeLocationNearby(const FVector& DeathLocation) const
 {
@@ -129,12 +139,11 @@ FVector ADeathVolume::GetRespawnLocation() const
     {
         // 랜덤하게 타겟 포인트 선택
         int32 RandomIndex = FMath::RandRange(0, FoundTargetPoints.Num() - 1);
-        FVector Location = FoundTargetPoints[RandomIndex]->GetActorLocation();
-
-        return Location;
+        return FoundTargetPoints[RandomIndex]->GetActorLocation();
     }
 
-    return FVector(-970.0f, -146.44342f, 222.000671f);
+    // 타겟 포인트가 없으면 설정된 기본 위치 사용
+    return DefaultRespawnLocation;
 }
 
 FVector ADeathVolume::GetTrophyRespawnLocation(const FVector& DeathLocation) const

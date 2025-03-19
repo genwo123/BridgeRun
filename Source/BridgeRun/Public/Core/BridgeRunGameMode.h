@@ -7,23 +7,23 @@
 // 전방 선언
 class UTeamManagerComponent;
 
+/** 게임 상태를 나타내는 열거형 */
 UENUM(BlueprintType)
 enum class EGameState : uint8
 {
-    WaitingToStart,
-    InProgress,
-    RoundEnd,
-    GameOver
+    WaitingToStart,  // 게임 시작 대기 중
+    InProgress,      // 게임 진행 중
+    RoundEnd,        // 라운드 종료
+    GameOver         // 게임 종료
 };
 
+/** 브리지 런 게임의 메인 게임모드 클래스 */
 UCLASS(Blueprintable)
 class BRIDGERUN_API ABridgeRunGameMode : public AGameModeBase
 {
     GENERATED_BODY()
-
 public:
     ABridgeRunGameMode();
-
     virtual void BeginPlay() override;
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
@@ -68,6 +68,7 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Spawn")
     TArray<FVector> PlayerStartLocations;
 
+    // 게임 상태 변수
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
     EGameState CurrentGameState = EGameState::WaitingToStart;
 
@@ -86,9 +87,13 @@ private:
     FTimerHandle RoundTimerHandle;
     FTimerHandle JobSystemTimerHandle;
 
-    // 내부 함수
+    // 내부 유틸리티 함수
     void HandleRoundTimer();
     void HandleJobSystemActivation();
     bool CanStartGame() const;
     void UpdateGameState();
+
+    // 타이머 헬퍼 함수
+    void SetGameTimer(FTimerHandle& TimerHandle, void (ABridgeRunGameMode::* Function)(), float Delay, bool bLooping = false);
+    void ClearGameTimer(FTimerHandle& TimerHandle);
 };

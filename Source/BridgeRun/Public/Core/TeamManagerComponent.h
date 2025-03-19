@@ -3,7 +3,6 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "GameFramework/PlayerStart.h"
 #include "TeamManagerComponent.generated.h"
 
 // 팀 정보 구조체
@@ -12,15 +11,13 @@ struct BRIDGERUN_API FTeamInfo
 {
     GENERATED_BODY()
 
-    // 팀 ID
+    // 팀 기본 정보
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
     int32 TeamID;
 
-    // 팀 이름
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
     FString TeamName;
 
-    // 팀 색상
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
     FLinearColor TeamColor;
 
@@ -39,7 +36,8 @@ struct BRIDGERUN_API FTeamInfo
 
 /**
  * 팀 관리를 담당하는 컴포넌트
- * 게임모드에 추가하여 사용
+ * 현재: 자동 팀 배정 로직 사용 (임시)
+ * 향후: 로비 시스템과 연동하여 플레이어가 팀 선택
  */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent), Blueprintable)
 class BRIDGERUN_API UTeamManagerComponent : public UActorComponent
@@ -47,93 +45,73 @@ class BRIDGERUN_API UTeamManagerComponent : public UActorComponent
     GENERATED_BODY()
 
 public:
-    // 생성자 및 초기화
+    // 기본 함수
     UTeamManagerComponent();
     virtual void BeginPlay() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-    // 팀 색상 초기화 함수
+    // 팀 초기화 및 설정 함수
     UFUNCTION(BlueprintCallable, Category = "Team")
     void InitializeTeamColors();
 
-    // 플레이어를 팀에 할당하는 함수
-    UFUNCTION(BlueprintCallable, Category = "Team")
-    void AssignPlayerToTeam(AController* PlayerController);
-
-    // 활성 팀 수 설정 (2-4)
-    UFUNCTION(BlueprintCallable, Category = "Team")
-    void SetActiveTeamCount(int32 Count);
-
-    // 현재 활성화된 팀 수 가져오기
-    UFUNCTION(BlueprintPure, Category = "Team")
-    int32 GetActiveTeamCount() const { return ActiveTeamCount; }
-
-    // 특정 팀의 색상 가져오기
-    UFUNCTION(BlueprintPure, Category = "Team")
-    FLinearColor GetTeamColor(int32 TeamID) const;
-
-    // 특정 팀의 이름 가져오기
-    UFUNCTION(BlueprintPure, Category = "Team")
-    FString GetTeamName(int32 TeamID) const;
-
-    // 플레이어의 팀 ID 가져오기
-    UFUNCTION(BlueprintPure, Category = "Team")
-    int32 GetPlayerTeamID(AController* PlayerController) const;
-
-    // 활성화된 팀 정보 가져오기
-    UFUNCTION(BlueprintCallable, Category = "Team")
-    TArray<FTeamInfo> GetActiveTeams() const;
-
-    // 플레이어를 재배정하는 함수
-    UFUNCTION(BlueprintCallable, Category = "Team")
-    void ReallocatePlayersToTeams();
-
-    // 플레이어가 팀을 변경하는 함수
-    UFUNCTION(BlueprintCallable, Category = "Team")
-    bool RequestTeamChange(AController* PlayerController, int32 RequestedTeamID);
-
-    // 팀 활성화 상태 업데이트
     UFUNCTION(BlueprintCallable, Category = "Team")
     void UpdateTeamActiveStatus();
 
+    UFUNCTION(BlueprintCallable, Category = "Team")
+    void SetActiveTeamCount(int32 Count);
 
+    // 팀 정보 접근 함수
+    UFUNCTION(BlueprintPure, Category = "Team")
+    int32 GetActiveTeamCount() const { return ActiveTeamCount; }
 
+    UFUNCTION(BlueprintPure, Category = "Team")
+    FLinearColor GetTeamColor(int32 TeamID) const;
 
+    UFUNCTION(BlueprintPure, Category = "Team")
+    FString GetTeamName(int32 TeamID) const;
 
+    UFUNCTION(BlueprintCallable, Category = "Team")
+    TArray<FTeamInfo> GetActiveTeams() const;
 
+    // 플레이어 팀 관리 함수
+    UFUNCTION(BlueprintCallable, Category = "Team")
+    void AssignPlayerToTeam(AController* PlayerController);
+
+    UFUNCTION(BlueprintPure, Category = "Team")
+    int32 GetPlayerTeamID(AController* PlayerController) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Team|Future")
+    void ReallocatePlayersToTeams();
+
+    // 향후 로비 시스템용 함수
+    UFUNCTION(BlueprintCallable, Category = "Team|Future")
+    bool RequestTeamChange(AController* PlayerController, int32 RequestedTeamID);
 
 protected:
-    // 최대 팀 수
+    // 팀 설정
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Team")
     int32 MaxTeams = 4;
 
-    // 활성화된 팀 수 (2-4)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Team", meta = (ClampMin = "2", ClampMax = "4"))
     int32 ActiveTeamCount = 2;
 
-    // 팀 정보 배열
-    UPROPERTY(Replicated, BlueprintReadOnly, EditAnywhere, Category = "Team")
-    TArray<FTeamInfo> TeamInfo;
-
-    // 팀 활성화 상태 배열
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Team")
-    TArray<bool> TeamActive;
-
-    // 팀 인원 제한
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Team")
     int32 MaxPlayersPerTeam = 8;
 
+    // 팀 데이터
+    UPROPERTY(Replicated, BlueprintReadOnly, EditAnywhere, Category = "Team")
+    TArray<FTeamInfo> TeamInfo;
+
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Team")
+    TArray<bool> TeamActive;
+
 private:
-    // 플레이어-팀 맵핑을 저장할 변수
+    // 플레이어-팀 맵핑
     UPROPERTY()
     TMap<AController*, int32> PlayerTeamMap;
 
-    // 최적의 팀 찾기 (가장 인원이 적은 팀)
+    // 내부 유틸리티 함수
     int32 GetOptimalTeamForTeam() const;
-
-    // 팀 변경 시 필요한 경우 플레이어 리스폰 처리
     void RespawnPlayerInTeam(AController* PlayerController, int32 TeamID);
-
-
     AActor* FindPlayerStartForTeam(AController* Controller, const FString& TeamTag);
 };

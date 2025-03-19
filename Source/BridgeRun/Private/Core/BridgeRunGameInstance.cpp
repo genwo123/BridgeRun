@@ -8,7 +8,8 @@ UBridgeRunGameInstance::UBridgeRunGameInstance()
 
 void UBridgeRunGameInstance::Init()
 {
-    Super::Init();
+    // 부모 클래스의 Init 호출
+    UGameInstance::Init();
 
     // 기본 팀 점수 초기화
     TeamScores.SetNum(NumberOfTeams);
@@ -16,53 +17,30 @@ void UBridgeRunGameInstance::Init()
     {
         TeamScores[i] = 0;
     }
-
-    UE_LOG(LogTemp, Log, TEXT("BridgeRunGameInstance initialized with %d teams"), NumberOfTeams);
 }
 
 void UBridgeRunGameInstance::UpdateTeamScore(int32 TeamID, int32 NewScore)
 {
-    // 유효한 팀 ID인지 확인
-    if (TeamID >= 0 && TeamID < TeamScores.Num())
+    if (IsValidTeamID(TeamID))
     {
-        // 점수 업데이트
         TeamScores[TeamID] = NewScore;
-
-        // 로그 기록
-        UE_LOG(LogTemp, Log, TEXT("Team %d Score Updated: %d"), TeamID, NewScore);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Invalid TeamID: %d"), TeamID);
     }
 }
 
 void UBridgeRunGameInstance::AddTeamScore(int32 TeamID, int32 ScoreToAdd)
 {
-    // 유효한 팀 ID인지 확인
-    if (TeamID >= 0 && TeamID < TeamScores.Num())
+    if (IsValidTeamID(TeamID))
     {
-        // 점수 추가
         TeamScores[TeamID] += ScoreToAdd;
-
-        // 로그 기록
-        UE_LOG(LogTemp, Log, TEXT("Team %d Score Added: %d, New Total: %d"),
-            TeamID, ScoreToAdd, TeamScores[TeamID]);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Invalid TeamID: %d"), TeamID);
     }
 }
 
 int32 UBridgeRunGameInstance::GetTeamScore(int32 TeamID) const
 {
-    if (TeamID >= 0 && TeamID < TeamScores.Num())
+    if (IsValidTeamID(TeamID))
     {
         return TeamScores[TeamID];
     }
-
-    UE_LOG(LogTemp, Warning, TEXT("GetTeamScore: Invalid TeamID: %d"), TeamID);
     return 0;
 }
 
@@ -83,12 +61,7 @@ int32 UBridgeRunGameInstance::GetWinningTeam() const
     return WinningTeam;
 }
 
-void UBridgeRunGameInstance::LogTeamScores()
+bool UBridgeRunGameInstance::IsValidTeamID(int32 TeamID) const
 {
-    UE_LOG(LogTemp, Log, TEXT("===== TEAM SCORES ====="));
-    for (int32 i = 0; i < TeamScores.Num(); i++)
-    {
-        UE_LOG(LogTemp, Log, TEXT("Team %d: %d points"), i, TeamScores[i]);
-    }
-    UE_LOG(LogTemp, Log, TEXT("======================="));
+    return (TeamID >= 0 && TeamID < TeamScores.Num());
 }

@@ -15,7 +15,7 @@ ABridgeRunGameMode::ABridgeRunGameMode()
     // 네트워크 활성화
     bReplicates = true;
 
-    // 기본 캐릭터 클래스 설정 (BP_Citizen으로 변경)
+    // 기본 캐릭터 클래스 설정
     static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/BP/BP_Citizen"));
     if (PlayerPawnBPClass.Class != NULL)
     {
@@ -24,18 +24,6 @@ ABridgeRunGameMode::ABridgeRunGameMode()
 
     // 커스텀 PlayerState 클래스 설정
     PlayerStateClass = ABridgeRunPlayerState::StaticClass();
-
-    // 초기 설정
-    CurrentGameState = EGameState::WaitingToStart;
-    CurrentRound = 0;
-    RoundTimeRemaining = 0.0f;
-    bJobSystemActive = false;
-
-    // 기본 스폰 위치 설정
-    PlayerStartLocations.Add(FVector(0.0f, -200.0f, 100.0f));
-    PlayerStartLocations.Add(FVector(0.0f, 200.0f, 100.0f));
-    PlayerStartLocations.Add(FVector(200.0f, 0.0f, 100.0f));
-    PlayerStartLocations.Add(FVector(-200.0f, 0.0f, 100.0f));
 
     // 팀 관리 컴포넌트 생성
     TeamManagerComponent = CreateDefaultSubobject<UTeamManagerComponent>(TEXT("TeamManager"));
@@ -68,7 +56,7 @@ void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
 
     if (NewPlayer && TeamManagerComponent)
     {
-        // 팀 배정 (TeamManagerComponent 위임)
+        // 팀 배정
         TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
 
         // 게임 시작 조건 체크
@@ -81,7 +69,7 @@ void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
 
 void ABridgeRunGameMode::Logout(AController* Exiting)
 {
-    // 팀 관리는 TeamManagerComponent에 위임하므로 별도 처리 없음
+    // 팀 관리는 TeamManagerComponent에 위임
     Super::Logout(Exiting);
 }
 
@@ -96,13 +84,10 @@ void ABridgeRunGameMode::StartGame()
     StartNewRound();
 
     // 직업 시스템 타이머 설정
-    GetWorld()->GetTimerManager().SetTimer(
-        JobSystemTimerHandle,
-        this,
-        &ABridgeRunGameMode::HandleJobSystemActivation,
-        JobSystemActivationTime,
-        false
-    );
+    SetGameTimer(JobSystemTimerHandle, &ABridgeRunGameMode::HandleJobSystemActivation, JobSystemActivationTime);
+
+    // 상태 업데이트 알림
+    UpdateGameState();
 }
 
 void ABridgeRunGameMode::StartNewRound()
@@ -119,6 +104,9 @@ void ABridgeRunGameMode::StartNewRound()
         1.0f,
         true
     );
+
+    // 상태 업데이트 알림
+    UpdateGameState();
 }
 
 void ABridgeRunGameMode::EndCurrentRound()
@@ -135,6 +123,7 @@ void ABridgeRunGameMode::EndCurrentRound()
     }
     else
     {
+        CurrentRound++;
         GetWorld()->GetTimerManager().SetTimer(
             GameTimerHandle,
             this,
@@ -142,8 +131,10 @@ void ABridgeRunGameMode::EndCurrentRound()
             PostRoundDelay,
             false
         );
-        CurrentRound++;
     }
+
+    // 상태 업데이트 알림
+    UpdateGameState();
 }
 
 void ABridgeRunGameMode::EndGame()
@@ -151,15 +142,15 @@ void ABridgeRunGameMode::EndGame()
     CurrentGameState = EGameState::GameOver;
 
     // 타이머 정리
-    GetWorld()->GetTimerManager().ClearTimer(RoundTimerHandle);
-    GetWorld()->GetTimerManager().ClearTimer(JobSystemTimerHandle);
+    ClearGameTimer(RoundTimerHandle);
+    ClearGameTimer(JobSystemTimerHandle);
 
     // 게임 인스턴스에서 승자 팀 가져오기
     if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
     {
         int32 WinningTeam = GameInst->GetWinningTeam();
 
-        // 여기에 승자 처리 로직 추가
+        // 승자 처리 로직
         if (WinningTeam >= 0)
         {
             UE_LOG(LogTemp, Log, TEXT("Game Over! Winning Team: %d"), WinningTeam);
@@ -169,6 +160,9 @@ void ABridgeRunGameMode::EndGame()
             UE_LOG(LogTemp, Log, TEXT("Game Over! No winner determined."));
         }
     }
+
+    // 상태 업데이트 알림
+    UpdateGameState();
 }
 
 void ABridgeRunGameMode::HandleRoundTimer()
@@ -176,6 +170,10 @@ void ABridgeRunGameMode::HandleRoundTimer()
     if (RoundTimeRemaining > 0)
     {
         RoundTimeRemaining--;
+
+        // 남은 시간이 변경될 때만 네트워크 상태 업데이트
+        UpdateGameState();
+
         if (RoundTimeRemaining <= 0)
         {
             EndCurrentRound();
@@ -186,6 +184,7 @@ void ABridgeRunGameMode::HandleRoundTimer()
 void ABridgeRunGameMode::HandleJobSystemActivation()
 {
     bJobSystemActive = true;
+    UpdateGameState();
 }
 
 bool ABridgeRunGameMode::CanStartGame() const
@@ -193,12 +192,11 @@ bool ABridgeRunGameMode::CanStartGame() const
     if (!TeamManagerComponent)
         return false;
 
-    int32 TotalPlayers = 0;
-
     // 팀 매니저에서 활성화된 팀 정보 가져오기
     TArray<FTeamInfo> ActiveTeams = TeamManagerComponent->GetActiveTeams();
 
     // 모든 팀의 플레이어 수 합산
+    int32 TotalPlayers = 0;
     for (const FTeamInfo& Team : ActiveTeams)
     {
         TotalPlayers += Team.PlayerCount;
@@ -209,5 +207,22 @@ bool ABridgeRunGameMode::CanStartGame() const
 
 void ABridgeRunGameMode::UpdateGameState()
 {
+    // 네트워크 상태 업데이트 강제
     ForceNetUpdate();
+}
+
+void ABridgeRunGameMode::SetGameTimer(FTimerHandle& TimerHandle, void (ABridgeRunGameMode::* Function)(), float Delay, bool bLooping)
+{
+    GetWorld()->GetTimerManager().SetTimer(
+        TimerHandle,
+        this,
+        Function,
+        Delay,
+        bLooping
+    );
+}
+
+void ABridgeRunGameMode::ClearGameTimer(FTimerHandle& TimerHandle)
+{
+    GetWorld()->GetTimerManager().ClearTimer(TimerHandle);
 }

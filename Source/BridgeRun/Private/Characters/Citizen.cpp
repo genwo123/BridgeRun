@@ -150,7 +150,27 @@ void ACitizen::MulticastHandleDeath_Implementation()
     }
 }
 
-// ServerRespawn_Implementation 함수 수정
+void ACitizen::MulticastHandleRespawn_Implementation()
+{
+    bIsDead = false;
+
+    // 이동 컴포넌트 초기화
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+    }
+
+    // 입력 재활성화 - 로컬 플레이어만 처리
+    if (IsLocallyControlled())
+    {
+        if (APlayerController* PC = Cast<APlayerController>(GetController()))
+        {
+            EnableInput(PC);
+        }
+    }
+}
+
+
 void ACitizen::ServerRespawn_Implementation(const FVector& RespawnLocation)
 {
     if (!HasAuthority()) return;
@@ -216,12 +236,16 @@ void ACitizen::ServerRespawn_Implementation(const FVector& RespawnLocation)
         HeldTrophy = nullptr;
     }
 
-    // 입력 재활성화
+    // 입력 재활성화 (서버측)
     if (APlayerController* PC = Cast<APlayerController>(GetController()))
     {
         EnableInput(PC);
     }
+
+    // 클라이언트에 리스폰 처리 알림
+    MulticastHandleRespawn();
 }
+
 
 void ACitizen::ServerSelectInventorySlot_Implementation(EInventorySlot Slot)
 {

@@ -36,6 +36,9 @@ public:
     UPROPERTY(ReplicatedUsing = OnRep_TeamID)
     int32 TeamID = -1;
 
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastHandleRespawn();
+
     // TeamID 변경 이벤트 처리 함수
     UFUNCTION()
     void OnRep_TeamID();
