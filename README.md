@@ -11,12 +11,13 @@
 - 도시의 영웅이 되어 명예와 부를 쟁취하는 몰입감
   
 **플랫폼**: PC, 콘솔
-
 ## 💫 게임의 차별점
 - 미래 도시의 다리를 배경으로 한 독특한 전장
 - 직업 간의 시너지와 전략적 직업 변경 시스템
 - 다리 및 천막 설치 등 다양한 건설 및 방어 요소를 통한 창의적 전투
 - 트로피 타워 점령을 통한 명예와 자원의 획득
+
+
 
 ## 💻 시스템 구현 현황
 | 시스템 | 설명 | 진행 상황 | 중요도 | 구현 계획 | 관련 스프린트 |
@@ -28,6 +29,8 @@
 | 전투 시스템 | 기본 전투 메커닉 | ✅ 완료 | 🔥 높음 | 무기 데미지 시스템 구현 예정 | Sprint 2-3 |
 | 팀 시스템 | 팀 기반 게임플레이 로직 | ⏳ 계획됨 | 🔥 높음 | Sprint 4에서 구현 예정 | Sprint 6 |
 | 네트워크 시스템 | 멀티플레이어 지원 | ⏳ 계획됨 | 🔥 높음 | Sprint 4 이후 구현 | 미정 |
+
+
 
 ## 📝 개발 일지
 | 회차 | 기간 | 핵심 내용 | 개발 일지 |
@@ -41,10 +44,9 @@
 | Sprint 05 | 2025.01.13 - 2025.02.02 | 물리/충돌 시스템 네트워크 동기화 및 버그 수정| [5회차 개발일지](./docs/Sprints/BridgeRun_Sprint5.md) |
 | Sprint 06 | 2025.02.03 - 2025.02.16 | 낙사 시스템 및 리스폰 시스템 구현| [6회차 개발일지](./docs/Sprints/BridgeRun_Sprint6.md) |
 | Sprint 07 | 2025.02.17 - 2025.03.02 | Score 시스템 구현 및 위젯 구성| [7회차 개발일지](./docs/Sprints/BridgeRun_Sprint7.md) |
-| Sprint 08 | 2025.03.03 - 2025.03.16 | 낙사 시스템 및 리스폰 시스템 구현| [8회차 개발일지](./docs/Sprints/BridgeRun_Sprint8.md) |
-| Sprint 09 | 2025.03.17 - 2025.03.30 | Score 시스템 구현 및 위젯 구성| [9회차 개발일지](./docs/Sprints/BridgeRun_Sprint9.md) |
-| Sprint 10 | 2025.03.31 - 2025.04.06 | Score 시스템 구현 및 위젯 구성| [10회차 개발일지](./docs/Sprints/BridgeRun_Sprint10.md) |
-
+| Sprint 08 | 2025.03.03 - 2025.03.16 | 팀 시스템 기반 구축 및 랜덤 배정 로직 | [8회차 개발일지](./docs/Sprints/BridgeRun_Sprint8.md) |
+| Sprint 09 | 2025.03.17 - 2025.03.30 | SOLID 및 OOP 원칙 기반 코드 리팩토링 | [9회차 개발일지](./docs/Sprints/BridgeRun_Sprint9.md) |
+| Sprint 10 | 2025.03.31 - 2025.04.06 | 커스텀 BR UI 플러그인 개발 | [10회차 개발일지](./docs/Sprints/BridgeRun_Sprint10.md) |
 
 ### 개발 일지 내용
 각 스프린트 기록에는 다음 내용이 포함됩니다:
@@ -53,6 +55,7 @@
 - 💻 구현된 시스템 및 기능
 - 🔧 발생한 문제점과 해결 과정
 - 📋 다음 스프린트 계획
+
 
 ## 🗂 프로젝트 구조
 ```
@@ -64,15 +67,26 @@ docs/
 │   ├── BridgeRun_Sprint3.md   # 전투 시스템 구현
 │   ├── BridgeRun_Sprint4.md   # UI/네트워크 시스템 개선
 │   ├── BridgeRun_Sprint5.md   # 물리/충돌 시스템 네트워크 동기화 및 버그 수정
-│   ├── BridgeRun_Sprint6.md   # 팀 시스템 및 게임 승리 조건
+│   ├── BridgeRun_Sprint6.md   # 낙사 및 리스폰 시스템 구현
+│   ├── BridgeRun_Sprint7.md   # Score 시스템 구현 및 위젯 구성
+│   ├── BridgeRun_Sprint8.md   # 팀 시스템 기반 구축 및 랜덤 배정 로직
+│   ├── BridgeRun_Sprint9.md   # SOLID 및 OOP 원칙 기반 코드 리팩토링
+│   ├── BridgeRun_Sprint10.md  # 커스텀 BR UI 플러그인 개발
 │   └── images/                # 스프린트별 이미지
 │       ├── sprint0/
 │       ├── sprint1/
 │       ├── sprint2/
-│       └── sprint3/
-│       └── sprint4/
+│       ├── sprint3/
+│       ├── sprint4/
+│       ├── sprint5/
+│       ├── sprint6/
+│       ├── sprint7/
+│       ├── sprint8/
+│       ├── sprint9/
+│       └── sprint10/
 └── README.md                  # 프로젝트 메인 문서
 ```
+
 
 ## 🔧 설치 및 사용법
 -현재는 설치 및 사용법이 없습니다. 빠른 시일 내에 만들어보겠습니다
