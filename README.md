@@ -32,15 +32,18 @@
 ## 📝 개발 일지
 | 회차 | 기간 | 핵심 내용 | 개발 일지 |
 | --- | --- | --- | --- |
-| Sprint 0 | 2024.10.21 - 2024.11.03 | 게임 기획 및 초기 컨셉 설계 | [0회차 개발일지](./docs/Sprints/BridgeRun_Sprint0.md) |
-| Sprint 1 | 2024.11.04 - 2024.11.17 | 기본 시스템 구축 및 컴포넌트 설계 | [1회차 개발일지](./docs/Sprints/BridgeRun_Sprint1.md) |
-| Sprint 2 | 2024.11.18 - 2024.12.01 | 점수/건설 시스템 구현 및 최적화 | [2회차 개발일지](./docs/Sprints/BridgeRun_Sprint2.md) |
-| Sprint 3 | 2024.12.02 - 2024.12.15 | 전투 시스템 구현 및 UI 개선 계획 | [3회차 개발일지](./docs/Sprints/BridgeRun_Sprint3.md) |
-| Sprint - | 2024.12.16 - 2024.12.29 | 건강 및 이사| 몸 건강 상태 및 이사 이슈로 인해 2주간 작업이 불가피했습니다. |
-| Sprint 4 | 2024.12.30 - 2025.01.12 | UI 시스템 개선 및 네트워크 기반 구축 | [4회차 개발일지](./docs/Sprints/BridgeRun_Sprint4.md) |
-| Sprint 5 | 2025.01.13 - 2025.02.02 | 물리/충돌 시스템 네트워크 동기화 및 버그 수정| [5회차 개발일지](./docs/Sprints/BridgeRun_Sprint5.md) |
-| Sprint 6 | 2025.02.03 - 2025.02.16 | 낙사 시스템 및 리스폰 시스템 구현| [6회차 개발일지](./docs/Sprints/BridgeRun_Sprint6.md) |
-| Sprint 7 | 2025.02.17 - 2025.03.03 | Score 시스템 구현 및 위젯 구성| [7회차 개발일지](./docs/Sprints/BridgeRun_Sprint7.md) |
+| Sprint 00 | 2024.10.21 - 2024.11.03 | 게임 기획 및 초기 컨셉 설계 | [0회차 개발일지](./docs/Sprints/BridgeRun_Sprint0.md) |
+| Sprint 01 | 2024.11.04 - 2024.11.17 | 기본 시스템 구축 및 컴포넌트 설계 | [1회차 개발일지](./docs/Sprints/BridgeRun_Sprint1.md) |
+| Sprint 02 | 2024.11.18 - 2024.12.01 | 점수/건설 시스템 구현 및 최적화 | [2회차 개발일지](./docs/Sprints/BridgeRun_Sprint2.md) |
+| Sprint 03 | 2024.12.02 - 2024.12.15 | 전투 시스템 구현 및 UI 개선 계획 | [3회차 개발일지](./docs/Sprints/BridgeRun_Sprint3.md) |
+| Sprint -- | 2024.12.16 - 2024.12.29 | 건강 및 이사| 몸 건강 상태 및 이사 이슈로 인해 2주간 작업이 불가피했습니다. |
+| Sprint 04 | 2024.12.30 - 2025.01.12 | UI 시스템 개선 및 네트워크 기반 구축 | [4회차 개발일지](./docs/Sprints/BridgeRun_Sprint4.md) |
+| Sprint 05 | 2025.01.13 - 2025.02.02 | 물리/충돌 시스템 네트워크 동기화 및 버그 수정| [5회차 개발일지](./docs/Sprints/BridgeRun_Sprint5.md) |
+| Sprint 06 | 2025.02.03 - 2025.02.16 | 낙사 시스템 및 리스폰 시스템 구현| [6회차 개발일지](./docs/Sprints/BridgeRun_Sprint6.md) |
+| Sprint 07 | 2025.02.17 - 2025.03.02 | Score 시스템 구현 및 위젯 구성| [7회차 개발일지](./docs/Sprints/BridgeRun_Sprint7.md) |
+| Sprint 08 | 2025.03.03 - 2025.03.16 | 낙사 시스템 및 리스폰 시스템 구현| [8회차 개발일지](./docs/Sprints/BridgeRun_Sprint8.md) |
+| Sprint 09 | 2025.03.17 - 2025.03.30 | Score 시스템 구현 및 위젯 구성| [9회차 개발일지](./docs/Sprints/BridgeRun_Sprint9.md) |
+| Sprint 10 | 2025.03.31 - 2025.04.06 | Score 시스템 구현 및 위젯 구성| [10회차 개발일지](./docs/Sprints/BridgeRun_Sprint10.md) |
 
 
 ### 개발 일지 내용
