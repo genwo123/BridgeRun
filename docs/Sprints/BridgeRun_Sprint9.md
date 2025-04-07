@@ -1,241 +1,15 @@
-# 브릿지런 개발일지 (스프린트 9)
+# 브릿지런 리팩토링 분석: SOLID 원칙 적용 사례
 
-## 📅 개발 기간
-2025년 3월 17일 ~ 2025년 3월 30일
+## 1. 개요
 
-## 👨‍💻 작성자
-김건우
+이 문서는 브릿지런 게임의 `BuildingComponent` 클래스에 적용된 리팩토링을 분석합니다. 특히 SOLID 원칙과 객체지향 디자인 패턴을 적용하여 코드의 품질을 개선한 방법에 초점을 맞추고 있습니다.
 
-## 1. 주요 개발 목표
-스프린트 9에서는 코드 품질 개선과 유지보수성 향상을 위한 SOLID 및 OOP 원칙 기반 리팩토링에 집중했습니다:
+## 2. 단일 책임 원칙 (Single Responsibility Principle) 적용
 
-* SOLID 원칙(단일 책임, 개방-폐쇄, 리스코프 치환, 인터페이스 분리, 의존성 역전)에 따른 구조 개선
-* 모듈화 및 코드 재사용성 향상
-* 명확한 책임 분리와 함수 분리로 디버깅 용이성 증대
-* 확장성 있는 구조로 변경하여 추후 개발 효율성 향상
-
-## 2. 리팩토링 배경 및 필요성
-
-### 2.1 외부 피드백
-최근 현업 개발자와의 대화 중에 받은 피드백을 통해 코드 구조의 개선 필요성을 인식했습니다:
-
->"코드가 깔끔하지 않아서 아쉽다. C++의 장점을 더 살릴 수 있을 것 같다."
-
-이러한 피드백을 바탕으로 코드를 검토한 결과, 다음과 같은 문제점들을 발견했습니다:
-
-* 한 함수가 여러 책임을 담당하여 가독성과 유지보수성 저하
-* 모듈화가 부족하여 작은 변경도 연쇄적인 수정 필요
-* 코드의 중복이 많고 재사용성이 낮음
-* 일관된 명명 규칙과 구조의 부재
-
-### 2.2 기존 코드의 문제점
-특히 `BuildingComponent` 클래스에서 다음과 같은 구체적인 문제를 발견했습니다:
-
-**함수의 과도한 책임**:
-* 건설 시도, 아이템 사용, 물리 설정 등 여러 책임이 한 함수에 혼재
-* 하나의 변경이 여러 기능에 영향을 미치는 구조로 버그 발생 위험 높음
-
-**긴 함수와 코드 중복**:
-* 판자와 텐트 생성 로직이 거의 동일하지만 중복 구현
-* 건설 후 인벤토리 처리 로직이 여러 위치에 분산
-
-**불명확한 상태 관리**:
-* 상태 변수들(`bCanBuildNow`, `bIsBuilding` 등)의 조작이 여러 함수에 분산
-* 상태 변경 시 관련 효과(시각적, 물리적)가 일관되게 적용되지 않음
-
-### 2.3 AI 조력자를 활용한 체계적 접근
-리팩토링을 위해 AI 조력자(클로드)를 활용하여 체계적인 접근 방식을 취했습니다:
-
-1. 기존 코드베이스 분석 및 문제점 식별
-2. SOLID 원칙 및 디자인 패턴에 기반한 리팩토링 방안 도출
-3. 중복 코드 제거 및 템플릿 패턴 적용 지점 식별
-4. 함수 분할 및 책임 할당 방식 결정
-
-이후 AI의 제안을 바탕으로 직접 코드를 수정하고 테스트하며 검증하는 과정을 거쳤습니다. 이러한 접근 방식을 통해 코드의 품질을 체계적으로 향상시킬 수 있었습니다.
-
-## 3. 리팩토링 접근 방식
-
-### 3.1 SOLID 원칙 적용
-
-#### 단일 책임 원칙 (Single Responsibility Principle)
-각 함수가 하나의 책임만 가지도록 기존 함수를 분리했습니다:
+### 2.1 리팩토링 전: 여러 책임이 혼합된 함수
 
 ```cpp
-// 리팩토링 후: 명확한 책임 분리
-void UBuildingComponent::AttemptBuild_Implementation()
-{
-    if (!ValidateBuildAttempt())
-        return;
-
-    FVector Location = BuildPreviewMesh->GetComponentLocation();
-    FRotator Rotation = BuildPreviewMesh->GetComponentRotation();
-
-    // 아이템 타입에 따라 다른 처리 (템플릿 함수로 중복 제거)
-    if (CurrentBuildingItem == EInventorySlot::Plank && OwnerCitizen->UseItem(EInventorySlot::Plank))
-    {
-        SpawnBuildingItem<AItem_Plank>(PlankClass, Location, Rotation);
-    }
-    else if (CurrentBuildingItem == EInventorySlot::Tent && OwnerCitizen->UseItem(EInventorySlot::Tent))
-    {
-        SpawnBuildingItem<AItem_Tent>(TentClass, Location, Rotation);
-    }
-
-    UpdateBuildState();
-}
-
-// 건설 시도 유효성 검사를 별도 함수로 분리
-bool UBuildingComponent::ValidateBuildAttempt() const
-{
-    return BuildPreviewMesh && OwnerCitizen && bCanBuildNow && 
-           bIsValidPlacement && !bIsBuilding && GetOwner()->HasAuthority();
-}
-
-// 건설 후 상태 업데이트를 별도 함수로 분리
-void UBuildingComponent::UpdateBuildState()
-{
-    bIsBuilding = false;
-    bCanBuildNow = true;
-    MulticastOnBuildComplete();
-
-    if (GetOwner())
-    {
-        GetOwner()->ForceNetUpdate();
-    }
-
-    if (BuildPreviewMesh)
-    {
-        BuildPreviewMesh->MarkRenderStateDirty();
-    }
-}
-```
-
-#### 템플릿 메서드 패턴 적용
-반복되는 코드를 템플릿 함수로 통합하여 코드 중복을 제거했습니다:
-
-```cpp
-// 템플릿 함수로 아이템 생성 로직 통합
-template<class T>
-T* UBuildingComponent::SpawnBuildingItem(TSubclassOf<T> ItemClass, const FVector& Location, const FRotator& Rotation)
-{
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = OwnerCitizen;
-    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-    T* SpawnedItem = GetWorld()->SpawnActor<T>(
-        ItemClass,
-        Location,
-        Rotation,
-        SpawnParams
-    );
-
-    if (SpawnedItem)
-    {
-        // 공통 설정
-        SpawnedItem->SetReplicates(true);
-        SpawnedItem->SetReplicateMovement(true);
-        SpawnedItem->bIsBuiltItem = true;
-
-        if (SpawnedItem->MeshComponent)
-        {
-            // 물리 및 충돌 설정 별도 함수로 분리
-            ConfigureBuildingItemPhysics(SpawnedItem->MeshComponent, Location, Rotation);
-        }
-
-        // 인벤토리 상태 체크 별도 함수로 분리
-        CheckInventoryAfterBuilding(SpawnedItem);
-
-        return SpawnedItem;
-    }
-
-    return nullptr;
-}
-```
-
-#### 개방-폐쇄 원칙 (Open-Closed Principle)
-코드를 확장에 열려있고 수정에 닫혀있도록 구조화했습니다:
-
-```cpp
-// 물리/충돌 설정을 별도 함수로 분리하여 수정 없이 확장 가능하게 함
-void UBuildingComponent::ConfigureBuildingItemPhysics(UStaticMeshComponent* MeshComp, const FVector& Location, const FRotator& Rotation)
-{
-    if (!MeshComp) return;
-
-    // 기본 물리 설정
-    MeshComp->SetSimulatePhysics(false);
-    MeshComp->SetEnableGravity(false);
-    MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    MeshComp->SetCollisionResponseToAllChannels(ECR_Block);
-    MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
-
-    // 네트워크 복제 설정
-    MeshComp->SetIsReplicated(true);
-    MeshComp->SetMobility(EComponentMobility::Movable);
-    MeshComp->bReplicatePhysicsToAutonomousProxy = true;
-
-    // 위치 고정
-    MeshComp->SetWorldLocation(Location);
-    MeshComp->SetWorldRotation(Rotation);
-    MeshComp->UpdateComponentToWorld();
-}
-```
-
-### 3.2 함수 분할 및 구조화
-큰 함수들을 작고 명확한 목적을 가진 함수들로 분할했습니다:
-
-**리팩토링 전**:
-```cpp
-void UBuildingComponent::UpdateBuildPreview()
-{
-    if (!BuildPreviewMesh || !OwnerCitizen)
-        return;
-
-    // 100줄 이상의 복잡한 로직...
-}
-```
-
-**리팩토링 후**:
-```cpp
-void UBuildingComponent::UpdateBuildPreview()
-{
-    if (!BuildPreviewMesh || !OwnerCitizen)
-        return;
-
-    AController* Controller = OwnerCitizen->GetController();
-    if (!Controller) return;
-
-    // 카메라 및 플레이어 위치 계산
-    FVector CameraLocation, PlayerLocation;
-    FRotator CameraRotation;
-    CalculateViewPositions(Controller, CameraLocation, CameraRotation, PlayerLocation);
-
-    // 프리뷰 위치 및 회전 결정
-    FVector PreviewLocation;
-    FRotator PreviewRotation;
-    CalculatePreviewTransform(CameraLocation, CameraRotation, PlayerLocation, PreviewLocation, PreviewRotation);
-
-    // 배치 유효성 검사
-    bool NewValidPlacement = DetermineValidPlacement(PreviewLocation, PreviewRotation);
-
-    // 시각적 업데이트
-    UpdatePreviewVisuals(NewValidPlacement);
-}
-```
-
-### 3.3 명명 규칙 및 가독성 개선
-* 함수와 변수의 이름을 더 명확하고 일관되게 수정
-* 주석 추가 및 코드 구조화로 가독성 향상
-* 단위 작업별로 논리적 그룹화
-
-## 4. 주요 리팩토링 영역
-
-### 4.1 BuildingComponent 클래스
-가장 광범위한 리팩토링이 이루어진 영역입니다. 특히 건설 시도 함수(AttemptBuild)의 변화가 두드러집니다:
-
-#### 건설 시도 함수 (AttemptBuild) 비교
-
-**리팩토링 전**:
-```cpp
-// 기존: 복잡하고 중복된 코드가 많은 함수
+// 리팩토링 전: 모든 책임이 한 함수에 혼재
 void UBuildingComponent::AttemptBuild_Implementation()
 {
     // 여러 조건 체크가 한꺼번에 진행됨
@@ -283,9 +57,10 @@ void UBuildingComponent::AttemptBuild_Implementation()
 }
 ```
 
-**리팩토링 후**:
+### 2.2 리팩토링 후: 명확한 책임 분리
+
 ```cpp
-// 개선: 템플릿 패턴 적용으로 간결하고 명확해진 함수
+// 리팩토링 후: 명확한 책임 분리
 void UBuildingComponent::AttemptBuild_Implementation()
 {
     // 유효성 검사를 별도 함수로 분리
@@ -309,19 +84,130 @@ void UBuildingComponent::AttemptBuild_Implementation()
     // 상태 업데이트를 별도 함수로 분리
     UpdateBuildState();
 }
+
+// 건설 시도 유효성 검사를 별도 함수로 분리
+bool UBuildingComponent::ValidateBuildAttempt() const
+{
+    return BuildPreviewMesh && OwnerCitizen && bCanBuildNow && 
+           bIsValidPlacement && !bIsBuilding && GetOwner()->HasAuthority();
+}
+
+// 건설 후 상태 업데이트를 별도 함수로 분리
+void UBuildingComponent::UpdateBuildState()
+{
+    bIsBuilding = false;
+    bCanBuildNow = true;
+    MulticastOnBuildComplete();
+
+    if (GetOwner())
+    {
+        GetOwner()->ForceNetUpdate();
+    }
+
+    if (BuildPreviewMesh)
+    {
+        BuildPreviewMesh->MarkRenderStateDirty();
+    }
+}
 ```
 
-리팩토링 후 코드는 훨씬 간결해졌으며, 책임이 명확하게 분리되었습니다. 코드를 검토하며 특히 인상 깊었던 점은 템플릿 패턴의 적용을 통해 중복 코드를 효과적으로 제거한 것입니다.
+### 2.3 개선 효과
 
-### 4.2 템플릿 패턴 적용
-중복 코드를 제거하기 위해 템플릿 함수를 도입한 것이 가장 큰 개선점입니다:
+1. **가독성 향상**: 각 함수가 하나의 명확한 책임만을 갖게 되어 코드 흐름을 이해하기 쉬워졌습니다.
+2. **디버깅 용이성**: 문제 발생 시 관련된 특정 함수만 검사하면 되므로 디버깅이 간편해졌습니다.
+3. **테스트 용이성**: 작은 기능 단위로 분리되어 단위 테스트가 용이해졌습니다.
+4. **코드 재사용성**: 분리된 함수들은 다른 맥락에서도 재사용할 수 있게 되었습니다.
+5. **유지보수성 향상**: 특정 기능 수정 시 해당 함수만 변경하면 되므로 유지보수가 쉬워졌습니다.
+
+## 3. 템플릿 메서드 패턴 적용
+
+### 3.1 리팩토링 전: 중복된 코드 블록
 
 ```cpp
-// 템플릿 함수로 아이템 생성 로직 통합 (중복 제거)
+// 리팩토링 전: 중복 코드
+if (PlankClass && CurrentBuildingItem == EInventorySlot::Plank)
+{
+    if (OwnerCitizen->UseItem(EInventorySlot::Plank))
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.Owner = OwnerCitizen;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+        AItem_Plank* SpawnedPlank = GetWorld()->SpawnActor<AItem_Plank>(
+            PlankClass,
+            Location,
+            Rotation,
+            SpawnParams
+        );
+
+        if (SpawnedPlank)
+        {
+            SpawnedPlank->SetReplicates(true);
+            SpawnedPlank->SetReplicateMovement(true);
+            SpawnedPlank->bIsBuiltItem = true;
+
+            if (SpawnedPlank->MeshComponent)
+            {
+                // BPАЗ ±вє» Е©±вїН јіБ¤А» °ЎБ®їИ
+                AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
+                if (DefaultPlank && DefaultPlank->MeshComponent)
+                {
+                    SpawnedPlank->MeshComponent->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
+                    SpawnedPlank->MeshComponent->SetWorldScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
+                    FTransform NewTransform = DefaultPlank->MeshComponent->GetRelativeTransform();
+                    NewTransform.SetLocation(Location);
+                    NewTransform.SetRotation(Rotation.Quaternion());
+                    SpawnedPlank->SetActorTransform(NewTransform);
+                }
+
+                // №°ё®/Гжµ№ јіБ¤
+                SpawnedPlank->MeshComponent->SetSimulatePhysics(false);
+                SpawnedPlank->MeshComponent->SetEnableGravity(false);
+                SpawnedPlank->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+                SpawnedPlank->MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+                SpawnedPlank->MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
+                // №°ё® »уЕВ є№Б¦ јіБ¤
+                SpawnedPlank->MeshComponent->SetIsReplicated(true);
+                SpawnedPlank->MeshComponent->SetMobility(EComponentMobility::Movable);
+                SpawnedPlank->MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
+
+                // А§ДЎ °нБ¤А» А§ЗС јіБ¤
+                SpawnedPlank->MeshComponent->SetWorldLocation(Location);
+                SpawnedPlank->MeshComponent->SetWorldRotation(Rotation);
+
+                SpawnedPlank->ForceNetUpdate();
+            }
+
+            if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
+            {
+                FItemData* ItemData = InvenComp->GetItemData(EInventorySlot::Plank);
+                if (ItemData && ItemData->Count <= 0)
+                {
+                    if (UPlayerModeComponent* ModeComp = OwnerCitizen->GetPlayerModeComponent())
+                    {
+                        DeactivateBuildMode();
+                        ModeComp->SetPlayerMode(EPlayerMode::Normal);
+                    }
+                }
+            }
+        }
+    }
+}
+else if (TentClass && CurrentBuildingItem == EInventorySlot::Tent)
+{
+    // 거의 동일한 코드가 텐트 처리를 위해 반복됨
+    // ...
+}
+```
+
+### 3.2 리팩토링 후: 템플릿 함수 적용
+
+```cpp
+// 템플릿 함수로 아이템 생성 로직 통합
 template<class T>
 T* UBuildingComponent::SpawnBuildingItem(TSubclassOf<T> ItemClass, const FVector& Location, const FRotator& Rotation)
 {
-    // 아이템 생성
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = OwnerCitizen;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -354,16 +240,98 @@ T* UBuildingComponent::SpawnBuildingItem(TSubclassOf<T> ItemClass, const FVector
 
     return nullptr;
 }
+
+// 물리/충돌 설정을 별도 함수로 분리
+void UBuildingComponent::ConfigureBuildingItemPhysics(UStaticMeshComponent* MeshComp, const FVector& Location, const FRotator& Rotation)
+{
+    if (!MeshComp) return;
+
+    // 기본 물리 설정
+    MeshComp->SetSimulatePhysics(false);
+    MeshComp->SetEnableGravity(false);
+    MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    MeshComp->SetCollisionResponseToAllChannels(ECR_Block);
+    MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
+    // 네트워크 복제 설정
+    MeshComp->SetIsReplicated(true);
+    MeshComp->SetMobility(EComponentMobility::Movable);
+    MeshComp->bReplicatePhysicsToAutonomousProxy = true;
+
+    // 위치 고정
+    MeshComp->SetWorldLocation(Location);
+    MeshComp->SetWorldRotation(Rotation);
+    MeshComp->UpdateComponentToWorld();
+}
 ```
 
-AI 조력자의 제안을 검토하면서, 템플릿 함수를 사용하는 이 패턴이 코드 중복을 획기적으로 줄이면서도 타입 안전성을 유지하는 좋은 방법임을 확인했습니다. 이는 C++의 강력한 템플릿 기능을 활용한 좋은 사례입니다.
+### 3.3 개선 효과
 
-### 4.3 빌드 모드 활성화 함수 개선
-빌드 모드 활성화 함수도 단일 책임 원칙에 따라 리팩토링했습니다:
+1. **코드 중복 제거**: 거의 동일하게 반복되던 코드가 하나의 템플릿 함수로 통합되었습니다.
+2. **타입 안전성**: 템플릿을 사용함으로써 타입 안전한 코드가 되었습니다.
+3. **유지보수성 향상**: 기능 변경 시 한 곳만 수정하면 되므로 유지보수가 쉬워졌습니다.
+4. **확장성 증가**: 새로운 건설 아이템 추가 시 기존 코드 수정 없이 템플릿 함수 재사용이 가능합니다.
+5. **코드 길이 감소**: 반복 코드 제거로 전체 코드 길이가 줄어들었습니다.
 
-**리팩토링 전**:
+## 4. 개방-폐쇄 원칙 (Open-Closed Principle) 적용
+
+### 4.1 리팩토링 전: 변경에 닫혀있지 않은 구조
+
+원래 코드에서는 새로운 건설 아이템 타입이 추가될 때마다 `AttemptBuild_Implementation` 함수를 직접 수정해야 했습니다. 각 아이템 타입별로 거의 동일한 코드 블록이 중복되어 있어 확장 시 여러 부분을 수정해야 했습니다.
+
 ```cpp
-// 기존: 초기화와 설정이 모두 한 함수에 혼재
+// 리팩토링 전: if-else 조건문으로 타입별 처리
+if (PlankClass && CurrentBuildingItem == EInventorySlot::Plank)
+{
+    // 플랭크 처리 로직...
+}
+else if (TentClass && CurrentBuildingItem == EInventorySlot::Tent)
+{
+    // 텐트 처리 로직...
+}
+// 새로운 아이템 추가 시 여기에 else if 블록을 추가해야 함
+```
+
+### 4.2 리팩토링 후: 변경에는 열려있고 수정에는 닫혀있는 구조
+
+리팩토링 후에는 템플릿 함수와 타입 추상화를 통해 새로운 건설 아이템 추가 시 기존 코드를 수정하지 않고도 확장할 수 있게 되었습니다.
+
+```cpp
+// 리팩토링 후: 템플릿 함수를 통한 추상화
+if (CurrentBuildingItem == EInventorySlot::Plank && OwnerCitizen->UseItem(EInventorySlot::Plank))
+{
+    SpawnBuildingItem<AItem_Plank>(PlankClass, Location, Rotation);
+}
+else if (CurrentBuildingItem == EInventorySlot::Tent && OwnerCitizen->UseItem(EInventorySlot::Tent))
+{
+    SpawnBuildingItem<AItem_Tent>(TentClass, Location, Rotation);
+}
+// 새로운 아이템 추가 시 같은 패턴으로 확장 가능
+```
+
+또한 물리/충돌 설정과 같은 공통 기능을 별도 함수로 분리하여 중앙 집중화했습니다.
+
+```cpp
+// 공통 설정을 별도 함수로 분리하여 중앙 집중화
+void UBuildingComponent::ConfigureBuildingItemPhysics(UStaticMeshComponent* MeshComp, const FVector& Location, const FRotator& Rotation)
+{
+    // 공통 물리 설정 로직
+}
+```
+
+### 4.3 개선 효과
+
+1. **확장성 향상**: 새로운 건설 아이템 추가 시 기존 코드 수정 없이 확장 가능합니다.
+2. **중앙 집중화된 설정**: 공통 설정 로직이 한 곳에 집중되어 있어 변경 시 한 곳만 수정하면 됩니다.
+3. **일관된 동작 보장**: 모든 아이템이 동일한 설정 함수를 통해 처리되므로 일관성이 높아졌습니다.
+4. **버그 발생 가능성 감소**: 중복 코드 제거로 실수로 인한 버그 가능성이 줄어들었습니다.
+5. **코드 재사용성**: 분리된 함수는 다른 컨텍스트에서도 재사용 가능합니다.
+
+## 5. 함수 분할 및 구조화
+
+### 5.1 리팩토링 전: 큰 규모의 복잡한 함수
+
+```cpp
 void UBuildingComponent::OnBuildModeEntered_Implementation()
 {
     if (!OwnerCitizen)
@@ -385,7 +353,7 @@ void UBuildingComponent::OnBuildModeEntered_Implementation()
         BuildPreviewMesh->RegisterComponent();
     }
 
-    // 아이템 설정 (플랭크/텐트 분기 처리)
+    // 아이템 설정 (100줄 이상의 코드...)
     if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
     {
         CurrentBuildingItem = InvenComp->GetCurrentSelectedSlot();
@@ -393,54 +361,22 @@ void UBuildingComponent::OnBuildModeEntered_Implementation()
         switch (CurrentBuildingItem)
         {
         case EInventorySlot::Plank:
-            if (PlankClass)
-            {
-                AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
-                if (DefaultPlank && DefaultPlank->MeshComponent)
-                {
-                    BuildPreviewMesh->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
-                    BuildPreviewMesh->SetWorldScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
-                    BuildPreviewMesh->SetRelativeLocation(DefaultPlank->MeshComponent->GetRelativeLocation());
-                    BuildPreviewMesh->SetRelativeRotation(DefaultPlank->MeshComponent->GetRelativeRotation());
-                }
-            }
+            // 플랭크 설정 코드...
             break;
 
         case EInventorySlot::Tent:
-            if (TentClass)
-            {
-                AItem_Tent* DefaultTent = Cast<AItem_Tent>(TentClass.GetDefaultObject());
-                if (DefaultTent && DefaultTent->MeshComponent)
-                {
-                    BuildPreviewMesh->SetStaticMesh(DefaultTent->MeshComponent->GetStaticMesh());
-                    BuildPreviewMesh->SetWorldScale3D(DefaultTent->MeshComponent->GetRelativeScale3D());
-                    BuildPreviewMesh->SetRelativeLocation(DefaultTent->MeshComponent->GetRelativeLocation());
-                    BuildPreviewMesh->SetRelativeRotation(DefaultTent->MeshComponent->GetRelativeRotation());
-                }
-            }
+            // 텐트 설정 코드...
             break;
         }
     }
 
-    // 상태 및 시각화 설정
-    if (BuildPreviewMesh)
-    {
-        bIsValidPlacement = false;
-        BuildPreviewMesh->SetMaterial(0, InvalidPlacementMaterial);
-        BuildPreviewMesh->SetVisibility(true);
-        UpdateBuildPreview();
-    }
-
-    if (GetOwner())
-    {
-        GetOwner()->ForceNetUpdate();
-    }
+    // 상태 및 시각화 설정 코드...
 }
 ```
 
-**리팩토링 후**:
+### 5.2 리팩토링 후: 작고 명확한 목적을 가진 함수들
+
 ```cpp
-// 개선: 함수 분리로 각 단계가 명확해짐
 void UBuildingComponent::OnBuildModeEntered_Implementation()
 {
     if (!OwnerCitizen)
@@ -474,138 +410,124 @@ void UBuildingComponent::OnBuildModeEntered_Implementation()
 // 프리뷰 메시 초기화 전용 함수
 void UBuildingComponent::InitializeBuildPreviewMesh()
 {
-    if (BuildPreviewMesh)
-        return;
-        
-    BuildPreviewMesh = NewObject<UStaticMeshComponent>(OwnerCitizen, TEXT("BuildPreviewMesh"));
-    if (!BuildPreviewMesh)
-        return;
-
-    BuildPreviewMesh->SetupAttachment(OwnerCitizen->GetRootComponent());
-    BuildPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    BuildPreviewMesh->SetVisibility(false);
-    BuildPreviewMesh->SetIsReplicated(true);
-    BuildPreviewMesh->bOnlyOwnerSee = false;
-    BuildPreviewMesh->SetEnableGravity(false);
-    BuildPreviewMesh->RegisterComponent();
+    // 초기화 코드...
 }
 
 // 아이템 타입별 설정 함수
 void UBuildingComponent::SetupPreviewMeshForCurrentItem()
 {
-    if (!BuildPreviewMesh)
-        return;
-        
-    // 아이템 타입에 따라 다른 설정 함수 호출 (함수 분리)
-    switch (CurrentBuildingItem)
-    {
-    case EInventorySlot::Plank:
-        SetupPlankPreviewMesh();
-        break;
-    case EInventorySlot::Tent:
-        SetupTentPreviewMesh();
-        break;
-    default:
-        break;
-    }
+    // 타입별 설정 코드...
 }
 
 // 플랭크 전용 설정 함수
 void UBuildingComponent::SetupPlankPreviewMesh()
 {
-    if (!PlankClass || !BuildPreviewMesh)
-        return;
-        
-    AItem_Plank* DefaultPlank = Cast<AItem_Plank>(PlankClass.GetDefaultObject());
-    if (DefaultPlank && DefaultPlank->MeshComponent)
-    {
-        BuildPreviewMesh->SetStaticMesh(DefaultPlank->MeshComponent->GetStaticMesh());
-        BuildPreviewMesh->SetWorldScale3D(DefaultPlank->MeshComponent->GetRelativeScale3D());
-        BuildPreviewMesh->SetRelativeLocation(DefaultPlank->MeshComponent->GetRelativeLocation());
-        BuildPreviewMesh->SetRelativeRotation(DefaultPlank->MeshComponent->GetRelativeRotation());
-    }
+    // 플랭크 설정 코드...
 }
 
 // 텐트 전용 설정 함수
 void UBuildingComponent::SetupTentPreviewMesh()
 {
-    if (!TentClass || !BuildPreviewMesh)
-        return;
-        
-    AItem_Tent* DefaultTent = Cast<AItem_Tent>(TentClass.GetDefaultObject());
-    if (DefaultTent && DefaultTent->MeshComponent)
-    {
-        BuildPreviewMesh->SetStaticMesh(DefaultTent->MeshComponent->GetStaticMesh());
-        BuildPreviewMesh->SetWorldScale3D(DefaultTent->MeshComponent->GetRelativeScale3D());
-        BuildPreviewMesh->SetRelativeLocation(DefaultTent->MeshComponent->GetRelativeLocation());
-        BuildPreviewMesh->SetRelativeRotation(DefaultTent->MeshComponent->GetRelativeRotation());
-    }
+    // 텐트 설정 코드...
 }
 ```
 
-### 4.4 네트워크 복제 및 상태 관리 개선
-네트워크 상태 관리와 복제 관련 로직도 개선했습니다:
+### 5.3 개선 효과
+
+1. **높은 가독성**: 각 함수가 명확한 이름과 목적을 가져 코드 이해가 쉬워졌습니다.
+2. **관심사 분리**: 각 함수가 하나의 작업에만 집중하여 코드의 복잡성이 감소했습니다.
+3. **유지보수성 향상**: 특정 기능만 수정할 때 관련 함수만 찾아 변경하면 되므로 유지보수가 쉬워졌습니다.
+4. **디버깅 용이성**: 작은 함수 단위로 분할되어 문제 발생 시 디버깅이 용이해졌습니다.
+5. **코드 재사용성**: 작은 기능 단위로 분리된 함수를 다른 맥락에서도 재사용할 수 있게 되었습니다.
+
+## 6. 명명 규칙 및 가독성 개선
+
+### 6.1 리팩토링 전: 불명확한 함수명과 주석 부족
 
 ```cpp
-// 리팩토링 전: 상태 변경 후 네트워크 업데이트가 일관되지 않음
-void UBuildingComponent::OnRep_BuildState()
+bool UBuildingComponent::CheckLocation(const FVector& Location)
 {
-    // 상태에 따른 시각적 처리가 복잡하게 얽혀있음
+    // 코드...
 }
 
-// 리팩토링 후: 상태별 명확한 처리
-void UBuildingComponent::OnRep_BuildState()
+void UBuildingComponent::UpdateMaterialState()
 {
-    UpdateOwnerBuildState();
-    UpdatePreviewVisuals(bIsValidPlacement);
-}
-
-void UBuildingComponent::UpdateOwnerBuildState()
-{
-    // 캐릭터 상태 업데이트 로직
-}
-
-void UBuildingComponent::UpdatePreviewVisuals(bool bValid)
-{
-    // 시각적 피드백 업데이트 로직
+    // 코드...
 }
 ```
 
-### 4.5 AI 조력자(클로드)를 활용한 체계적 리팩토링
-리팩토링 과정에서 AI 조력자를 활용하여 객체지향 원칙에 맞는 코드 구조화를 진행했습니다:
+### 6.2 리팩토링 후: 명확한 함수명과 개선된 주석
 
-1. 기존 코드 분석 및 SOLID 원칙 위반 식별
-2. 함수 분리와 책임 할당에 대한 체계적 접근
-3. 템플릿 및 디자인 패턴 적용 지점 식별
-4. 점진적 개선과 단위별 테스트
+```cpp
+// 건설 위치의 유효성을 검증하는 함수
+bool UBuildingComponent::ValidateBuildLocation(const FVector& Location)
+{
+    // 코드...
+}
 
-이러한 방식을 통해 코드 길이는 크게 증가하지 않으면서도 가독성과 유지보수성이 크게 향상되었습니다.
+// 프리뷰 메시의 시각적 상태를 업데이트하는 함수
+void UBuildingComponent::UpdatePreviewVisuals(bool bValid)
+{
+    // 코드...
+}
+```
 
-## 5. 리팩토링 결과 및 성과
+### 6.3 개선 효과
 
-### 5.1 코드 품질 향상
-* 중복 코드 제거로 버그 발생 가능성 감소
-* 책임 분리로 각 함수의 가독성 및 테스트 용이성 증가
-* 명확한 함수명과 구조로 코드 이해도 향상
+1. **자기 문서화 코드**: 명확한 함수명으로 코드 자체가 문서 역할을 합니다.
+2. **이해도 향상**: 함수의 목적과 책임이 이름만으로도 명확하게 드러납니다.
+3. **코드 탐색 용이성**: 의미 있는 이름으로 필요한 함수를 쉽게 찾을 수 있습니다.
+4. **유지보수성 향상**: 코드의 의도가 명확해져 유지보수가 쉬워졌습니다.
+5. **협업 효율성**: 다른 개발자도 코드의 목적을 빠르게 이해할 수 있습니다.
 
-### 5.2 유지보수성 개선
-* 작은 함수 단위로 나뉘어 변경 영향 범위 최소화
-* 함수 재사용성 증가로 추가 개발 시간 단축
-* 확장에 용이한 구조로 새로운 기능 추가가 간편해짐
+## 7. 종합 평가
 
-### 5.3 성능 최적화
-* 필요한 시점에만 상태 업데이트 수행으로 불필요한 연산 감소
-* 네트워크 동기화 최적화로 대역폭 사용 감소
-* 성능 병목 지점 식별 및 해결
+### 7.1 성과
 
-### 5.4 확장성 향상
-* 새로운 건설 아이템 추가가 용이해짐
-* 게임 메커니즘 변경에 따른 코드 수정 범위 최소화
-* 팀 개발 시 역할 분담이 명확해짐
+1. **코드 품질 향상**:
+   - 중복 코드 제거로 버그 발생 가능성 감소
+   - 책임 분리로 각 함수의 가독성 및 테스트 용이성 증가
+   - 명확한 함수명과 구조로 코드 이해도 향상
 
-## 6. 다음 스프린트 계획
+2. **유지보수성 개선**:
+   - 작은 함수 단위로 나뉘어 변경 영향 범위 최소화
+   - 함수 재사용성 증가로 추가 개발 시간 단축
+   - 확장에 용이한 구조로 새로운 기능 추가가 간편해짐
 
-### 6.1 커스텀 UI 위젯 개발
-* 브릿지런 전용 UI 플러그인 개발
-* 팀 기반 UI 템플릿 제작
-* 객체지향 방식
+3. **성능 최적화**:
+   - 필요한 시점에만 상태 업데이트 수행으로 불필요한 연산 감소
+   - 네트워크 동기화 최적화로 대역폭 사용 감소
+   - 성능 병목 지점 식별 및 해결
+
+4. **확장성 향상**:
+   - 새로운 건설 아이템 추가가 용이해짐
+   - 게임 메커니즘 변경에 따른 코드 수정 범위 최소화
+   - 팀 개발 시 역할 분담이 명확해짐
+
+### 7.2 주요 개선 패턴
+
+1. **단일 책임 원칙 적용**:
+   - 각 함수가 하나의 책임만 가지도록 설계
+   - 관심사 분리를 통한 복잡성 감소
+
+2. **템플릿 메서드 패턴 적용**:
+   - 중복 코드를 템플릿 함수로 통합
+   - 타입 안전성 보장 및 코드 재사용성 향상
+
+3. **개방-폐쇄 원칙 적용**:
+   - 확장에 열려있고 수정에 닫혀있는 구조
+   - 새로운 기능 추가 시 기존 코드 수정 최소화
+
+4. **함수 분할 및 구조화**:
+   - 큰 함수를 작고 명확한 목적을 가진 함수들로 분할
+   - 코드의 가독성 및 유지보수성 향상
+
+5. **명명 규칙 및 가독성 개선**:
+   - 명확한 함수명과 변수명 사용
+   - 주석 추가 및 코드 구조화
+
+### 7.3 결론
+
+SOLID 원칙과 객체지향 디자인 패턴을 적용한 리팩토링을 통해 브릿지런 게임의 코드 품질이 크게 향상되었습니다. 특히 템플릿 함수 도입을 통한 코드 중복 제거와 단일 책임 원칙에 따른 함수 분리가 가장 큰 개선점으로 평가됩니다.
+
+이러한 개선으로 코드의 가독성, 유지보수성, 확장성이 크게 향상되었으며, 향후 개발에서도 이러한 원칙을 지속적으로 적용함으로써 더 깔끔하고 효율적인 코드베이스를 유지할 수 있을 것입니다.
