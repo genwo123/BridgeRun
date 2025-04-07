@@ -28,7 +28,7 @@
 * 팀 할당이 불균형하게 이루어져 일부 팀에 플레이어가 몰리는 현상 발생
 * 팀 색상이 일부 플레이어에게만 적용되고 나머지는 회색으로 표시됨
 
-![클라이언트에서 팀 색상이 제대로 적용되지 않는 문제 (일부는 빨간색, 나머지는 회색)](./images/sprint8/team_color_error.jpg)
+![클라이언트에서 팀 색상이 제대로 적용되지 않는 문제 (일부는 빨간색, 나머지는 회색)](./images/sprint8/team_color_error.PNG)
 
 ### 2.2 문제 분석
 팀 색상 시각화 문제의 원인을 분석한 결과:
@@ -243,6 +243,9 @@ void ACitizen::OnRep_TeamID()
 
 최종적으로 PlayerState에 TeamID를 저장하고, 멀티캐스트 함수와 복제 콜백을 조합하여 안정적인 네트워크 동기화를 구현했습니다.
 
+![팀 시스템 블루프린트](./images/sprint8/team_system_blueprint.PNG)
+*팀 시각화를 위한 블루프린트 구현*
+
 ### 4.3 PlayerState 연동
 OnRep_PlayerState를 오버라이드하여 PlayerState에서 팀 ID를 가져와 적용하도록 수정했습니다:
 
@@ -282,7 +285,7 @@ void ACitizen::OnRep_PlayerState()
 * 팀 ID 네트워크 복제
 * 팀별 색상 및 이름 관리
 
-![팀 시스템 테스트 - 클라이언트와 서버에서의 팀 색상](./images/sprint8/team_system_test.jpg)
+![팀 시스템 테스트 - 클라이언트와 서버에서의 팀 색상](./images/sprint8/team_color_sync_issue.PNG)
 *클라이언트와 서버에서 서로 다른 팀 색상이 적용된 플레이어들*
 
 ### 5.2 팀 시각화 시스템
@@ -292,18 +295,8 @@ void ACitizen::OnRep_PlayerState()
 * 네트워크 동기화를 통한 모든 클라이언트에서의 일관된 팀 시각화
 * 팀 머티리얼의 스켈레탈 메시 호환성 확보
 
-![팀별 색상 표시](./images/sprint8/team_colors_applied.jpg)
-*서로 다른 팀 색상(빨강, 파랑, 노랑, 초록)을 가진 플레이어들*
-
-### 5.3 네트워크 동기화 시스템
-팀 정보의 안정적인 네트워크 동기화를 구현했습니다:
-
-* 팀 ID 복제 및 이벤트 처리
-* 머티리얼 변경 멀티캐스트
-* 안정적인 초기화 및 상태 동기화
-
-![팀 시스템 블루프린트](./images/sprint8/team_system_blueprint.jpg)
-*팀 시각화를 위한 블루프린트 구현*
+![팀별 색상 표시](./images/sprint8/client_server_color_mismatch.PNG)
+*4개의 클라이언트 창에서 팀 색상 동기화 문제 해결 후 모습*
 
 ## 6. 다음 스프린트 계획
 
@@ -316,6 +309,7 @@ void ACitizen::OnRep_PlayerState()
 * 인벤토리 UI 개선
 * 팀 점수 디스플레이 구현
 * 게임 정보 알림 시스템 개발
+
 ### 6.3 UI/UX 최적화
 * 모바일 호환성 개선
 * 다양한 해상도 대응
