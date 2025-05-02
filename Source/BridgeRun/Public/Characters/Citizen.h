@@ -144,6 +144,8 @@ protected:
     void VisualizeInteractionRadius();
     void VisualizeItemConnection(AActor* Item, bool IsClosest);
 
+    void InitializeTeamFromPlayerState();
+
 public:
     void SelectInventorySlot(EInventorySlot Slot);
     UPlayerModeComponent* GetPlayerModeComponent() const { return PlayerModeComponent; }

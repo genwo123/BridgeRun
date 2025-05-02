@@ -692,23 +692,24 @@ void ACitizen::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
 
-    if (GetPlayerState())
+    // 플레이어 상태가 복제될 때 팀 색상 적용
+    ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetPlayerState());
+    if (BridgeRunPS)
     {
-        ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetPlayerState());
-        if (BridgeRunPS)
-        {
-            int32 CurrentTeamID = BridgeRunPS->GetTeamID();
-            if (CurrentTeamID >= 0)
-            {
-                TeamID = CurrentTeamID;
-                SetTeamMaterial(CurrentTeamID);
-            }
-        }
+        TeamID = BridgeRunPS->GetTeamID();
+        MulticastSetTeamMaterial(TeamID);
+        UE_LOG(LogTemp, Log, TEXT("OnRep_PlayerState: Applied team color %d to character %s"),
+            TeamID, *GetName());
     }
 }
 
 void ACitizen::MulticastSetTeamMaterial_Implementation(int32 InTeamID)
 {
+    // 네트워크 역할에 관계없이 모든 클라이언트에서 실행
+    UE_LOG(LogTemp, Log, TEXT("MulticastSetTeamMaterial: Character %s, TeamID: %d, IsLocallyControlled: %d"),
+        *GetName(), InTeamID, IsLocallyControlled());
+
+    // 팀 색상 적용
     SetTeamMaterial(InTeamID);
 }
 
@@ -742,6 +743,28 @@ void ACitizen::SetTeamMaterial(int32 InTeamID)
         {
             UMaterialInstanceDynamic* DynamicMaterial2 = UMaterialInstanceDynamic::Create(TeamMaterial, this);
             MeshComponent->SetMaterial(1, DynamicMaterial2);
+        }
+    }
+}
+
+void ACitizen::InitializeTeamFromPlayerState()
+{
+    // PlayerState에서 팀 ID 가져오기 (서버/클라이언트 모두 실행)
+    ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetPlayerState());
+    if (BridgeRunPS)
+    {
+        int32 CurrentTeamID = BridgeRunPS->GetTeamID();
+        UE_LOG(LogTemp, Log, TEXT("InitializeTeamFromPlayerState: Character %s, TeamID: %d"),
+            *GetName(), CurrentTeamID);
+
+        if (CurrentTeamID >= 0)
+        {
+            TeamID = CurrentTeamID;
+            // 서버에서는 직접 호출, 클라이언트는 복제 통해 호출됨
+            if (HasAuthority())
+            {
+                MulticastSetTeamMaterial(TeamID);
+            }
         }
     }
 }
