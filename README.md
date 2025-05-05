@@ -36,7 +36,7 @@
 ## 📝 개발 일지
 | 회차 | 기간 | 핵심 내용 | 개발 일지 |
 | --- | --- | --- | --- |
-| 디자인문서 | 2024.10.21 - 2025.ing   | 게임 디자인 문서 | [0회차 개발일지](./docs/Sprints/Desingdocument.md) |
+| 디자인문서 | 2024.10.21 - 2025.ing   | 게임 디자인 문서 | [디자인 문서](./docs/Sprints/Desingdocument.md) |
 | Sprint 00 | 2024.10.21 - 2024.11.03 | 게임 기획 및 초기 컨셉 설계 | [0회차 개발일지](./docs/Sprints/BridgeRun_Sprint0.md) |
 | Sprint 01 | 2024.11.04 - 2024.11.17 | 기본 시스템 구축 및 컴포넌트 설계 | [1회차 개발일지](./docs/Sprints/BridgeRun_Sprint1.md) |
 | Sprint 02 | 2024.11.18 - 2024.12.01 | 점수/건설 시스템 구현 및 최적화 | [2회차 개발일지](./docs/Sprints/BridgeRun_Sprint2.md) |
