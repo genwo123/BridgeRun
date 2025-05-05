@@ -32,9 +32,11 @@
 
 
 
+
 ## 📝 개발 일지
 | 회차 | 기간 | 핵심 내용 | 개발 일지 |
 | --- | --- | --- | --- |
+| 디자인문서 | 2024.10.21 - 2025.ing   | 게임 디자인 문서 | [0회차 개발일지](./docs/Sprints/Desingdocument.md) |
 | Sprint 00 | 2024.10.21 - 2024.11.03 | 게임 기획 및 초기 컨셉 설계 | [0회차 개발일지](./docs/Sprints/BridgeRun_Sprint0.md) |
 | Sprint 01 | 2024.11.04 - 2024.11.17 | 기본 시스템 구축 및 컴포넌트 설계 | [1회차 개발일지](./docs/Sprints/BridgeRun_Sprint1.md) |
 | Sprint 02 | 2024.11.18 - 2024.12.01 | 점수/건설 시스템 구현 및 최적화 | [2회차 개발일지](./docs/Sprints/BridgeRun_Sprint2.md) |
@@ -47,6 +49,7 @@
 | Sprint 08 | 2025.03.03 - 2025.03.16 | 팀 시스템 기반 구축 및 랜덤 배정 로직 | [8회차 개발일지](./docs/Sprints/BridgeRun_Sprint8.md) |
 | Sprint 09 | 2025.03.17 - 2025.03.30 | SOLID 및 OOP 원칙 기반 코드 리팩토링 | [9회차 개발일지](./docs/Sprints/BridgeRun_Sprint9.md) |
 | Sprint 10 | 2025.03.31 - 2025.04.06 | 커스텀 BR UI 플러그인 개발 | [10회차 개발일지](./docs/Sprints/BridgeRun_Sprint10.md) |
+
 
 ### 개발 일지 내용
 각 스프린트 기록에는 다음 내용이 포함됩니다:
