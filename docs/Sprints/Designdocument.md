@@ -4,7 +4,7 @@
 
 브릿지런은 팀 기반 협력 전략 게임으로, 플레이어들이 협력하여 다리를 건설하고 토템(트로피)을 획득하여 점수를 얻는 3-4팀 대전 게임입니다. 각 팀은 다양한 직업의 플레이어로 구성되어 팀워크를 통해 승리를 목표로 합니다.
 
-![BORI 로고](images/Design/bori_logo.png)
+<img src="images/Design/bori_logo.png" width="300" height="400"/>
 
 ## 2. 배경 설정
 
