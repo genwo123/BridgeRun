@@ -19,7 +19,7 @@ UTeamManagerComponent::UTeamManagerComponent()
     SetIsReplicatedByDefault(true);
 
     // 기본 설정
-    ActiveTeamCount = 2;
+    ActiveTeamCount = 4;
     MaxTeams = 4;
     MaxPlayersPerTeam = 3; // 8에서 3으로 수정
 

@@ -55,23 +55,65 @@ void ABridgeRunGameMode::BeginPlay()
     }
 }
 
-// BridgeRunGameMode.cpp의 PostLogin 함수 수정
 void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
 
     if (!NewPlayer) return;
 
-    // 팀 매니저 컴포넌트 찾기
-    UTeamManagerComponent* TeamManager = FindComponentByClass<UTeamManagerComponent>();
-    if (TeamManager)
-    {
+    // PlayerState에서 팀 ID 확인
+    ABridgeRunPlayerState* PS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
+    int32 ExistingTeamID = -1;
 
-        // 플레이어를 팀에 배정
-        TeamManager->AssignPlayerToTeam(NewPlayer);
+    // PlayerState에서 이미 설정된 팀 ID 확인
+    if (PS)
+    {
+        ExistingTeamID = PS->GetTeamID();
+    }
+
+    // GameInstance에서도 팀 ID 확인
+    if (ExistingTeamID < 0)
+    {
+        if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
+        {
+            FString PlayerID = NewPlayer->GetName();
+            ExistingTeamID = GameInst->GetPlayerTeamID(PlayerID);
+
+            // GameInstance에서 가져온 팀 ID가 있으면 PlayerState에 설정
+            if (ExistingTeamID >= 0 && PS)
+            {
+                PS->SetTeamID(ExistingTeamID);
+                UE_LOG(LogTemp, Log, TEXT("로비에서 가져온 팀 ID (%d)를 PlayerState에 설정했습니다."), ExistingTeamID);
+            }
+        }
+    }
+
+    // 로비에서 가져온 팀 ID가 있는 경우, TeamManagerComponent에 해당 팀으로 요청
+    if (ExistingTeamID >= 0)
+    {
+        if (TeamManagerComponent)
+        {
+            // RequestTeamChange 함수는 이미 구현되어 있어서 활용
+            bool bSuccess = TeamManagerComponent->RequestTeamChange(NewPlayer, ExistingTeamID);
+            if (bSuccess)
+            {
+                UE_LOG(LogTemp, Log, TEXT("로비에서 선택한 팀 %d를 성공적으로 적용했습니다."), ExistingTeamID);
+                return; // 팀 변경 성공했으니 여기서 종료
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("로비에서 선택한 팀 %d를 적용할 수 없습니다."), ExistingTeamID);
+                // 실패 시 아래에서 기본 팀 할당 로직 실행
+            }
+        }
+    }
+
+    // 기존 팀 ID가 없거나 적용 실패한 경우에만 새로 할당
+    if (TeamManagerComponent)
+    {
+        TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
 
         // 로그 출력
-        ABridgeRunPlayerState* PS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
         if (PS)
         {
             UE_LOG(LogTemp, Log, TEXT("PostLogin: Player %s assigned to team %d"),
@@ -256,32 +298,14 @@ void ABridgeRunGameMode::RestartPlayer(AController* NewPlayer)
 
     // PlayerState에서 팀 ID 가져오기
     int32 TeamID = -1;
-    if (ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState))
+    ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
+
+    if (BridgeRunPS)
     {
         TeamID = BridgeRunPS->GetTeamID();
     }
 
-    // PlayerState에 팀 ID가 없다면 GameInstance에서 확인
-    if (TeamID < 0)
-    {
-        if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
-        {
-            FString PlayerID = NewPlayer->GetName();
-            TeamID = GameInst->GetPlayerTeamID(PlayerID);
-
-            // GameInstance에서 가져온 팀 ID가 있으면 PlayerState에 설정
-            if (TeamID >= 0 && NewPlayer->PlayerState)
-            {
-                if (ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState))
-                {
-                    BridgeRunPS->SetTeamID(TeamID);
-                    UE_LOG(LogTemp, Log, TEXT("GameInstance에서 가져온 팀 ID (%d)를 PlayerState에 설정했습니다."), TeamID);
-                }
-            }
-        }
-    }
-
-    // 유효한 팀 ID가 있으면 캐릭터에 적용
+    // 유효한 팀 ID가 이미 있으면, 그대로 캐릭터에 적용
     if (TeamID >= 0)
     {
         if (ACitizen* Character = Cast<ACitizen>(NewPlayer->GetPawn()))
@@ -290,15 +314,48 @@ void ABridgeRunGameMode::RestartPlayer(AController* NewPlayer)
             Character->TeamID = TeamID;
             Character->MulticastSetTeamMaterial(TeamID);
 
-            UE_LOG(LogTemp, Log, TEXT("플레이어 %s를 팀 %d로 초기화했습니다."),
+            UE_LOG(LogTemp, Log, TEXT("RestartPlayer: 플레이어 %s를 팀 %d로 초기화했습니다."),
                 *NewPlayer->GetName(), TeamID);
+
+            return; // 성공적으로 적용했으니 여기서 종료
         }
     }
-    // 팀 ID가 없으면 TeamManagerComponent를 통해 새로 할당
-    else if (TeamManagerComponent)
+
+    // PlayerState에 팀 ID가 없는 경우 GameInstance에서 확인
+    if (TeamID < 0)
+    {
+        if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
+        {
+            FString PlayerID = NewPlayer->GetName();
+            TeamID = GameInst->GetPlayerTeamID(PlayerID);
+
+            if (TeamID >= 0 && BridgeRunPS)
+            {
+                BridgeRunPS->SetTeamID(TeamID);
+
+                // 캐릭터에 적용
+                if (ACitizen* Character = Cast<ACitizen>(NewPlayer->GetPawn()))
+                {
+                    Character->TeamID = TeamID;
+                    Character->MulticastSetTeamMaterial(TeamID);
+
+                    UE_LOG(LogTemp, Log, TEXT("RestartPlayer: GameInstance에서 가져온 팀 %d를 적용했습니다."), TeamID);
+                    return; // 성공적으로 적용했으니 여기서 종료
+                }
+            }
+        }
+    }
+
+    // 이전 방법으로도 팀 ID를 가져오지 못한 경우에만 TeamManagerComponent를 통해 새로 할당
+    if (TeamManagerComponent)
     {
         TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
-        UE_LOG(LogTemp, Log, TEXT("플레이어 %s를 새 팀에 할당했습니다."),
-            *NewPlayer->GetName());
+
+        // 할당 후 로그
+        if (BridgeRunPS)
+        {
+            UE_LOG(LogTemp, Log, TEXT("RestartPlayer: 플레이어 %s를 새로운 팀 %d에 할당했습니다."),
+                *NewPlayer->GetName(), BridgeRunPS->GetTeamID());
+        }
     }
 }

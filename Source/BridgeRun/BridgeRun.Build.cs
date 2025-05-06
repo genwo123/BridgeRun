@@ -37,7 +37,8 @@ public class BridgeRun : ModuleRules
                 "UMG",
                 "Slate",
                 "SlateCore",
-                "NavigationSystem"
+                "NavigationSystem",
+                "SimpleLobbySystem"
             }
         );
         // 추가 종속성이 필요한 경우를 위한 Private Dependencies

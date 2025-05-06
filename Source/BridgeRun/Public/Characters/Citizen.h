@@ -36,8 +36,15 @@ public:
     UPROPERTY(ReplicatedUsing = OnRep_TeamID)
     int32 TeamID = -1;
 
+    UPROPERTY(ReplicatedUsing = OnRep_SkinIndex)
+    int32 SkinIndex = 0;
+
     UFUNCTION(NetMulticast, Reliable)
     void MulticastHandleRespawn();
+
+    // 블루프린트에서 구현 가능한 이벤트
+    UFUNCTION(BlueprintImplementableEvent, Category = "Character")
+    void ApplySkin();
 
     // TeamID 변경 이벤트 처리 함수
     UFUNCTION()
@@ -74,9 +81,6 @@ protected:
 
     UFUNCTION()
     void OnRep_IsDead();
-
-    // PlayerState 복제 이벤트 추가
-    virtual void OnRep_PlayerState() override;
 
     // 서버 RPC
     UFUNCTION(Server, Reliable, WithValidation)
@@ -145,6 +149,11 @@ protected:
     void VisualizeItemConnection(AActor* Item, bool IsClosest);
 
     void InitializeTeamFromPlayerState();
+
+private:
+    // private 섹션으로 이동하여 블루프린트에서 보이지 않게 함
+    UFUNCTION()
+    void OnRep_SkinIndex();
 
 public:
     void SelectInventorySlot(EInventorySlot Slot);
