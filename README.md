@@ -52,6 +52,7 @@
 | Sprint 11 | 2025.04.07 - 2025.04.20 |  | [11회차 개발일지](./docs/Sprints/BridgeRun_Sprint11.md) |
 | Sprint 12 | 2025.04.21 - 2025.05.04 |  | [12회차 개발일지](./docs/Sprints/BridgeRun_Sprint12.md) |
 | Sprint 13 | 2025.05.05 - 2025.05.18 |  | [13회차 개발일지](./docs/Sprints/BridgeRun_Sprint13.md) |
+| Sprint 13 | 2025.05.19 - 2025.05.26 |  | [14회차 개발일지](./docs/Sprints/BridgeRun_Sprint14.md) |
 
 
 ### 개발 일지 내용
@@ -82,14 +83,7 @@ docs/
 │       ├── sprint0/
 │       ├── sprint1/
 │       ├── sprint2/
-│       ├── sprint3/
-│       ├── sprint4/
-│       ├── sprint5/
-│       ├── sprint6/
-│       ├── sprint7/
-│       ├── sprint8/
-│       ├── sprint9/
-│       └── sprint10/
+│       ├── sprint3/.....
 └── README.md                  # 프로젝트 메인 문서
 ```
 
