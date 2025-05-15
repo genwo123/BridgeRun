@@ -8,10 +8,8 @@ UCLASS()
 class BRIDGERUN_API AItem_Trophy : public AItem
 {
     GENERATED_BODY()
-
 public:
     AItem_Trophy();
-
     // 기본 함수 재정의
     virtual void PickUp_Implementation(class ACharacter* Character) override;
     virtual void Drop_Implementation() override;
@@ -27,9 +25,25 @@ public:
     UFUNCTION(NetMulticast, Reliable)
     void MulticastOnTrophyDropped();
 
+    // 팀 머티리얼 적용 함수
+    UFUNCTION(NetMulticast, Reliable, BlueprintCallable)
+    void MulticastSetTeamMaterial(int32 TeamID);
+
     // 트로피 속성
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Trophy")
     int32 TrophyValue = 5;  // 기본값 5점
+
+    // 팀 관련 속성
+    UPROPERTY(Replicated, BlueprintReadWrite, Category = "Trophy")
+    int32 OwningTeamID = -1;  // -1은 중립 상태
+
+    // 팀 머티리얼 배열
+    UPROPERTY(EditDefaultsOnly, Category = "Trophy|Materials")
+    TArray<UMaterialInterface*> TeamMaterials;
+
+    // 기본 머티리얼 (중립 상태)
+    UPROPERTY(EditDefaultsOnly, Category = "Trophy|Materials")
+    UMaterialInterface* NeutralMaterial;
 
 protected:
     virtual void BeginPlay() override;

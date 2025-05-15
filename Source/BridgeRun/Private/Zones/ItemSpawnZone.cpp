@@ -1,5 +1,3 @@
-// Copyright BridgeRun Game, Inc. All Rights Reserved.
-
 #include "Zones/ItemSpawnZone.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -13,48 +11,128 @@ AItemSpawnZone::AItemSpawnZone()
     PrimaryActorTick.bCanEverTick = false;
     bReplicates = true;
 
-    // 컴포넌트 생성 및 설정
+    // 컴포넌트 생성
     SpawnVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("SpawnVolume"));
     RootComponent = SpawnVolume;
+
+    // 고정 크기 - 에디터와 플레이 모드에서 일치하게 설정
+    const FVector FixedSize(200.0f, 200.0f, 20.0f);
+    SpawnVolume->SetBoxExtent(FixedSize);
+
+    // 바닥 메시 컴포넌트
+    FloorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FloorMesh"));
+    FloorMesh->SetupAttachment(SpawnVolume);
+    FloorMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -5.0f));
+    FloorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    FloorMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
+
+    // 스태틱 메시 에셋 로드 및 설정
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMeshAsset(TEXT("/Engine/BasicShapes/Plane.Plane"));
+    if (PlaneMeshAsset.Succeeded())
+    {
+        FloorMesh->SetStaticMesh(PlaneMeshAsset.Object);
+        // Plane 메시는 100x100 유닛이므로 볼륨 크기에 맞게 조정
+        FloorMesh->SetRelativeScale3D(FVector(4.0f, 4.0f, 1.0f));
+    }
+
+    // 스폰 포인트 생성 (4x4 = 16개)
+    const int32 TotalPoints = 16;
+    for (int i = 0; i < TotalPoints; i++)
+    {
+        FString ComponentName = FString::Printf(TEXT("SpawnPoint%d"), i);
+        USceneComponent* SpawnPoint = CreateDefaultSubobject<USceneComponent>(*ComponentName);
+        SpawnPoint->SetupAttachment(RootComponent);
+        SpawnPoints.Add(SpawnPoint);
+
+        FSpawnPointInfo NewPointInfo;
+        SpawnPointInfos.Add(NewPointInfo);
+    }
+
+    // 스폰 포인트를 4x4 그리드로 배치
+    ArrangeSpawnPointsInGrid(4, 4, 80.0f, 80.0f);
 
     InitializeSpawnVolume();
 
     // 기본값 설정
     SpawnInterval = 5.0f;
-    MaxItemCount = 10;
-    CurrentItemCount = 0;
+    CurrentPlankCount = 0;
+    CurrentTentCount = 0;
+    CurrentGunCount = 0;
 }
+
+void AItemSpawnZone::ArrangeSpawnPointsInGrid(int32 Rows, int32 Columns, float SpacingX, float SpacingY)
+{
+    if (SpawnPoints.Num() < Rows * Columns) return;
+
+    // 중앙 정렬을 위한 시작 위치 계산
+    float StartX = -((Columns - 1) * SpacingX) / 2.0f;
+    float StartY = -((Rows - 1) * SpacingY) / 2.0f;
+
+    for (int32 Row = 0; Row < Rows; Row++)
+    {
+        for (int32 Column = 0; Column < Columns; Column++)
+        {
+            int32 Index = Row * Columns + Column;
+            if (Index < SpawnPoints.Num())
+            {
+                float X = StartX + Column * SpacingX;
+                float Y = StartY + Row * SpacingY;
+                SpawnPoints[Index]->SetRelativeLocation(FVector(X, Y, 10.0f));
+            }
+        }
+    }
+}
+
 
 void AItemSpawnZone::InitializeSpawnVolume()
 {
     if (!SpawnVolume) return;
 
-    // 충돌 설정
     SpawnVolume->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     SpawnVolume->SetGenerateOverlapEvents(true);
     SpawnVolume->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
     SpawnVolume->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
     SpawnVolume->SetIsReplicated(true);
 
-    // 오버랩 이벤트 바인딩
     SpawnVolume->OnComponentBeginOverlap.AddDynamic(this, &AItemSpawnZone::OnOverlapBegin);
     SpawnVolume->OnComponentEndOverlap.AddDynamic(this, &AItemSpawnZone::OnOverlapEnd);
+}
+
+void AItemSpawnZone::InitializeSpawnPoints()
+{
+    if (SpawnPointInfos.Num() < SpawnPoints.Num())
+    {
+        int32 NumToAdd = SpawnPoints.Num() - SpawnPointInfos.Num();
+        for (int32 i = 0; i < NumToAdd; i++)
+        {
+            FSpawnPointInfo NewInfo;
+            SpawnPointInfos.Add(NewInfo);
+        }
+    }
+
+    for (int32 i = 0; i < SpawnPointInfos.Num(); i++)
+    {
+        SpawnPointInfos[i].bIsOccupied = false;
+        SpawnPointInfos[i].SpawnedItem = nullptr;
+    }
 }
 
 void AItemSpawnZone::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    // 복제 속성 등록
-    DOREPLIFETIME(AItemSpawnZone, CurrentItemCount);
     DOREPLIFETIME(AItemSpawnZone, SpawnedItems);
+    DOREPLIFETIME(AItemSpawnZone, CurrentPlankCount);
+    DOREPLIFETIME(AItemSpawnZone, CurrentTentCount);
+    DOREPLIFETIME(AItemSpawnZone, CurrentGunCount);
 }
 
 void AItemSpawnZone::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 서버에서만 스폰 타이머 시작
+    InitializeSpawnPoints();
+
     if (HasAuthority())
     {
         StartSpawnTimer();
@@ -65,13 +143,11 @@ void AItemSpawnZone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     Super::EndPlay(EndPlayReason);
 
-    // 정리 작업
     if (HasAuthority())
     {
         CleanupSpawnedItems();
     }
 
-    // 타이머 정리
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(SpawnTimer);
@@ -82,7 +158,6 @@ void AItemSpawnZone::StartSpawnTimer()
 {
     if (!HasAuthority()) return;
 
-    // 이미 활성화된 타이머가 없을 경우만 타이머 설정
     if (UWorld* World = GetWorld())
     {
         if (!World->GetTimerManager().IsTimerActive(SpawnTimer))
@@ -94,81 +169,245 @@ void AItemSpawnZone::StartSpawnTimer()
 
 void AItemSpawnZone::ServerSpawnItem_Implementation()
 {
-    // 전제 조건 검사
-    if (!HasAuthority() || !ValidateSpawnConditions())
-        return;
+    if (!HasAuthority()) return;
+
+    TSubclassOf<AItem> ItemToSpawn;
+    if (!ValidateSpawnConditions(ItemToSpawn)) return;
 
     UWorld* World = GetWorld();
-    if (!World) return;
+    if (!World || !ItemToSpawn) return;
 
-    // 스폰할 아이템 클래스 선택
-    int32 RandomIndex = FMath::RandRange(0, ItemsToSpawn.Num() - 1);
-    TSubclassOf<AItem> ItemToSpawn = ItemsToSpawn[RandomIndex];
-    if (!ItemToSpawn) return;
+    int32 SpawnPointIndex = FindFreeSpawnPointForItem(ItemToSpawn);
+    if (SpawnPointIndex < 0) return;
 
-    // 스폰 매개변수 설정
-    FVector SpawnLocation = GetRandomPointInVolume();
-    FRotator SpawnRotation = FRotator::ZeroRotator;
+    FVector SpawnLocation = SpawnPoints[SpawnPointIndex]->GetComponentLocation();
+    FRotator SpawnRotation = SpawnPoints[SpawnPointIndex]->GetComponentRotation();
+
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
     SpawnParams.Owner = this;
 
-    // 아이템 스폰
     if (AItem* SpawnedItem = World->SpawnActor<AItem>(ItemToSpawn, SpawnLocation, SpawnRotation, SpawnParams))
     {
-        // 아이템 설정
-        ConfigureSpawnedItem(SpawnedItem);
+        ConfigureSpawnedItem(SpawnedItem, SpawnPointIndex);
 
-        // 상태 업데이트
+        IncrementItemCount(ItemToSpawn);
+
         SpawnedItems.Add(SpawnedItem);
-        CurrentItemCount++;
+        MarkSpawnPointOccupied(SpawnPointIndex, SpawnedItem, true);
 
-        // 네트워크 통지 및 상태 업데이트
-        MulticastOnItemSpawned(SpawnedItem);
+        MulticastOnItemSpawned(SpawnedItem, SpawnPointIndex);
+
         UpdateSpawnState();
     }
 }
 
-void AItemSpawnZone::ConfigureSpawnedItem(AItem* SpawnedItem)
+void AItemSpawnZone::ConfigureSpawnedItem(AItem* SpawnedItem, int32 SpawnPointIndex)
 {
     if (!SpawnedItem) return;
 
-    // 기본 네트워크 설정
     SpawnedItem->SetReplicates(true);
     SpawnedItem->SetReplicateMovement(true);
 
-    // 총기 특수 처리
+    if (SpawnedItem->MeshComponent)
+    {
+        SpawnedItem->MeshComponent->SetSimulatePhysics(false);
+        SpawnedItem->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    }
+
     if (AItem_Gun* Gun = Cast<AItem_Gun>(SpawnedItem))
     {
         Gun->InitializeAmmo();
         if (Gun->CollisionComponent)
         {
-            Gun->CollisionComponent->SetGenerateOverlapEvents(false);
+            Gun->CollisionComponent->SetGenerateOverlapEvents(true);
         }
     }
 }
 
-void AItemSpawnZone::MulticastOnItemSpawned_Implementation(AItem* SpawnedItem)
+int32 AItemSpawnZone::FindFreeSpawnPointForItem(TSubclassOf<AItem> ItemClass) const
+{
+    TArray<int32> CompatiblePoints;
+
+    for (int32 i = 0; i < SpawnPointInfos.Num(); i++)
+    {
+        if (SpawnPointInfos[i].bIsOccupied) continue;
+
+        bool bIsPreferred = !SpawnPointInfos[i].PreferredItemClass ||
+            SpawnPointInfos[i].PreferredItemClass == ItemClass;
+
+        if (bIsPreferred)
+        {
+            return i;
+        }
+
+        CompatiblePoints.Add(i);
+    }
+
+    if (CompatiblePoints.Num() > 0)
+    {
+        int32 RandomIndex = FMath::RandRange(0, CompatiblePoints.Num() - 1);
+        return CompatiblePoints[RandomIndex];
+    }
+
+    return -1;
+}
+
+bool AItemSpawnZone::ValidateSpawnConditions(TSubclassOf<AItem>& OutItemToSpawn) const
+{
+    if (ItemsToSpawn.Num() == 0) return false;
+
+    TArray<TSubclassOf<AItem>> SpawnableItems;
+
+    for (auto ItemClass : ItemsToSpawn)
+    {
+        int32 CurrentCount = GetCurrentCountForItemClass(ItemClass);
+        int32 MaxCount = GetMaxCountForItemClass(ItemClass);
+
+        if (CurrentCount < MaxCount)
+        {
+            SpawnableItems.Add(ItemClass);
+        }
+    }
+
+    if (SpawnableItems.Num() == 0) return false;
+
+    int32 RandomIndex = FMath::RandRange(0, SpawnableItems.Num() - 1);
+    OutItemToSpawn = SpawnableItems[RandomIndex];
+
+    return true;
+}
+
+int32 AItemSpawnZone::GetCurrentCountForItemClass(TSubclassOf<AItem> ItemClass) const
+{
+    if (ItemClass->GetName().Contains("Plank"))
+    {
+        return CurrentPlankCount;
+    }
+    else if (ItemClass->GetName().Contains("Tent"))
+    {
+        return CurrentTentCount;
+    }
+    else if (ItemClass->GetName().Contains("Gun"))
+    {
+        return CurrentGunCount;
+    }
+
+    return 0;
+}
+
+int32 AItemSpawnZone::GetMaxCountForItemClass(TSubclassOf<AItem> ItemClass) const
+{
+    if (ItemClass->GetName().Contains("Plank"))
+    {
+        return MaxPlankCount;
+    }
+    else if (ItemClass->GetName().Contains("Tent"))
+    {
+        return MaxTentCount;
+    }
+    else if (ItemClass->GetName().Contains("Gun"))
+    {
+        return MaxGunCount;
+    }
+
+    return 0;
+}
+
+void AItemSpawnZone::IncrementItemCount(TSubclassOf<AItem> ItemClass)
+{
+    if (ItemClass->GetName().Contains("Plank"))
+    {
+        CurrentPlankCount++;
+    }
+    else if (ItemClass->GetName().Contains("Tent"))
+    {
+        CurrentTentCount++;
+    }
+    else if (ItemClass->GetName().Contains("Gun"))
+    {
+        CurrentGunCount++;
+    }
+}
+
+void AItemSpawnZone::DecrementItemCount(TSubclassOf<AItem> ItemClass)
+{
+    if (ItemClass->GetName().Contains("Plank"))
+    {
+        if (CurrentPlankCount > 0) CurrentPlankCount--;
+    }
+    else if (ItemClass->GetName().Contains("Tent"))
+    {
+        if (CurrentTentCount > 0) CurrentTentCount--;
+    }
+    else if (ItemClass->GetName().Contains("Gun"))
+    {
+        if (CurrentGunCount > 0) CurrentGunCount--;
+    }
+}
+
+void AItemSpawnZone::MarkSpawnPointOccupied(int32 Index, AItem* Item, bool bOccupied)
+{
+    if (Index >= 0 && Index < SpawnPointInfos.Num())
+    {
+        SpawnPointInfos[Index].bIsOccupied = bOccupied;
+        SpawnPointInfos[Index].SpawnedItem = bOccupied ? Item : nullptr;
+    }
+}
+
+bool AItemSpawnZone::IsSpawnPointOccupied(int32 Index) const
+{
+    if (Index >= 0 && Index < SpawnPointInfos.Num())
+    {
+        return SpawnPointInfos[Index].bIsOccupied;
+    }
+    return true;
+}
+
+int32 AItemSpawnZone::GetSpawnPointIndexForPosition(const FVector& Position) const
+{
+    float ClosestDistSq = FLT_MAX;
+    int32 ClosestIndex = -1;
+
+    for (int32 i = 0; i < SpawnPoints.Num(); i++)
+    {
+        float DistSq = FVector::DistSquared(Position, SpawnPoints[i]->GetComponentLocation());
+        if (DistSq < ClosestDistSq)
+        {
+            ClosestDistSq = DistSq;
+            ClosestIndex = i;
+        }
+    }
+
+    return ClosestIndex;
+}
+
+void AItemSpawnZone::MulticastOnItemSpawned_Implementation(AItem* SpawnedItem, int32 SpawnPointIndex)
 {
     if (!SpawnedItem) return;
 
-    // 충돌 활성화
     if (SpawnedItem->CollisionComponent)
     {
         SpawnedItem->CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     }
 }
 
-void AItemSpawnZone::MulticastOnItemRemoved_Implementation(AItem* RemovedItem)
+void AItemSpawnZone::MulticastOnItemRemoved_Implementation(AItem* RemovedItem, int32 SpawnPointIndex)
 {
     if (!RemovedItem) return;
 
-    // 아이템 목록에서 제거
     SpawnedItems.Remove(RemovedItem);
-    if (CurrentItemCount > 0)
+
+    if (SpawnPointIndex >= 0 && SpawnPointIndex < SpawnPointInfos.Num())
     {
-        CurrentItemCount--;
+        SpawnPointInfos[SpawnPointIndex].bIsOccupied = false;
+        SpawnPointInfos[SpawnPointIndex].SpawnedItem = nullptr;
     }
+}
+
+void AItemSpawnZone::OnRep_SpawnedItems()
+{
+    UpdateSpawnState();
 }
 
 void AItemSpawnZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
@@ -180,13 +419,15 @@ void AItemSpawnZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
 {
     if (!HasAuthority()) return;
 
-    // 영역에 들어온 아이템 추적
     if (AItem* Item = Cast<AItem>(OtherActor))
     {
         if (!SpawnedItems.Contains(Item))
         {
             SpawnedItems.Add(Item);
-            CurrentItemCount++;
+
+            TSubclassOf<AItem> ItemClass = Item->GetClass();
+            IncrementItemCount(ItemClass);
+
             UpdateSpawnState();
         }
     }
@@ -199,41 +440,28 @@ void AItemSpawnZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
 {
     if (!HasAuthority()) return;
 
-    // 영역을 떠난 아이템 제거
     if (AItem* Item = Cast<AItem>(OtherActor))
     {
         if (SpawnedItems.Contains(Item))
         {
-            MulticastOnItemRemoved(Item);
+            int32 SpawnPointIndex = GetSpawnPointIndexForPosition(Item->GetActorLocation());
+
+            if (SpawnPointIndex >= 0)
+            {
+                MarkSpawnPointOccupied(SpawnPointIndex, nullptr, false);
+            }
+
+            TSubclassOf<AItem> ItemClass = Item->GetClass();
+            DecrementItemCount(ItemClass);
+
+            MulticastOnItemRemoved(Item, SpawnPointIndex);
             UpdateSpawnState();
         }
     }
 }
 
-void AItemSpawnZone::OnRep_CurrentItemCount()
-{
-    // 복제 이벤트 처리
-    UpdateSpawnState();
-}
-
-FVector AItemSpawnZone::GetRandomPointInVolume()
-{
-    // 볼륨 내 무작위 위치 생성
-    FVector ExtentMax = SpawnVolume->Bounds.BoxExtent;
-    return UKismetMathLibrary::RandomPointInBoundingBox(
-        SpawnVolume->GetComponentLocation(),
-        ExtentMax);
-}
-
-bool AItemSpawnZone::ValidateSpawnConditions() const
-{
-    // 스폰 조건 검증
-    return CurrentItemCount < MaxItemCount && ItemsToSpawn.Num() > 0;
-}
-
 void AItemSpawnZone::CleanupSpawnedItems()
 {
-    // 모든 스폰된 아이템 정리
     for (AItem* Item : SpawnedItems)
     {
         if (Item)
@@ -241,16 +469,28 @@ void AItemSpawnZone::CleanupSpawnedItems()
             Item->Destroy();
         }
     }
+
     SpawnedItems.Empty();
-    CurrentItemCount = 0;
+    CurrentPlankCount = 0;
+    CurrentTentCount = 0;
+    CurrentGunCount = 0;
+
+    for (int32 i = 0; i < SpawnPointInfos.Num(); i++)
+    {
+        SpawnPointInfos[i].bIsOccupied = false;
+        SpawnPointInfos[i].SpawnedItem = nullptr;
+    }
 }
 
 void AItemSpawnZone::UpdateSpawnState()
 {
     if (!HasAuthority()) return;
 
-    // 타이머 상태 업데이트
-    if (CurrentItemCount < MaxItemCount)
+    bool bShouldSpawn = CurrentPlankCount < MaxPlankCount ||
+        CurrentTentCount < MaxTentCount ||
+        CurrentGunCount < MaxGunCount;
+
+    if (bShouldSpawn)
     {
         StartSpawnTimer();
     }
@@ -262,6 +502,5 @@ void AItemSpawnZone::UpdateSpawnState()
         }
     }
 
-    // 네트워크 상태 강제 업데이트
     ForceNetUpdate();
 }
