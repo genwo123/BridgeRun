@@ -62,6 +62,30 @@ void AItem_Trophy::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AItem_Trophy, bIsTrophyActive);
+    DOREPLIFETIME(AItem_Trophy, OwningTeamID);
+}
+
+void AItem_Trophy::MulticastSetTeamMaterial_Implementation(int32 TeamID)
+{
+    // 머티리얼 컴포넌트 확인
+    if (!MeshComponent) return;
+
+    // 팀 ID 유효성 검사
+    if (TeamID >= 0 && TeamID < TeamMaterials.Num() && TeamMaterials[TeamID])
+    {
+        // 해당 팀 머티리얼 적용
+        MeshComponent->SetMaterial(0, TeamMaterials[TeamID]);
+        UE_LOG(LogTemp, Log, TEXT("Trophy material changed to Team %d color"), TeamID);
+    }
+    else
+    {
+        // 중립 머티리얼 적용
+        if (NeutralMaterial)
+        {
+            MeshComponent->SetMaterial(0, NeutralMaterial);
+            UE_LOG(LogTemp, Log, TEXT("Trophy material changed to neutral state"));
+        }
+    }
 }
 
 void AItem_Trophy::BeginPlay()
@@ -76,7 +100,19 @@ void AItem_Trophy::PickUp_Implementation(ACharacter* Character)
 
     Super::PickUp_Implementation(Character);
 
-    // 물리와 콜리전 설정 업데이트
+    // 캐릭터가 Citizen 클래스인지 확인
+    class ACitizen* CitizenCharacter = Cast<ACitizen>(Character);
+    if (CitizenCharacter)
+    {
+        // 플레이어의 팀 ID 가져와서 토템에 적용
+        int32 PlayerTeamID = CitizenCharacter->TeamID;
+        OwningTeamID = PlayerTeamID;
+
+        // 팀 머티리얼 적용
+        MulticastSetTeamMaterial(PlayerTeamID);
+    }
+
+    // 물리와 콜리전 설정 업데이트 (기존 코드 유지)
     SetTrophyPhysics(false);
     UpdateTrophyCollision();
     UpdateTrophyVisibility(true);

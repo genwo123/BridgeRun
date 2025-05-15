@@ -93,10 +93,10 @@ protected:
     int32 MaxTeams = 4;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category = "Team", meta = (ClampMin = "2", ClampMax = "4"))
-    int32 ActiveTeamCount = 2;
+    int32 ActiveTeamCount = 4;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Team")
-    int32 MaxPlayersPerTeam = 8;
+    int32 MaxPlayersPerTeam = 3;
 
     // ∆¿ µ•¿Ã≈Õ
     UPROPERTY(Replicated, BlueprintReadOnly, EditAnywhere, Category = "Team")

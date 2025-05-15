@@ -28,6 +28,7 @@ public:
     virtual void PostLogin(APlayerController* NewPlayer) override;
     virtual void Logout(AController* Exiting) override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+    virtual void RestartPlayer(AController* NewPlayer) override;
 
     // 게임 진행 함수
     UFUNCTION(BlueprintCallable, Category = "Game")
@@ -80,6 +81,7 @@ protected:
 
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
     bool bJobSystemActive = false;
+
 
 private:
     // 타이머 핸들

@@ -20,6 +20,7 @@
 #include "Core/BridgeRunGameState.h"
 #include "Core/BridgeRunPlayerState.h"
 
+
 ACitizen::ACitizen()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -51,6 +52,9 @@ void ACitizen::BeginPlay()
 {
     Super::BeginPlay();
 
+    // 게임 인스턴스 가져오기 (이름 변경 - LobbyGameInstance를 직접 사용하지 않음)
+    UGameInstance* GameInstance = GetGameInstance();
+
     if (HasAuthority())
     {
         // 팀 머티리얼 초기화
@@ -64,6 +68,22 @@ void ACitizen::BeginPlay()
                 {
                     SetTeamMaterial(CurrentTeamID);
                 }
+            }
+        }
+
+        // 블루프린트를 통해 스킨 정보 가져오기 시도
+        if (GameInstance)
+        {
+            // GetPlayerSkinIndex라는 블루프린트 함수가 있는지 확인
+            UFunction* GetSkinFunc = GameInstance->FindFunction(FName("GetPlayerSkinIndex"));
+            if (GetSkinFunc)
+            {
+                int32 ResultSkinIndex = 0;
+                GameInstance->ProcessEvent(GetSkinFunc, &ResultSkinIndex);
+                SkinIndex = ResultSkinIndex;
+
+                // 스킨 변경 시 복제 강제 업데이트
+                ForceNetUpdate();
             }
         }
 
@@ -83,6 +103,9 @@ void ACitizen::BeginPlay()
         {
             InventoryWidget->AddToViewport();
         }
+
+        // 로컬 플레이어인 경우 스킨 적용
+        ApplySkin();
     }
 
     // 플레이어 모드 변경 이벤트 바인딩
@@ -98,6 +121,7 @@ void ACitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetime
     DOREPLIFETIME(ACitizen, TeamID);
     DOREPLIFETIME(ACitizen, HeldTrophy);
     DOREPLIFETIME(ACitizen, bIsDead);
+    DOREPLIFETIME(ACitizen, SkinIndex);
 }
 
 void ACitizen::Tick(float DeltaTime)
@@ -168,6 +192,12 @@ void ACitizen::MulticastHandleRespawn_Implementation()
             EnableInput(PC);
         }
     }
+}
+
+void ACitizen::OnRep_SkinIndex()
+{
+    // 스킨 인덱스가 변경되면 적절한 스킨을 적용하는 블루프린트 이벤트 호출
+    ApplySkin();
 }
 
 
@@ -688,27 +718,15 @@ void ACitizen::OnRep_TeamID()
     SetTeamMaterial(TeamID);
 }
 
-void ACitizen::OnRep_PlayerState()
-{
-    Super::OnRep_PlayerState();
 
-    if (GetPlayerState())
-    {
-        ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetPlayerState());
-        if (BridgeRunPS)
-        {
-            int32 CurrentTeamID = BridgeRunPS->GetTeamID();
-            if (CurrentTeamID >= 0)
-            {
-                TeamID = CurrentTeamID;
-                SetTeamMaterial(CurrentTeamID);
-            }
-        }
-    }
-}
 
 void ACitizen::MulticastSetTeamMaterial_Implementation(int32 InTeamID)
 {
+    // 네트워크 역할에 관계없이 모든 클라이언트에서 실행
+    UE_LOG(LogTemp, Log, TEXT("MulticastSetTeamMaterial: Character %s, TeamID: %d, IsLocallyControlled: %d"),
+        *GetName(), InTeamID, IsLocallyControlled());
+
+    // 팀 색상 적용
     SetTeamMaterial(InTeamID);
 }
 
@@ -742,6 +760,28 @@ void ACitizen::SetTeamMaterial(int32 InTeamID)
         {
             UMaterialInstanceDynamic* DynamicMaterial2 = UMaterialInstanceDynamic::Create(TeamMaterial, this);
             MeshComponent->SetMaterial(1, DynamicMaterial2);
+        }
+    }
+}
+
+void ACitizen::InitializeTeamFromPlayerState()
+{
+    // PlayerState에서 팀 ID 가져오기 (서버/클라이언트 모두 실행)
+    ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(GetPlayerState());
+    if (BridgeRunPS)
+    {
+        int32 CurrentTeamID = BridgeRunPS->GetTeamID();
+        UE_LOG(LogTemp, Log, TEXT("InitializeTeamFromPlayerState: Character %s, TeamID: %d"),
+            *GetName(), CurrentTeamID);
+
+        if (CurrentTeamID >= 0)
+        {
+            TeamID = CurrentTeamID;
+            // 서버에서는 직접 호출, 클라이언트는 복제 통해 호출됨
+            if (HasAuthority())
+            {
+                MulticastSetTeamMaterial(TeamID);
+            }
         }
     }
 }

@@ -1,21 +1,27 @@
 // Copyright BridgeRun Game, Inc. All Rights Reserved.
+// 코어 헤더
 #include "Core/TeamManagerComponent.h"
 #include "Net/UnrealNetwork.h"
-#include "GameFramework/PlayerState.h"
-#include "GameFramework/GameModeBase.h"
-#include "GameFramework/PlayerStart.h"
 #include "EngineUtils.h"
+
+// 게임 프레임워크 헤더
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/PlayerState.h"
+#include "GameFramework/PlayerStart.h"
+
+// 브릿지런 게임 헤더
 #include "Characters/Citizen.h"
-#include "BridgeRunPlayerState.h"
+#include "Core/BridgeRunPlayerState.h"
+#include "Core/BridgeRunGameInstance.h"
 
 UTeamManagerComponent::UTeamManagerComponent()
 {
     SetIsReplicatedByDefault(true);
 
     // 기본 설정
-    ActiveTeamCount = 2;
+    ActiveTeamCount = 4;
     MaxTeams = 4;
-    MaxPlayersPerTeam = 8;
+    MaxPlayersPerTeam = 3; // 8에서 3으로 수정
 
     // 팀 정보 초기화
     TeamInfo.Reserve(MaxTeams);
@@ -70,6 +76,7 @@ void UTeamManagerComponent::InitializeTeamColors()
     }
 }
 
+// TeamManagerComponent.cpp의 AssignPlayerToTeam 함수 수정
 void UTeamManagerComponent::AssignPlayerToTeam(AController* PlayerController)
 {
     if (!PlayerController)
@@ -79,12 +86,23 @@ void UTeamManagerComponent::AssignPlayerToTeam(AController* PlayerController)
     if (PlayerTeamMap.Contains(PlayerController))
         return;
 
-    // 임시: 플레이어 수에 따라 순환 방식으로 팀 할당
+    // 최적의 팀 ID 구하기
     int32 OptimalTeamID = GetOptimalTeamForTeam();
+
+    // 모든 팀이 가득 찼는지 확인
+    if (OptimalTeamID < 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: No available team for player %s!"),
+            *PlayerController->GetName());
+        return;
+    }
 
     // 활성화된 팀인지 확인
     if (OptimalTeamID >= ActiveTeamCount || !TeamActive[OptimalTeamID])
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: Team %d is not active"), OptimalTeamID);
         return;
+    }
 
     // 팀 인원 증가
     TeamInfo[OptimalTeamID].PlayerCount++;
@@ -92,33 +110,35 @@ void UTeamManagerComponent::AssignPlayerToTeam(AController* PlayerController)
     // 플레이어-팀 맵핑 저장
     PlayerTeamMap.Add(PlayerController, OptimalTeamID);
 
-    // PlayerState에 팀 ID 설정
-    if (APlayerController* PC = Cast<APlayerController>(PlayerController))
+    // PlayerState에 팀 ID 설정 및 로그 출력
+    APlayerController* PC = Cast<APlayerController>(PlayerController);
+    if (PC && PC->PlayerState)
     {
-        if (ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PC->PlayerState))
+        ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PC->PlayerState);
+        if (BridgeRunPS)
         {
             BridgeRunPS->SetTeamID(OptimalTeamID);
+            UE_LOG(LogTemp, Log, TEXT("AssignPlayerToTeam: Player %s assigned to team %d (Current count: %d)"),
+                *PlayerController->GetName(), OptimalTeamID, TeamInfo[OptimalTeamID].PlayerCount);
         }
     }
 
-    // 플레이어 캐릭터에 팀 색상 적용
-    if (APawn* PlayerPawn = PlayerController->GetPawn())
+    // 플레이어 캐릭터가 있으면 팀 색상 적용
+    APawn* PlayerPawn = PlayerController->GetPawn();
+    if (PlayerPawn)
     {
-        if (ACitizen* Character = Cast<ACitizen>(PlayerPawn))
+        ACitizen* Character = Cast<ACitizen>(PlayerPawn);
+        if (Character)
         {
             Character->TeamID = OptimalTeamID;
             Character->MulticastSetTeamMaterial(OptimalTeamID);
+            UE_LOG(LogTemp, Log, TEXT("AssignPlayerToTeam: Applied team material %d to character"), OptimalTeamID);
         }
     }
 }
-
 int32 UTeamManagerComponent::GetOptimalTeamForTeam() const
 {
-    // 임시: 플레이어 수에 따라 순환 방식으로 팀 할당
-    return PlayerTeamMap.Num() % ActiveTeamCount;
-
-    // 향후 구현: 인원 균형을 맞추는 로직
-    /*
+    // 균형 있는 팀 배정 로직 구현
     TArray<int32> TeamCounts;
     TeamCounts.SetNum(ActiveTeamCount);
     TeamCounts.Init(0, ActiveTeamCount);
@@ -146,60 +166,14 @@ int32 UTeamManagerComponent::GetOptimalTeamForTeam() const
         }
     }
 
+    // 모든 팀이 MaxPlayersPerTeam에 도달했는지 확인
+    if (MinPlayers >= MaxPlayersPerTeam)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("모든 팀이 최대 인원에 도달했습니다! 팀 배정이 불가능합니다."));
+        return -1; // 유효하지 않은 팀 ID 반환
+    }
+
     return OptimalTeam;
-    */
-}
-
-void UTeamManagerComponent::RespawnPlayerInTeam(AController* PlayerController, int32 TeamID)
-{
-    APlayerController* PC = Cast<APlayerController>(PlayerController);
-    if (!PC)
-        return;
-
-    AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
-    if (!GameMode)
-        return;
-
-    // 팀 ID에 해당하는 태그를 가진 PlayerStart 찾기
-    FString TeamName = TeamInfo[TeamID].TeamName;
-    FString TeamTag = FString::Printf(TEXT("Team_%s"), *TeamName);
-
-    AActor* StartSpot = FindPlayerStartForTeam(PC, TeamTag);
-    if (!StartSpot)
-    {
-        StartSpot = GameMode->FindPlayerStart(PC, FString::FromInt(TeamID));
-    }
-
-    if (StartSpot)
-    {
-        if (PC->GetPawn())
-        {
-            PC->GetPawn()->Destroy();
-        }
-
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-        UClass* PawnClass = GameMode->GetDefaultPawnClassForController(PC);
-        if (!PawnClass)
-            return;
-
-        if (APawn* NewPawn = GetWorld()->SpawnActor<APawn>(
-            PawnClass,
-            StartSpot->GetActorLocation(),
-            StartSpot->GetActorRotation(),
-            SpawnParams))
-        {
-            PC->Possess(NewPawn);
-
-            // 팀 색상 적용
-            if (ACitizen* Character = Cast<ACitizen>(NewPawn))
-            {
-                Character->TeamID = TeamID;
-                Character->MulticastSetTeamMaterial(TeamID);
-            }
-        }
-    }
 }
 
 AActor* UTeamManagerComponent::FindPlayerStartForTeam(AController* Controller, const FString& TeamTag)
@@ -333,7 +307,7 @@ void UTeamManagerComponent::ReallocatePlayersToTeams()
 
 bool UTeamManagerComponent::RequestTeamChange(AController* PlayerController, int32 RequestedTeamID)
 {
-    // 향후 로비 시스템에서 중요한 기능
+    // 기존 코드 유지
     if (!PlayerController || RequestedTeamID < 0 || RequestedTeamID >= TeamInfo.Num())
         return false;
 
@@ -366,7 +340,174 @@ bool UTeamManagerComponent::RequestTeamChange(AController* PlayerController, int
         }
     }
 
+    // 게임 인스턴스에 팀 정보 저장
+    if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
+    {
+        // 플레이어 고유 ID 생성 (컨트롤러 이름 사용)
+        FString PlayerID = PlayerController->GetName();
+
+        // GameInstance에 저장
+        GameInst->SavePlayerTeamInfo(PlayerID, RequestedTeamID);
+
+        UE_LOG(LogTemp, Log, TEXT("플레이어 %s 팀 정보를 GameInstance에 저장했습니다. TeamID: %d"),
+            *PlayerID, RequestedTeamID);
+    }
+
     // 플레이어 리스폰
     RespawnPlayerInTeam(PlayerController, RequestedTeamID);
     return true;
+}
+
+void UTeamManagerComponent::RespawnPlayerInTeam(AController* PlayerController, int32 TeamID)
+{
+    // 1. 기본 유효성 검사
+    if (!PlayerController)
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: PlayerController is null"));
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: World is null"));
+        return;
+    }
+
+    // 2. 팀 ID 유효성 검사
+    if (TeamID < 0 || TeamID >= TeamInfo.Num())
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: Invalid TeamID: %d"), TeamID);
+        return;
+    }
+
+    if (TeamInfo.Num() <= TeamID || !TeamActive.IsValidIndex(TeamID) || !TeamActive[TeamID])
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: Team %d is not active"), TeamID);
+        return;
+    }
+
+    // 3. PlayerState 업데이트 (안전하게)
+    APlayerController* PC = Cast<APlayerController>(PlayerController);
+    if (PC)
+    {
+        APlayerState* PlayerState = PC->PlayerState;
+        if (PlayerState)
+        {
+            ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PlayerState);
+            if (BridgeRunPS)
+            {
+                BridgeRunPS->SetTeamID(TeamID);
+                UE_LOG(LogTemp, Log, TEXT("RespawnPlayerInTeam: Set PlayerState TeamID to %d"), TeamID);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("RespawnPlayerInTeam: Failed to cast to BridgeRunPlayerState"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RespawnPlayerInTeam: PlayerState is null"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: Failed to cast to APlayerController"));
+        return;
+    }
+
+    // 4. 스폰 포인트 찾기 (안전하게)
+    FString TeamTag = FString::FromInt(TeamID);
+    AActor* StartSpot = nullptr;
+
+    // 우선 TeamManagerComponent의 메서드로 시도
+    StartSpot = FindPlayerStartForTeam(PlayerController, TeamTag);
+
+    // 없으면 GameMode에서 시도
+    if (!StartSpot)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RespawnPlayerInTeam: Cannot find team spawn point, trying default"));
+
+        AGameModeBase* GameMode = World->GetAuthGameMode();
+        if (GameMode)
+        {
+            StartSpot = GameMode->FindPlayerStart(PlayerController, TeamTag);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: GameMode is null"));
+            return;
+        }
+    }
+
+    // 5. 스폰 포인트 유효성 검사
+    if (!StartSpot)
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: Cannot find any valid spawn point"));
+        return;
+    }
+
+    // 6. 기존 폰 정리 (안전하게)
+    APawn* OldPawn = PlayerController->GetPawn();
+    if (OldPawn)
+    {
+        OldPawn->Destroy();
+    }
+
+    // 7. 새 폰 스폰 (안전하게)
+    AGameModeBase* GameMode = World->GetAuthGameMode();
+    if (!GameMode)
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: GameMode is null when spawning"));
+        return;
+    }
+
+    TSubclassOf<APawn> PawnClass = GameMode->DefaultPawnClass;
+    if (!PawnClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: DefaultPawnClass is null"));
+        return;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    SpawnParams.Owner = PlayerController;
+
+    APawn* NewPawn = World->SpawnActor<APawn>(
+        PawnClass,
+        StartSpot->GetActorLocation(),
+        StartSpot->GetActorRotation(),
+        SpawnParams
+    );
+
+    // 8. Possess 및 팀 색상 적용 (안전하게)
+    if (NewPawn)
+    {
+        PlayerController->Possess(NewPawn);
+
+        ACitizen* Character = Cast<ACitizen>(NewPawn);
+        if (Character)
+        {
+            Character->TeamID = TeamID;
+
+            // MulticastSetTeamMaterial 호출 전 확인
+            if (Character->IsValidLowLevel() && !Character->IsPendingKill())
+            {
+                Character->MulticastSetTeamMaterial(TeamID);
+                UE_LOG(LogTemp, Log, TEXT("RespawnPlayerInTeam: Applied team %d material to character"), TeamID);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: Character is invalid after possession"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RespawnPlayerInTeam: Failed to cast to Citizen"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("RespawnPlayerInTeam: Failed to spawn new pawn"));
+    }
 }
