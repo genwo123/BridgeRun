@@ -5,6 +5,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Item/Item.h"
 #include "Modes/InvenComponent.h" 
+#include "Core/BridgeRunPlayerState.h"
+#include "GameFramework/PlayerController.h"
 #include "Item/Item_Plank.h"
 #include "Item/Item_Tent.h"
 #include "BuildingComponent.generated.h"
@@ -91,6 +93,27 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Building|Tent")
     float TentBuildTime = 2.0f;
 
+
+    UPROPERTY(ReplicatedUsing = OnRep_BuildProgress, BlueprintReadOnly, Category = "Building|UI")
+    float CurrentBuildProgress = 0.0f;
+
+    UFUNCTION(BlueprintPure, Category = "Building")
+    float GetCurrentBuildTime() const
+    {
+        return (CurrentBuildingItem == EInventorySlot::Plank) ? PlankBuildTime : TentBuildTime;
+    }
+
+    UFUNCTION(BlueprintPure, Category = "Building")
+    bool IsBuilding() const { return bIsBuilding; }
+
+    UFUNCTION(BlueprintPure, Category = "Building")
+    float GetCurrentBuildProgress() const { return CurrentBuildProgress; }
+
+
+    // 복제 함수 (OnRep_BuildState 등 옆에 추가)
+    UFUNCTION()
+    void OnRep_BuildProgress();
+
     // 복제 상태
     UPROPERTY(Replicated)
     EInventorySlot CurrentBuildingItem;
@@ -150,7 +173,6 @@ private:
     UFUNCTION()
     void OnRep_ValidPlacement();
 
-    // 템플릿 함수 - 헤더에 구현 포함
     template<class T>
     T* SpawnBuildingItem(TSubclassOf<T> ItemClass, const FVector& Location, const FRotator& Rotation)
     {
@@ -190,11 +212,58 @@ private:
                     SpawnedItem->SetActorTransform(NewTransform);
                 }
 
-                // 물리 및 충돌 설정
+                // 🆕 물리 설정을 여기서 먼저 적용
                 ConfigureBuildingItemPhysics(SpawnedItem->MeshComponent, Location, Rotation);
             }
 
-            // 인벤토리 상태 체크 및 건설 모드 업데이트
+            // 🆕 중요: OnPlaced를 반드시 호출하여 서버에서 상태 설정
+            if (GetOwner()->HasAuthority())
+            {
+                SpawnedItem->OnPlaced();
+                UE_LOG(LogTemp, Warning, TEXT("OnPlaced called for spawned item: %s"), *SpawnedItem->GetName());
+            }
+
+            // =====================================
+            // 스코어보드 통계 수집
+            // =====================================
+            if (OwnerCitizen && OwnerCitizen->GetController())
+            {
+                APlayerController* PC = Cast<APlayerController>(OwnerCitizen->GetController());
+                if (PC && PC->PlayerState)
+                {
+                    ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PC->PlayerState);
+                    if (BridgeRunPS)
+                    {
+                        // 아이템 타입에 따라 다른 통계 업데이트
+                        if (Cast<AItem_Plank>(SpawnedItem))
+                        {
+                            BridgeRunPS->ServerAddPlankBuilt();
+                            UE_LOG(LogTemp, Log, TEXT("Player %s built a plank - stats updated"),
+                                *OwnerCitizen->GetName());
+                        }
+                        else if (Cast<AItem_Tent>(SpawnedItem))
+                        {
+                            BridgeRunPS->ServerAddTentBuilt();
+                            UE_LOG(LogTemp, Log, TEXT("Player %s built a tent - stats updated"),
+                                *OwnerCitizen->GetName());
+                        }
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Failed to cast PlayerState to BridgeRunPlayerState"));
+                    }
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("PlayerController or PlayerState is null"));
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("OwnerCitizen or Controller is null"));
+            }
+
+            // 인벤토리 상태 체크 (기존 코드)
             CheckInventoryAfterBuilding(SpawnedItem);
 
             return SpawnedItem;

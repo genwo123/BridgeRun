@@ -41,6 +41,9 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Trophy|Materials")
     TArray<UMaterialInterface*> TeamMaterials;
 
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Trophy")
+    APlayerController* TrophyBringer = nullptr;
+
     // 기본 머티리얼 (중립 상태)
     UPROPERTY(EditDefaultsOnly, Category = "Trophy|Materials")
     UMaterialInterface* NeutralMaterial;

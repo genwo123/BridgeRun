@@ -469,6 +469,10 @@ void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
     // 상호작용
     PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &ACitizen::Interact);
 
+    //스코어보드
+//PlayerInputComponent->BindAction("Scoreboard", IE_Pressed, this, &ACitizen::ToggleScoreboard);
+    //PlayerInputComponent->BindAction("Scoreboard", IE_Released, this, &ACitizen::HideScoreboard);
+
     // 건설 관련 입력
     if (BuildingComponent)
     {

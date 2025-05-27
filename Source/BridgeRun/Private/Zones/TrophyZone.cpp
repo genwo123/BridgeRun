@@ -1,4 +1,4 @@
-// Copyright BridgeRun Game, Inc. All Rights Reserved.
+ï»¿// Copyright BridgeRun Game, Inc. All Rights Reserved.
 
 #include "Zones/TrophyZone.h"
 #include "Item/Item_Trophy.h"
@@ -6,6 +6,8 @@
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
+#include "Core/BridgeRunPlayerState.h"
+#include "GameFramework/PlayerController.h"
 #include "Core/BridgeRunGameInstance.h"
 #include "Net/UnrealNetwork.h"
 
@@ -16,26 +18,26 @@ ATrophyZone::ATrophyZone()
 
     InitializeComponents();
 
-    // ÃÊ±â°ª ¼³Á¤
+    // ì´ˆê¸°ê°’ ì„¤ì •
     PlacedTrophy = nullptr;
     ScoreTime = 0.0f;
     RemainingTime = 0.0f;
     CurrentScore = 0;
-    ScoreMultiplier = 1.0f;  // ±âº» ¹èÀ²Àº 1.0
+    ScoreMultiplier = 1.0f;  // ê¸°ë³¸ ë°°ìœ¨ì€ 1.0
 }
 
 void ATrophyZone::InitializeComponents()
 {
-    // Æ®¸®°Å ¹Ú½º ¼³Á¤
+    // íŠ¸ë¦¬ê±° ë°•ìŠ¤ ì„¤ì •
     SetupTriggerBox();
 
-    // ÅØ½ºÆ® ÄÄÆ÷³ÍÆ® ¼³Á¤
+    // í…ìŠ¤íŠ¸ ì»´í¬ë„ŒíŠ¸ ì„¤ì •
     SetupTextComponents();
 }
 
 void ATrophyZone::SetupTriggerBox()
 {
-    // TriggerBox »ı¼º ¹× ±âº» ¼³Á¤
+    // TriggerBox ìƒì„± ë° ê¸°ë³¸ ì„¤ì •
     TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
     if (TriggerBox)
     {
@@ -49,7 +51,7 @@ void ATrophyZone::SetupTriggerBox()
 
 void ATrophyZone::SetupTextComponents()
 {
-    // TimerText ¼³Á¤
+    // TimerText ì„¤ì •
     TimerText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TimerText"));
     if (TimerText)
     {
@@ -61,7 +63,7 @@ void ATrophyZone::SetupTextComponents()
         TimerText->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
     }
 
-    // ScoreText Á¦°ÅµÊ - UI·Î ´ëÃ¼
+    // ScoreText ì œê±°ë¨ - UIë¡œ ëŒ€ì²´
 }
 
 void ATrophyZone::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -71,7 +73,7 @@ void ATrophyZone::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
     DOREPLIFETIME(ATrophyZone, PlacedTrophy);
     DOREPLIFETIME_CONDITION(ATrophyZone, RemainingTime, COND_None);
     DOREPLIFETIME(ATrophyZone, CurrentScore);
-    DOREPLIFETIME(ATrophyZone, ScoreMultiplier);  // ¹èÀ² º¹Á¦ Ãß°¡
+    DOREPLIFETIME(ATrophyZone, ScoreMultiplier);  // ë°°ìœ¨ ë³µì œ ì¶”ê°€
 }
 
 void ATrophyZone::BeginPlay()
@@ -86,38 +88,38 @@ void ATrophyZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
-    // ¼­¹ö °ËÁõ ¹× À¯È¿¼º È®ÀÎ
+    // ì„œë²„ ê²€ì¦ ë° ìœ íš¨ì„± í™•ì¸
     if (!HasAuthority() || !IsValid(OtherActor))
         return;
 
-    // Æ®·ÎÇÇ È®ÀÎ
+    // íŠ¸ë¡œí”¼ í™•ì¸
     AItem_Trophy* Trophy = Cast<AItem_Trophy>(OtherActor);
     if (Trophy)
     {
-        // ÀÌ¹Ì ¹èÄ¡µÈ Æ®·ÎÇÇ°¡ ÀÖ´ÂÁö È®ÀÎ
+        // ì´ë¯¸ ë°°ì¹˜ëœ íŠ¸ë¡œí”¼ê°€ ìˆëŠ”ì§€ í™•ì¸
         if (PlacedTrophy)
         {
-            // ÀÌ¹Ì ¹èÄ¡µÈ Æ®·ÎÇÇ°¡ ÀÖ´Â °æ¿ì, ÆÀ ID°¡ ´Ù¸¥Áö È®ÀÎ
+            // ì´ë¯¸ ë°°ì¹˜ëœ íŠ¸ë¡œí”¼ê°€ ìˆëŠ” ê²½ìš°, íŒ€ IDê°€ ë‹¤ë¥¸ì§€ í™•ì¸
             if (Trophy->OwningTeamID != PlacedTrophy->OwningTeamID)
             {
-                // ±âÁ¸ Æ®·ÎÇÇ Á¦°Å
+                // ê¸°ì¡´ íŠ¸ë¡œí”¼ ì œê±°
                 PlacedTrophy->Destroy();
                 PlacedTrophy = nullptr;
 
-                // Å¸ÀÌ¸Ó Á¤¸®
+                // íƒ€ì´ë¨¸ ì •ë¦¬
                 if (UWorld* World = GetWorld())
                 {
                     World->GetTimerManager().ClearTimer(ScoreTimerHandle);
                     World->GetTimerManager().ClearTimer(UpdateTimerHandle);
                 }
 
-                // »õ Æ®·ÎÇÇ ¹èÄ¡
+                // ìƒˆ íŠ¸ë¡œí”¼ ë°°ì¹˜
                 ServerHandleTrophyPlacement(Trophy);
             }
         }
         else
         {
-            // ¹èÄ¡µÈ Æ®·ÎÇÇ°¡ ¾ø´Â °æ¿ì »õ·Î ¹èÄ¡
+            // ë°°ì¹˜ëœ íŠ¸ë¡œí”¼ê°€ ì—†ëŠ” ê²½ìš° ìƒˆë¡œ ë°°ì¹˜
             ServerHandleTrophyPlacement(Trophy);
         }
     }
@@ -125,17 +127,17 @@ void ATrophyZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
 
 void ATrophyZone::ServerHandleTrophyPlacement_Implementation(AItem_Trophy* Trophy)
 {
-    // À¯È¿¼º °ËÁõ
+    // ìœ íš¨ì„± ê²€ì¦
     if (!IsValid(Trophy) || PlacedTrophy)
         return;
 
-    // Æ®·ÎÇÇ ¼³Á¤ ¹× Å¸ÀÌ¸Ó ÃÊ±âÈ­
+    // íŠ¸ë¡œí”¼ ì„¤ì • ë° íƒ€ì´ë¨¸ ì´ˆê¸°í™”
     PlacedTrophy = Trophy;
     RemainingTime = ScoreTime;
 
     if (UWorld* World = GetWorld())
     {
-        // Á¡¼ö Å¸ÀÌ¸Ó ¼³Á¤
+        // ì ìˆ˜ íƒ€ì´ë¨¸ ì„¤ì •
         World->GetTimerManager().SetTimer(
             ScoreTimerHandle,
             this,
@@ -144,17 +146,17 @@ void ATrophyZone::ServerHandleTrophyPlacement_Implementation(AItem_Trophy* Troph
             false
         );
 
-        // ¾÷µ¥ÀÌÆ® Å¸ÀÌ¸Ó ¼³Á¤ - ´õ ÂªÀº °£°İÀ¸·Î ¾÷µ¥ÀÌÆ® (0.05ÃÊ)
+        // ì—…ë°ì´íŠ¸ íƒ€ì´ë¨¸ ì„¤ì • - ë” ì§§ì€ ê°„ê²©ìœ¼ë¡œ ì—…ë°ì´íŠ¸ (0.05ì´ˆ)
         World->GetTimerManager().SetTimer(
             UpdateTimerHandle,
             this,
             &ATrophyZone::UpdateTimer,
-            0.05f,  // 0.1ÃÊ¿¡¼­ 0.05ÃÊ·Î º¯°æ
+            0.05f,  // 0.1ì´ˆì—ì„œ 0.05ì´ˆë¡œ ë³€ê²½
             true
         );
     }
 
-    // ºí·çÇÁ¸°Æ® ÀÌº¥Æ® È£Ãâ (Æ®·ÎÇÇ ¹èÄ¡ ¾Ë¸²)
+    // ë¸”ë£¨í”„ë¦°íŠ¸ ì´ë²¤íŠ¸ í˜¸ì¶œ (íŠ¸ë¡œí”¼ ë°°ì¹˜ ì•Œë¦¼)
     BP_TrophyPlaced(Trophy);
 }
 
@@ -163,62 +165,62 @@ void ATrophyZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
     UPrimitiveComponent* OtherComp,
     int32 OtherBodyIndex)
 {
-    // ¼­¹ö °ËÁõ ¹× À¯È¿¼º È®ÀÎ
+    // ì„œë²„ ê²€ì¦ ë° ìœ íš¨ì„± í™•ì¸
     if (!HasAuthority() || !IsValid(OtherActor))
         return;
 
-    // Æ®·ÎÇÇ È®ÀÎ ¹× Ã³¸®
+    // íŠ¸ë¡œí”¼ í™•ì¸ ë° ì²˜ë¦¬
     AItem_Trophy* Trophy = Cast<AItem_Trophy>(OtherActor);
     if (Trophy && Trophy == PlacedTrophy)
     {
-        // Å¸ÀÌ¸Ó Á¤¸®
+        // íƒ€ì´ë¨¸ ì •ë¦¬
         if (UWorld* World = GetWorld())
         {
             World->GetTimerManager().ClearTimer(ScoreTimerHandle);
             World->GetTimerManager().ClearTimer(UpdateTimerHandle);
         }
 
-        // »óÅÂ ÃÊ±âÈ­
+        // ìƒíƒœ ì´ˆê¸°í™”
         PlacedTrophy = nullptr;
         RemainingTime = 0.0f;
 
-        // Å¸ÀÌ¸Ó ÅØ½ºÆ® ¾÷µ¥ÀÌÆ®
+        // íƒ€ì´ë¨¸ í…ìŠ¤íŠ¸ ì—…ë°ì´íŠ¸
         UpdateTimerText();
     }
 }
 
 void ATrophyZone::UpdateTimer()
 {
-    // ¼­¹ö °ËÁõ ¹× À¯È¿¼º È®ÀÎ
+    // ì„œë²„ ê²€ì¦ ë° ìœ íš¨ì„± í™•ì¸
     if (!HasAuthority() || !IsValid(PlacedTrophy))
         return;
 
     if (UWorld* World = GetWorld())
     {
-        // ³²Àº ½Ã°£ ¾÷µ¥ÀÌÆ®
+        // ë‚¨ì€ ì‹œê°„ ì—…ë°ì´íŠ¸
         float CurrentRemaining = World->GetTimerManager().GetTimerRemaining(ScoreTimerHandle);
 
-        // Å¸ÀÌ¸Ó°¡ °ÅÀÇ ¿Ï·áµÇ¾ú´ÂÁö È®ÀÎ (0.1ÃÊ ÀÌÇÏ)
+        // íƒ€ì´ë¨¸ê°€ ê±°ì˜ ì™„ë£Œë˜ì—ˆëŠ”ì§€ í™•ì¸ (0.1ì´ˆ ì´í•˜)
         if (CurrentRemaining < 0.1f)
         {
-            RemainingTime = 0.0f;  // 0À¸·Î Ç¥½Ã
+            RemainingTime = 0.0f;  // 0ìœ¼ë¡œ í‘œì‹œ
         }
         else
         {
             RemainingTime = CurrentRemaining;
         }
 
-        // Å¸ÀÌ¸Ó ÅØ½ºÆ® ¾÷µ¥ÀÌÆ®
+        // íƒ€ì´ë¨¸ í…ìŠ¤íŠ¸ ì—…ë°ì´íŠ¸
         UpdateTimerText();
 
-        // ³×Æ®¿öÅ© »óÅÂ ¾÷µ¥ÀÌÆ®
+        // ë„¤íŠ¸ì›Œí¬ ìƒíƒœ ì—…ë°ì´íŠ¸
         ForceNetUpdate();
     }
 }
 
 void ATrophyZone::UpdateTimerText()
 {
-    // Å¸ÀÌ¸Ó ÅØ½ºÆ® ¾÷µ¥ÀÌÆ®
+    // íƒ€ì´ë¨¸ í…ìŠ¤íŠ¸ ì—…ë°ì´íŠ¸
     if (IsValid(TimerText))
     {
         FString TimerString = FString::Printf(TEXT("%.1f"), RemainingTime);
@@ -228,105 +230,134 @@ void ATrophyZone::UpdateTimerText()
 
 void ATrophyZone::OnRep_RemainingTime()
 {
-    // ³²Àº ½Ã°£ º¹Á¦ ½Ã ÅØ½ºÆ® ¾÷µ¥ÀÌÆ®
+    // ë‚¨ì€ ì‹œê°„ ë³µì œ ì‹œ í…ìŠ¤íŠ¸ ì—…ë°ì´íŠ¸
     UpdateTimerText();
 }
 
-// ¹èÀ² º¹Á¦ ÀÌº¥Æ® ÇÔ¼ö
+// ë°°ìœ¨ ë³µì œ ì´ë²¤íŠ¸ í•¨ìˆ˜
 void ATrophyZone::OnRep_ScoreMultiplier()
 {
-    // ºí·çÇÁ¸°Æ® ÀÌº¥Æ® È£Ãâ
+    // ë¸”ë£¨í”„ë¦°íŠ¸ ì´ë²¤íŠ¸ í˜¸ì¶œ
     BP_MultiplierChanged(ScoreMultiplier);
 }
 
-// ¹èÀ² ¼³Á¤ ÇÔ¼ö (ºí·çÇÁ¸°Æ®¿¡¼­ È£Ãâ)
+// ë°°ìœ¨ ì„¤ì • í•¨ìˆ˜ (ë¸”ë£¨í”„ë¦°íŠ¸ì—ì„œ í˜¸ì¶œ)
 void ATrophyZone::SetScoreMultiplier(float NewMultiplier)
 {
     if (HasAuthority())
     {
-        // ¼­¹ö¿¡¼­ Á÷Á¢ ¼³Á¤
-        ScoreMultiplier = FMath::Max(NewMultiplier, 0.1f);  // ÃÖ¼Ò°ª º¸Àå
+        // ì„œë²„ì—ì„œ ì§ì ‘ ì„¤ì •
+        ScoreMultiplier = FMath::Max(NewMultiplier, 0.1f);  // ìµœì†Œê°’ ë³´ì¥
         MulticastOnMultiplierChanged(ScoreMultiplier);
     }
     else
     {
-        // Å¬¶óÀÌ¾ğÆ®¿¡¼­´Â ¼­¹ö¿¡ ¿äÃ»
+        // í´ë¼ì´ì–¸íŠ¸ì—ì„œëŠ” ì„œë²„ì— ìš”ì²­
         ServerSetScoreMultiplier(NewMultiplier);
     }
 }
 
-// ¹èÀ² ¼³Á¤ ¼­¹ö ÇÔ¼ö
+// ë°°ìœ¨ ì„¤ì • ì„œë²„ í•¨ìˆ˜
 void ATrophyZone::ServerSetScoreMultiplier_Implementation(float NewMultiplier)
 {
-    // ÃÖ¼Ò°ª º¸Àå
+    // ìµœì†Œê°’ ë³´ì¥
     ScoreMultiplier = FMath::Max(NewMultiplier, 0.1f);
 
-    // ¸ÖÆ¼Ä³½ºÆ®·Î ¸ğµç Å¬¶óÀÌ¾ğÆ®¿¡°Ô ¾Ë¸²
+    // ë©€í‹°ìºìŠ¤íŠ¸ë¡œ ëª¨ë“  í´ë¼ì´ì–¸íŠ¸ì—ê²Œ ì•Œë¦¼
     MulticastOnMultiplierChanged(ScoreMultiplier);
 }
 
-// ¹èÀ² º¯°æ ¸ÖÆ¼Ä³½ºÆ® ÇÔ¼ö
+// ë°°ìœ¨ ë³€ê²½ ë©€í‹°ìºìŠ¤íŠ¸ í•¨ìˆ˜
 void ATrophyZone::MulticastOnMultiplierChanged_Implementation(float NewMultiplier)
 {
     ScoreMultiplier = NewMultiplier;
 
-    // BP ÀÌº¥Æ® È£Ãâ
+    // BP ì´ë²¤íŠ¸ í˜¸ì¶œ
     BP_MultiplierChanged(NewMultiplier);
 }
 
 void ATrophyZone::ServerUpdateScore_Implementation(int32 NewScore)
 {
-    // ¼­¹ö °ËÁõ
+    // ì„œë²„ ê²€ì¦
     if (!HasAuthority())
         return;
 
-    // ÇöÀç Á¡¼ö¸¸ ¾÷µ¥ÀÌÆ®ÇÏ°í º°µµÀÇ ÆÀ Á¡¼ö ¾÷µ¥ÀÌÆ®´Â ÇÏÁö ¾ÊÀ½
+    // í˜„ì¬ ì ìˆ˜ë§Œ ì—…ë°ì´íŠ¸í•˜ê³  ë³„ë„ì˜ íŒ€ ì ìˆ˜ ì—…ë°ì´íŠ¸ëŠ” í•˜ì§€ ì•ŠìŒ
     CurrentScore = NewScore;
     MulticastOnScoreUpdated(CurrentScore);
 }
 
 void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
 {
-    // ´Ü¼øÈ÷ ·ÎÄÃ Á¡¼ö¸¸ ¾÷µ¥ÀÌÆ® (ÆÀ Á¡¼ö ¾÷µ¥ÀÌÆ®´Â ÇÏÁö ¾ÊÀ½)
+    // ë‹¨ìˆœíˆ ë¡œì»¬ ì ìˆ˜ë§Œ ì—…ë°ì´íŠ¸ (íŒ€ ì ìˆ˜ ì—…ë°ì´íŠ¸ëŠ” í•˜ì§€ ì•ŠìŒ)
     CurrentScore = NewScore;
 
-    // ºí·çÇÁ¸°Æ® ÀÌº¥Æ® È£Ãâ
+    // ë¸”ë£¨í”„ë¦°íŠ¸ ì´ë²¤íŠ¸ í˜¸ì¶œ
     BP_ScoreUpdated(TeamID, NewScore);
 }
 
 void ATrophyZone::OnScoreTimerComplete()
 {
-    // ¼­¹ö °ËÁõ ¹× À¯È¿¼º È®ÀÎ
+    // ì„œë²„ ê²€ì¦ ë° ìœ íš¨ì„± í™•ì¸
     if (!HasAuthority() || !IsValid(PlacedTrophy))
         return;
 
-    // Å¸ÀÌ¸Ó Ç¥½Ã¸¦ ¸í½ÃÀûÀ¸·Î 0À¸·Î ¼³Á¤
+    // íƒ€ì´ë¨¸ í‘œì‹œë¥¼ ëª…ì‹œì ìœ¼ë¡œ 0ìœ¼ë¡œ ì„¤ì •
     RemainingTime = 0.0f;
     UpdateTimerText();
     ForceNetUpdate();
 
-    // Æ®·ÎÇÇ °ª ±â¹İ Á¡¼ö °è»ê - ¹èÀ² Àû¿ë
+    // íŠ¸ë¡œí”¼ ê°’ ê¸°ë°˜ ì ìˆ˜ ê³„ì‚° - ë°°ìœ¨ ì ìš©
     int32 BaseScore = PlacedTrophy->TrophyValue;
     int32 ScoreToAdd = FMath::RoundToInt(BaseScore * ScoreMultiplier);
 
-    // °ÔÀÓ ÀÎ½ºÅÏ½º °¡Á®¿À±â
+    // ê²Œì„ ì¸ìŠ¤í„´ìŠ¤ ê°€ì ¸ì˜¤ê¸°
     UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance());
     if (!GameInst) return;
 
-    // Æ®·ÎÇÇ ÆÀ ID È®ÀÎ
+    // íŠ¸ë¡œí”¼ íŒ€ ID í™•ì¸
     int32 TrophyTeamID = PlacedTrophy->OwningTeamID;
 
-    // Á¡¼ö ºÎ¿© - Æ®·ÎÇÇÁ¸ Å¸ÀÔ¿¡ µû¶ó ´Ş¶óÁü
+    // =====================================
+    // ğŸ†• ìƒˆë¡œ ì¶”ê°€: ê°œì¸ í†µê³„ ì—…ë°ì´íŠ¸ (íŠ¸ë¡œí”¼ë¥¼ ê°€ì ¸ì˜¨ í”Œë ˆì´ì–´ë§Œ)
+    // =====================================
+
+    // íŠ¸ë¡œí”¼ë¥¼ ê°€ì ¸ì˜¨ í”Œë ˆì´ì–´ë§Œ ê°œì¸ í†µê³„ ì—…ë°ì´íŠ¸
+    if (PlacedTrophy->TrophyBringer && IsValid(PlacedTrophy->TrophyBringer))
+    {
+        ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PlacedTrophy->TrophyBringer->PlayerState);
+        if (BridgeRunPS)
+        {
+            // íŠ¸ë¡œí”¼ë¥¼ ì‹¤ì œë¡œ ê°€ì ¸ì˜¨ í”Œë ˆì´ì–´ì˜ ê°œì¸ í†µê³„ì—ë§Œ ì ìˆ˜ ì¶”ê°€
+            BridgeRunPS->ServerAddTrophyScore(ScoreToAdd);
+            UE_LOG(LogTemp, Log, TEXT("Player %s earned %d personal trophy points (brought the trophy)"),
+                *BridgeRunPS->GetPlayerName(), ScoreToAdd);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to find PlayerState for trophy bringer"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Trophy has no valid bringer - cannot assign personal points"));
+    }
+
+    // =====================================
+    // ê¸°ì¡´ íŒ€ ì ìˆ˜ ì—…ë°ì´íŠ¸ ì½”ë“œ (ìœ ì§€)
+    // =====================================
+
+    // ì ìˆ˜ ë¶€ì—¬ - íŠ¸ë¡œí”¼ì¡´ íƒ€ì…ì— ë”°ë¼ ë‹¬ë¼ì§
     if (ZoneType == ETrophyZoneType::TeamBase)
     {
-        // ÆÀ º£ÀÌ½º: Æ®·ÎÇÇÁ¸ÀÇ ÆÀ ID·Î Á¡¼ö ºÎ¿©
+        // íŒ€ ë² ì´ìŠ¤: íŠ¸ë¡œí”¼ì¡´ì˜ íŒ€ IDë¡œ ì ìˆ˜ ë¶€ì—¬
         GameInst->UpdateTeamScore(TeamID, ScoreToAdd);
         UE_LOG(LogTemp, Log, TEXT("Team Base: Team %d earned %d points (x%.1f multiplier)"),
             TeamID, ScoreToAdd, ScoreMultiplier);
     }
     else // Neutral Zone
     {
-        // Áß¸³ Áö¿ª: Æ®·ÎÇÇÀÇ ÆÀ ID·Î Á¡¼ö ºÎ¿©
+        // ì¤‘ë¦½ ì§€ì—­: íŠ¸ë¡œí”¼ì˜ íŒ€ IDë¡œ ì ìˆ˜ ë¶€ì—¬
         if (TrophyTeamID >= 0)
         {
             GameInst->UpdateTeamScore(TrophyTeamID, ScoreToAdd);
@@ -335,24 +366,25 @@ void ATrophyZone::OnScoreTimerComplete()
         }
     }
 
-    // ·ÎÄÃ Á¡¼ö ¾÷µ¥ÀÌÆ® (UI Ç¥½Ã¿ë)
+    // ë¡œì»¬ ì ìˆ˜ ì—…ë°ì´íŠ¸ (UI í‘œì‹œìš©)
     CurrentScore += ScoreToAdd;
     MulticastOnScoreUpdated(CurrentScore);
 
-    // Å¸ÀÌ¸Ó Á¤¸®
+    // íƒ€ì´ë¨¸ ì •ë¦¬
     if (UWorld* World = GetWorld())
     {
         World->GetTimerManager().ClearTimer(UpdateTimerHandle);
     }
 
-    // Æ®·ÎÇÇ Á¤¸®
+    // íŠ¸ë¡œí”¼ ì •ë¦¬
     PlacedTrophy->Destroy();
     PlacedTrophy = nullptr;
 }
 
+
 void ATrophyZone::OnRep_PlacedTrophy()
 {
-    // Æ®·ÎÇÇ »óÅÂ º¯°æ ½Ã Å¸ÀÌ¸Ó ÅØ½ºÆ® ¾÷µ¥ÀÌÆ®
+    // íŠ¸ë¡œí”¼ ìƒíƒœ ë³€ê²½ ì‹œ íƒ€ì´ë¨¸ í…ìŠ¤íŠ¸ ì—…ë°ì´íŠ¸
     if (IsValid(TimerText))
     {
         if (PlacedTrophy)
@@ -369,6 +401,6 @@ void ATrophyZone::OnRep_PlacedTrophy()
 
 void ATrophyZone::OnRep_CurrentScore()
 {
-    // Á¡¼ö º¯°æ ½Ã BP ÀÌº¥Æ®¸¸ È£Ãâ (ScoreText ¾÷µ¥ÀÌÆ® Á¦°Å)
+    // ì ìˆ˜ ë³€ê²½ ì‹œ BP ì´ë²¤íŠ¸ë§Œ í˜¸ì¶œ (ScoreText ì—…ë°ì´íŠ¸ ì œê±°)
     BP_ScoreUpdated(TeamID, CurrentScore);
 }

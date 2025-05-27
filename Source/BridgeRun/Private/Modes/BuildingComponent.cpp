@@ -25,6 +25,7 @@ void UBuildingComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
     DOREPLIFETIME(UBuildingComponent, CurrentBuildingItem);
     DOREPLIFETIME(UBuildingComponent, bCanBuildNow);
     DOREPLIFETIME(UBuildingComponent, bIsBuilding);
+    DOREPLIFETIME(UBuildingComponent, CurrentBuildProgress);
 }
 
 void UBuildingComponent::BeginPlay()
@@ -49,6 +50,30 @@ void UBuildingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
     if (BuildPreviewMesh && BuildPreviewMesh->IsVisible())
     {
         UpdateBuildPreview();
+    }
+
+    // 프로그레스 바 업데이트 추가
+    if (bIsBuilding && GetOwner()->HasAuthority())
+    {
+        float BuildTime = (CurrentBuildingItem == EInventorySlot::Plank) ? PlankBuildTime : TentBuildTime;
+        float RemainingTime = GetWorld()->GetTimerManager().GetTimerRemaining(BuildTimerHandle);
+
+        // 진행도 계산 (1.0 - 남은시간/총시간)
+        CurrentBuildProgress = 1.0f - (RemainingTime / BuildTime);
+
+        // 이동 감지 (선택적)
+        if (OwnerCitizen)
+        {
+            static FVector LastPosition = OwnerCitizen->GetActorLocation();
+            FVector CurrentPosition = OwnerCitizen->GetActorLocation();
+
+            if (FVector::Distance(LastPosition, CurrentPosition) > 10.0f)
+            {
+                CancelBuild();
+            }
+
+            LastPosition = CurrentPosition;
+        }
     }
 }
 
@@ -508,11 +533,42 @@ void UBuildingComponent::StartBuildTimer(float BuildTime)
 // 건설 완료
 void UBuildingComponent::FinishBuild()
 {
-    if (GetOwner()->HasAuthority())
+    if (!bIsBuilding || !OwnerCitizen || !GetOwner()->HasAuthority())
+        return;
+
+    // 타이머 정지
+    GetWorld()->GetTimerManager().ClearTimer(BuildTimerHandle);
+
+    // 기존 코드: 아이템 생성 로직
+    FVector Location = BuildPreviewMesh->GetComponentLocation();
+    FRotator Rotation = BuildPreviewMesh->GetComponentRotation();
+
+    // 아이템 종류에 따라 건설 처리
+    if (PlankClass && CurrentBuildingItem == EInventorySlot::Plank)
     {
-        bIsBuilding = false;
-        bCanBuildNow = true;
+        if (OwnerCitizen->UseItem(EInventorySlot::Plank))
+        {
+            SpawnBuildingItem<AItem_Plank>(PlankClass, Location, Rotation);
+        }
     }
+    else if (TentClass && CurrentBuildingItem == EInventorySlot::Tent)
+    {
+        if (OwnerCitizen->UseItem(EInventorySlot::Tent))
+        {
+            SpawnBuildingItem<AItem_Tent>(TentClass, Location, Rotation);
+        }
+    }
+
+    // 상태 초기화
+    bIsBuilding = false;
+    CurrentBuildProgress = 0.0f;
+    bCanBuildNow = true;
+
+    // 완료 이벤트 발생
+    MulticastOnBuildComplete();
+
+    // 네트워크 업데이트
+    GetOwner()->ForceNetUpdate();
 }
 
 // 건설 취소
@@ -522,7 +578,8 @@ void UBuildingComponent::CancelBuild()
     {
         GetWorld()->GetTimerManager().ClearTimer(BuildTimerHandle);
         bIsBuilding = false;
-        bCanBuildNow = true;
+        CurrentBuildProgress = 0.0f;
+        GetOwner()->ForceNetUpdate();
     }
 }
 
@@ -730,4 +787,10 @@ void UBuildingComponent::MulticastOnBuildComplete_Implementation()
     }
     bIsBuilding = false;
     bCanBuildNow = true;
+}
+
+void UBuildingComponent::OnRep_BuildProgress()
+{
+    // 클라이언트에서 프로그레스 업데이트 시 필요한 작업
+    // (UI 위젯에서 직접 값을 읽을 예정이므로 여기서는 특별한 작업 필요 없음)
 }

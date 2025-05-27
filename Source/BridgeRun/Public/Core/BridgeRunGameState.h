@@ -5,61 +5,49 @@
 #include "BridgeRunGameState.generated.h"
 
 /**
- * 토템 유형 열거형
+ * 게임 진행 단계 열거형
  */
 UENUM(BlueprintType)
-enum class ETotemType : uint8
+enum class EGamePhase : uint8
 {
-    Normal      UMETA(DisplayName = "일반 토템", ToolTip = "10점 가치의 기본 토템"),
-    Gold        UMETA(DisplayName = "골드 토템", ToolTip = "20점 가치의 골드 토템"),
-    Diamond     UMETA(DisplayName = "다이아몬드 토템", ToolTip = "30점 가치의 다이아몬드 토템")
+    Lobby           UMETA(DisplayName = "Lobby"),
+    StrategyTime    UMETA(DisplayName = "Strategy time"),
+    RoundPlaying    UMETA(DisplayName = "Round progress"),
+    RoundEnd        UMETA(DisplayName = "Round ends"),
+    GameEnd         UMETA(DisplayName = "Game over")
 };
 
 /**
- * 토템존 유형 열거형
- */
-UENUM(BlueprintType)
-enum class ETotemZoneType : uint8
-{
-    Team        UMETA(DisplayName = "팀 토템존", ToolTip = "팀 본진 근처, 기본 점수"),
-    Neutral     UMETA(DisplayName = "중립 토템존", ToolTip = "맵 중앙, 높은 점수")
-};
-
-/**
- * 팀 정보를 저장하는 기본 구조체
+ * 팀 승점 정보 구조체
  */
 USTRUCT(BlueprintType)
-struct FBasicTeamInfo
+struct FTeamVictoryData
 {
     GENERATED_BODY()
 
-    /** 팀 고유 식별자 */
-    UPROPERTY(BlueprintReadWrite, Category = "Team")
-    int32 TeamId = 0;
+    /** 팀 ID */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
+    int32 TeamID = 0;
 
-    /** 현재 라운드 팀 점수 */
-    UPROPERTY(BlueprintReadWrite, Category = "Team")
-    int32 Score = 0;
+    /** 현재 라운드 점수 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
+    int32 CurrentRoundScore = 0;
 
-    /** 누적 팀 점수 (모든 라운드) */
-    UPROPERTY(BlueprintReadWrite, Category = "Team")
-    int32 TotalScore = 0;
+    /** 각 라운드 결과 (순위) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
+    TArray<int32> RoundResults;
 
-    /** 팀의 현재 라운드 등수 */
-    UPROPERTY(BlueprintReadWrite, Category = "Team")
-    int32 CurrentRank = 0;
+    /** 총 승점 */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
+    int32 TotalVictoryPoints = 0;
 
-    /** 팀이 획득한 1등 횟수 */
-    UPROPERTY(BlueprintReadWrite, Category = "Team")
-    int32 FirstPlaceCount = 0;
-
-    FBasicTeamInfo() = default;
+    FTeamVictoryData() = default;
 };
 
 /**
  * 브리지런 게임의 전체 상태를 관리하는 클래스
  */
-UCLASS()
+UCLASS(BlueprintType, Blueprintable)
 class BRIDGERUN_API ABridgeRunGameState : public AGameStateBase
 {
     GENERATED_BODY()
@@ -68,97 +56,146 @@ public:
     /** 기본 생성자 */
     ABridgeRunGameState();
 
-    /** 팀 점수 업데이트 (모든 클라이언트에 전파) */
-    UFUNCTION(NetMulticast, Reliable, Category = "Team")
-    virtual void UpdateTeamScore(int32 TeamId, int32 NewScore);
-
-    /** 현재 라운드 완료 및 다음 라운드 준비 */
-    UFUNCTION(NetMulticast, Reliable, Category = "Game")
-    void CompleteRound();
-
-    /** 라운드 시작 */
-    UFUNCTION(NetMulticast, Reliable, Category = "Game")
-    void StartRound();
-
-    /** 골든타임 활성화 (3라운드 마지막 1분) */
-    UFUNCTION(NetMulticast, Reliable, Category = "Game")
-    void ActivateGoldenTime();
-
-    /** 토템 점수 획득 처리 */
-    UFUNCTION(BlueprintCallable, Category = "Totem")
-    void AddTotemScore(int32 TeamId, ETotemType TotemType, ETotemZoneType ZoneType, float TimeHeld);
-
-    /** 라운드 종료 후 팀 등수 계산 */
-    UFUNCTION(BlueprintCallable, Category = "Game")
-    void CalculateTeamRanks();
-
-    /** 라운드 등수에 따른 점수 부여 */
-    UFUNCTION(BlueprintCallable, Category = "Game")
-    void AssignRankPoints();
-
-    /** 게임 종료 및 최종 승자 결정 */
-    UFUNCTION(BlueprintCallable, Category = "Game")
-    void DetermineWinner();
-
-    /** 모든 팀 정보 */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    TArray<FBasicTeamInfo> Teams;
-
-    /** 남은 경기 시간 (초) */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    float MatchTime;
-
-    /** 현재 라운드 (1-3) */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    int32 CurrentRound = 0;
-
-    /** 라운드 준비 단계 여부 */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    bool bIsInPreparationPhase = true;
-
-    /** 골든타임 활성화 여부 (3라운드 마지막 1분) */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    bool bGoldenTimeActive = false;
-
-    /** 라운드 목표 점수 */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    int32 RoundTargetScore = 40;
-
-    /** 게임 종료 여부 */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    bool bGameOver = false;
-
-    /** 승리한 팀 ID */
-    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Game")
-    int32 WinnerTeamId = -1;
-
-protected:
     /** 네트워크 복제 속성 설정 */
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-    /** 토템 기본 점수 값 */
-    UPROPERTY(EditDefaultsOnly, Category = "Totem")
-    TMap<ETotemType, int32> TotemValues;
+    // === 게임 상태 변수들 (블루프린트에서 편집 가능) ===
 
-    /** 토템존 배율 값 */
-    UPROPERTY(EditDefaultsOnly, Category = "Totem")
-    TMap<ETotemZoneType, float> ZoneMultipliers;
+    /** 현재 게임 진행 단계 */
+    UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Game State")
+    EGamePhase CurrentPhase = EGamePhase::Lobby;
 
-    /** 라운드 등수별 점수 */
-    UPROPERTY(EditDefaultsOnly, Category = "Game")
-    TMap<int32, int32> RankPoints;
+    /** 현재 단계의 남은 시간 (초) */
+    UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Game State")
+    float PhaseTimeRemaining = 30.0f;
 
-    /** 각 라운드별 타이머 길이 (초) */
-    UPROPERTY(EditDefaultsOnly, Category = "Game")
-    float RoundTime = 240.0f; // 4분
+    /** 현재 라운드 번호 (1, 2, 3) */
+    UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Game State")
+    int32 CurrentRoundNumber = 1;
 
-    /** 라운드 준비 시간 (초) */
-    UPROPERTY(EditDefaultsOnly, Category = "Game")
-    float PreparationTime = 30.0f; // 30초
+    /** 팀 승점 정보 배열 */
+    UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Game State")
+    TArray<FTeamVictoryData> TeamVictoryPoints;
 
-    /** RPC 구현 함수들 */
-    void UpdateTeamScore_Implementation(int32 TeamId, int32 NewScore);
-    void CompleteRound_Implementation();
-    void StartRound_Implementation();
-    void ActivateGoldenTime_Implementation();
+    // === Setter 함수들 (서버에서만 호출) ===
+
+    UFUNCTION(BlueprintCallable, Category = "Game State")
+    void SetCurrentPhase(EGamePhase NewPhase);
+
+    UFUNCTION(BlueprintCallable, Category = "Game State")
+    void SetPhaseTimeRemaining(float NewTime);
+
+    UFUNCTION(BlueprintCallable, Category = "Game State")
+    void SetCurrentRoundNumber(int32 NewRound);
+
+    // === Getter 함수들 (BP에서 호출 가능) ===
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    EGamePhase GetCurrentPhase() const { return CurrentPhase; }
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    float GetPhaseTimeRemaining() const { return PhaseTimeRemaining; }
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    int32 GetCurrentRoundNumber() const { return CurrentRoundNumber; }
+
+    // === UI 표시용 함수들 ===
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    FString GetFormattedTime() const;
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    FString GetRoundText() const;
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    FString GetPhaseText() const;
+
+    // === 게임 상태 체크 함수들 ===
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    bool IsStrategyTime() const { return CurrentPhase == EGamePhase::StrategyTime; }
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    bool IsRoundPlaying() const { return CurrentPhase == EGamePhase::RoundPlaying; }
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    bool IsRoundEnd() const { return CurrentPhase == EGamePhase::RoundEnd; }
+
+    UFUNCTION(BlueprintPure, Category = "Game Info")
+    bool IsGameEnd() const { return CurrentPhase == EGamePhase::GameEnd; }
+
+    // === 팀 점수 관련 함수들 ===
+
+    UFUNCTION(BlueprintCallable, Category = "Team Score")
+    void UpdateTeamScore(int32 TeamID, int32 NewScore);
+
+    UFUNCTION(BlueprintPure, Category = "Team Score")
+    int32 GetTeamCurrentScore(int32 TeamID) const;
+
+    /** 특정 팀의 총 승점 반환 */
+    UFUNCTION(BlueprintPure, Category = "Team Score")
+    int32 GetTeamVictoryPoints(int32 TeamID) const;
+
+    // === 순위 관련 함수들 ===
+
+    /** 승점 순으로 정렬된 팀 순위 배열 반환 */
+    UFUNCTION(BlueprintPure, Category = "Rankings")
+    TArray<int32> GetTeamRankings() const;
+
+    /** 특정 팀의 순위 반환 (1등부터 시작) */
+    UFUNCTION(BlueprintPure, Category = "Rankings")
+    int32 GetTeamRank(int32 TeamID) const;
+
+    /** 게임이 동점인지 확인 */
+    UFUNCTION(BlueprintPure, Category = "Rankings")
+    bool IsGameTied() const;
+
+    /** 우승팀들의 ID 배열 반환 (동점 우승 고려) */
+    UFUNCTION(BlueprintPure, Category = "Rankings")
+    TArray<int32> GetWinningTeams() const;
+
+    /** 순위 표시 텍스트 반환 ("1등", "2등 (공동)" 등) */
+    UFUNCTION(BlueprintPure, Category = "Rankings")
+    FString GetRankDisplayText(int32 TeamID) const;
+
+    // === 게임 로직 함수들 ===
+
+    /** 라운드 종료 시 승점 계산 및 부여 */
+    UFUNCTION(BlueprintCallable, Category = "Game Logic")
+    void CalculateRoundVictoryPoints();
+
+    /** 게임 종료 조건 확인 (3라운드 완료) */
+    UFUNCTION(BlueprintPure, Category = "Game Logic")
+    bool ShouldEndGame() const;
+
+    // === 팀 관리 함수들 ===
+
+    UFUNCTION(BlueprintCallable, Category = "Team Management")
+    void InitializeTeams(const TArray<int32>& ActiveTeamIDs);
+
+    UFUNCTION(BlueprintPure, Category = "Team Info")
+    FString GetTeamName(int32 TeamID) const;
+
+    UFUNCTION(BlueprintPure, Category = "Team Info")
+    FSlateColor GetTeamColor(int32 TeamID) const;
+
+    UFUNCTION(BlueprintPure, Category = "Team Info")
+    bool IsTeamActive(int32 TeamID) const;
+
+    UFUNCTION(BlueprintPure, Category = "Team Info")
+    int32 GetActiveTeamCount() const;
+
+    UFUNCTION(BlueprintPure, Category = "Team Info")
+    TArray<int32> GetActiveTeamIDs() const;
+
+    // === 블루프린트에서 오버라이드 가능한 함수들 ===
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Game Events")
+    void OnPhaseChanged(EGamePhase NewPhase, EGamePhase OldPhase);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Game Events")
+    void OnRoundChanged(int32 NewRound, int32 OldRound);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Game Events")
+    void OnTimeUpdated(float NewTime);
 };

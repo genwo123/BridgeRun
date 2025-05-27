@@ -1,4 +1,4 @@
-// Private/Items/Item_Tent.cpp
+ï»¿// Private/Items/Item_Tent.cpp
 #include "Item/Item_Tent.h"
 #include "Net/UnrealNetwork.h"
 
@@ -7,7 +7,7 @@ AItem_Tent::AItem_Tent()
     bReplicates = true;
     ItemType = EInventorySlot::Tent;
 
-    // ±âº» ¼Ó¼º ÃÊ±âÈ­
+    // ê¸°ë³¸ ì†ì„± ì´ˆê¸°í™”
     bIsBuiltTent = false;
     DamageReduction = 0.5f;
     bBlocksVision = true;
@@ -25,16 +25,16 @@ void AItem_Tent::BeginPlay()
 {
     Super::BeginPlay();
 
-    // ¸ÓÆ¼¸®¾ó ÃÊ±âÈ­
+    // ë¨¸í‹°ë¦¬ì–¼ ì´ˆê¸°í™”
     InitializeMaterials();
 
-    // Ãæµ¹ ¼³Á¤
+    // ì¶©ëŒ ì„¤ì •
     SetupCollisionSettings();
 }
 
 void AItem_Tent::InitializeMaterials()
 {
-    // DynamicMaterial ÃÊ±âÈ­
+    // DynamicMaterial ì´ˆê¸°í™”
     if (MeshComponent && MeshComponent->GetMaterial(0))
     {
         DynamicMaterial = MeshComponent->CreateAndSetMaterialInstanceDynamic(0);
@@ -45,21 +45,21 @@ void AItem_Tent::SetupCollisionSettings()
 {
     if (!MeshComponent) return;
 
-    // ±âº» Ãæµ¹ ¼³Á¤ ±¸¼º
+    // ê¸°ë³¸ ì¶©ëŒ ì„¤ì • êµ¬ì„±
     MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-    // ¸ğµç Ã¤³Î¿¡ ´ëÇØ ±âº»ÀûÀ¸·Î Block ÀÀ´ä
+    // ëª¨ë“  ì±„ë„ì— ëŒ€í•´ ê¸°ë³¸ì ìœ¼ë¡œ Block ì‘ë‹µ
     MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
 
-    // ÆÇÀÚ¿Í´Â °ãÄ¥ ¼ö ÀÖµµ·Ï ¼³Á¤
-    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap); // ÆÇÀÚ Àü¿ë Ã¤³Î
+    // íŒìì™€ëŠ” ê²¹ì¹  ìˆ˜ ìˆë„ë¡ ì„¤ì •
+    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap); // íŒì ì „ìš© ì±„ë„
 
-    // ¹°¸® ¼³Á¤
+    // ë¬¼ë¦¬ ì„¤ì •
     MeshComponent->SetSimulatePhysics(true);
     MeshComponent->SetEnableGravity(true);
     MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
 
-    // ³×Æ®¿öÅ© ¾÷µ¥ÀÌÆ® °­Á¦
+    // ë„¤íŠ¸ì›Œí¬ ì—…ë°ì´íŠ¸ ê°•ì œ
     ForceNetUpdate();
 }
 
@@ -76,42 +76,95 @@ void AItem_Tent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 
 void AItem_Tent::OnPlaced_Implementation()
 {
-    if (!HasAuthority()) return;
+    if (!HasAuthority())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Tent OnPlaced called on non-authority!"));
+        return;
+    }
 
-    // »óÅÂ ¾÷µ¥ÀÌÆ®
+    UE_LOG(LogTemp, Warning, TEXT("Tent OnPlaced_Implementation called - setting bIsBuiltTent to true"));
+
+    // ìƒíƒœ ì—…ë°ì´íŠ¸
     bIsBuiltTent = true;
     CurrentHealth = MaxHealth;
 
     if (MeshComponent)
     {
-        // ÅÙÆ®¸¦ ¼³Ä¡µÈ »óÅÂ·Î º¯°æ
+        // í…íŠ¸ë¥¼ ì„¤ì¹˜ëœ ìƒíƒœë¡œ ë³€ê²½
         ApplyBuiltTentState();
+        UE_LOG(LogTemp, Warning, TEXT("ApplyBuiltTentState called in OnPlaced"));
 
-        // ¸ğµç Å¬¶óÀÌ¾ğÆ®¿¡ µ¿±âÈ­
+        // ğŸ†• ê°•ì œë¡œ ë„¤íŠ¸ì›Œí¬ ì—…ë°ì´íŠ¸
+        ForceNetUpdate();
+
+        // ğŸ†• ëª¨ë“  í´ë¼ì´ì–¸íŠ¸ì— ìƒíƒœ ë™ê¸°í™”
         MulticastSetPhysicsState();
     }
 
-    ForceNetUpdate();
+}
+
+void AItem_Tent::OnRep_IsBuilt()
+{
+    UE_LOG(LogTemp, Error, TEXT("=== Tent OnRep_IsBuilt CALLED: bIsBuiltTent = %s ==="),
+        bIsBuiltTent ? TEXT("TRUE") : TEXT("FALSE"));
+
+    if (bIsBuiltTent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Applying built tent state from OnRep"));
+        // ğŸ†• ì§ì ‘ ì„¤ì •ìœ¼ë¡œ ê²½ê³  ë°©ì§€
+        if (MeshComponent)
+        {
+            // Mobilityë¥¼ ë¨¼ì € Movableë¡œ ì„¤ì •í•œ í›„ ë¬¼ë¦¬ ë¹„í™œì„±í™”
+            MeshComponent->SetMobility(EComponentMobility::Movable);
+            MeshComponent->SetSimulatePhysics(false);
+            MeshComponent->SetEnableGravity(false);
+
+            // ê·¸ ë‹¤ìŒì— Stationaryë¡œ ë³€ê²½
+            MeshComponent->SetMobility(EComponentMobility::Stationary);
+
+            // ì¶©ëŒ ì„¤ì •
+            MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+            MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+            MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap); // íŒìì™€ ê²¹ì¹  ìˆ˜ ìˆë„ë¡
+            MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
+            // ìœ„ì¹˜ ì—…ë°ì´íŠ¸ ê°•ì œ
+            MeshComponent->UpdateComponentToWorld();
+
+            UE_LOG(LogTemp, Log, TEXT("OnRep: Tent physics properly disabled and set to stationary"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Setting tent to physics mode from OnRep"));
+        if (MeshComponent)
+        {
+            MeshComponent->SetMobility(EComponentMobility::Movable);
+            MeshComponent->SetSimulatePhysics(true);
+            MeshComponent->SetEnableGravity(true);
+            MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        }
+    }
 }
 
 void AItem_Tent::ApplyBuiltTentState()
 {
     if (!MeshComponent) return;
 
-    // ¹°¸® ½Ã¹Ä·¹ÀÌ¼Ç ¿ÏÀüÈ÷ ºñÈ°¼ºÈ­
+    // ë¬¼ë¦¬ ì‹œë®¬ë ˆì´ì…˜ ì™„ì „íˆ ë¹„í™œì„±í™”
     MeshComponent->SetSimulatePhysics(false);
     MeshComponent->SetEnableGravity(false);
 
-    // °íÁ¤ »óÅÂ·Î ¼³Á¤
+    // ê³ ì • ìƒíƒœë¡œ ì„¤ì •
     MeshComponent->SetMobility(EComponentMobility::Stationary);
 
-    // Ãæµ¹ ¼³Á¤
+    // ì¶©ëŒ ì„¤ì •
     MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
     MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
     MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
 
-    // À§Ä¡ ¾÷µ¥ÀÌÆ® °­Á¦
+    // ìœ„ì¹˜ ì—…ë°ì´íŠ¸ ê°•ì œ
     MeshComponent->UpdateComponentToWorld();
 }
 
@@ -127,23 +180,23 @@ void AItem_Tent::MulticastOnTentPlaced_Implementation()
 
 void AItem_Tent::MulticastSetPhysicsState_Implementation()
 {
-    // ¼­¹ö Ã¼Å© Á¦°Å - ¸ğµç Å¬¶óÀÌ¾ğÆ®¿¡¼­ ½ÇÇà
+    // ì„œë²„ ì²´í¬ ì œê±° - ëª¨ë“  í´ë¼ì´ì–¸íŠ¸ì—ì„œ ì‹¤í–‰
     if (MeshComponent)
     {
-        // ¹°¸® ½Ã¹Ä·¹ÀÌ¼Ç ºñÈ°¼ºÈ­
+        // ë¬¼ë¦¬ ì‹œë®¬ë ˆì´ì…˜ ë¹„í™œì„±í™”
         MeshComponent->SetSimulatePhysics(false);
         MeshComponent->SetEnableGravity(false);
 
-        // °íÁ¤ »óÅÂ·Î ¼³Á¤
+        // ê³ ì • ìƒíƒœë¡œ ì„¤ì •
         MeshComponent->SetMobility(EComponentMobility::Stationary);
 
-        // Ãæµ¹ ¼³Á¤
+        // ì¶©ëŒ ì„¤ì •
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
         MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
         MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Overlap);
         MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 
-        // À§Ä¡ ¾÷µ¥ÀÌÆ® °­Á¦
+        // ìœ„ì¹˜ ì—…ë°ì´íŠ¸ ê°•ì œ
         MeshComponent->UpdateComponentToWorld();
     }
 }
@@ -152,16 +205,16 @@ void AItem_Tent::OnBulletHit_Implementation()
 {
     if (!HasAuthority()) return;
 
-    // Ã¼·Â °¨¼Ò
+    // ì²´ë ¥ ê°ì†Œ
     CurrentHealth--;
 
-    // ÇÇ°İ È¿°ú
+    // í”¼ê²© íš¨ê³¼
     MulticastPlayHitEffect();
 
-    // Ã¼·Â È®ÀÎ
+    // ì²´ë ¥ í™•ì¸
     if (CurrentHealth <= 0)
     {
-        // ¹Ù·Î DestroyÇÏÁö ¾Ê°í 1ÃÊ ÈÄ¿¡ ÆÄ±«
+        // ë°”ë¡œ Destroyí•˜ì§€ ì•Šê³  1ì´ˆ í›„ì— íŒŒê´´
         FTimerHandle DestroyTimer;
         GetWorld()->GetTimerManager().SetTimer(DestroyTimer, this, &AItem_Tent::DestroyTent, 1.0f, false);
     }
@@ -179,7 +232,7 @@ void AItem_Tent::DestroyTent()
 
 void AItem_Tent::MulticastPlayHitEffect_Implementation()
 {
-    // ¹ß±¤ È¿°ú Àç»ı
+    // ë°œê´‘ íš¨ê³¼ ì¬ìƒ
     PlayGlowEffect(GlowIntensity);
 }
 
@@ -187,10 +240,10 @@ void AItem_Tent::PlayGlowEffect(float Intensity)
 {
     if (!DynamicMaterial) return;
 
-    // ¹ß±¤ È¿°ú ÄÑ±â
+    // ë°œê´‘ íš¨ê³¼ ì¼œê¸°
     DynamicMaterial->SetScalarParameterValue("EmissiveIntensity", Intensity);
 
-    // ÀÏÁ¤ ½Ã°£ ÈÄ¿¡ ¹ß±¤ È¿°ú ²ô±â
+    // ì¼ì • ì‹œê°„ í›„ì— ë°œê´‘ íš¨ê³¼ ë„ê¸°
     FTimerHandle TimerHandle;
     GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
         {
@@ -203,6 +256,6 @@ void AItem_Tent::PlayGlowEffect(float Intensity)
 
 void AItem_Tent::OnRep_CurrentHealth()
 {
-    // Å¬¶óÀÌ¾ğÆ®¿¡¼­ Ã¼·Â º¯È­ ½Ã ÇÇ°İ È¿°ú Àç»ı
+    // í´ë¼ì´ì–¸íŠ¸ì—ì„œ ì²´ë ¥ ë³€í™” ì‹œ í”¼ê²© íš¨ê³¼ ì¬ìƒ
     MulticastPlayHitEffect();
 }

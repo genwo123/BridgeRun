@@ -13,7 +13,7 @@ public:
     AItem_Tent();
 
     // 텐트 기본 속성
-    UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
+    UPROPERTY(ReplicatedUsing = OnRep_IsBuilt, EditAnywhere, Category = "Tent")
     bool bIsBuiltTent;
 
     UPROPERTY(Replicated, EditAnywhere, Category = "Tent")
@@ -56,6 +56,9 @@ public:
 
     UFUNCTION(Server, Reliable)
     void OnBulletHit();
+
+    UFUNCTION()
+    void OnRep_IsBuilt();
 
     // 접근자 함수
     UMaterialInterface* GetValidPlacementMaterial() const { return ValidPlacementMaterial; }

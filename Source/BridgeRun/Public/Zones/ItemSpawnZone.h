@@ -1,144 +1,61 @@
-// Copyright BridgeRun Game, Inc. All Rights Reserved.
+ï»¿// Copyright BridgeRun Game, Inc. All Rights Reserved.
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Item/Item.h"
+#include "EngineUtils.h"
 #include "ItemSpawnZone.generated.h"
-
-// ½ºÆù Æ÷ÀÎÆ® »óÅÂ Á¤º¸¸¦ ÀúÀåÇÏ´Â ±¸Á¶Ã¼
-USTRUCT(BlueprintType)
-struct FSpawnPointInfo
-{
-    GENERATED_BODY()
-
-    // ½ºÆù Æ÷ÀÎÆ®°¡ »ç¿ë ÁßÀÎÁö ¿©ºÎ
-    UPROPERTY(BlueprintReadWrite)
-    bool bIsOccupied = false;
-
-    // ½ºÆùµÈ ¾ÆÀÌÅÛ ÂüÁ¶ (ÃßÀû¿ë)
-    UPROPERTY()
-    AItem* SpawnedItem = nullptr;
-
-    // ¾ÆÀÌÅÛ Å¸ÀÔ (ÇÊ¿äÇÑ °æ¿ì)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TSubclassOf<AItem> PreferredItemClass = nullptr;
-};
 
 UCLASS()
 class BRIDGERUN_API AItemSpawnZone : public AActor
 {
     GENERATED_BODY()
 public:
-    // »ı¼ºÀÚ ¹× ±âº» ÇÔ¼ö
     AItemSpawnZone();
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-    // ÄÄÆ÷³ÍÆ®
+    // ğŸ†• ê°„ë‹¨í•œ ì»´í¬ë„ŒíŠ¸ êµ¬ì¡°
     UPROPERTY(VisibleAnywhere, Category = "Components")
     class UBoxComponent* SpawnVolume;
 
-    // ¹Ù´Ú ¸Ş½Ã ÄÄÆ÷³ÍÆ®
     UPROPERTY(VisibleAnywhere, Category = "Components")
     class UStaticMeshComponent* FloorMesh;
 
-    // ½ºÆù Æ÷ÀÎÆ® ÄÄÆ÷³ÍÆ® ¹è¿­ (¿¡µğÅÍ¿¡¼­ Á÷Á¢ ¹èÄ¡)
-    UPROPERTY(VisibleAnywhere, Category = "Spawn Points")
-    TArray<class USceneComponent*> SpawnPoints;
-
-    // ½ºÆù Æ÷ÀÎÆ® Á¤º¸ (¿¡µğÅÍ¿¡¼­ ¼³Á¤ °¡´É)
-    UPROPERTY(EditAnywhere, Category = "Spawn Points")
-    TArray<FSpawnPointInfo> SpawnPointInfos;
-
-    // ¾ÆÀÌÅÛ À¯Çüº° ½ºÆù Á¦ÇÑ
-    UPROPERTY(EditAnywhere, Category = "Spawn Limits")
-    int32 MaxPlankCount = 15;
-
-    UPROPERTY(EditAnywhere, Category = "Spawn Limits")
-    int32 MaxTentCount = 10;
-
-    UPROPERTY(EditAnywhere, Category = "Spawn Limits")
-    int32 MaxGunCount = 3;
-
-    // ½ºÆù ¼³Á¤
+    // ğŸ†• ë‹¨ìˆœí•œ ìŠ¤í° ì„¤ì •
     UPROPERTY(EditAnywhere, Category = "Spawn")
     TArray<TSubclassOf<AItem>> ItemsToSpawn;
 
     UPROPERTY(EditAnywhere, Category = "Spawn")
-    float SpawnInterval = 5.0f;
+    float SpawnInterval = 20.0f;  // 20ì´ˆë§ˆë‹¤ ìŠ¤í°
 
-    // º¹Á¦ ¼Ó¼º
-    UPROPERTY(ReplicatedUsing = OnRep_SpawnedItems)
-    TArray<AItem*> SpawnedItems;
+    UPROPERTY(EditAnywhere, Category = "Spawn")
+    int32 MaxItems = 15;  // ìµœëŒ€ 15ê°œê¹Œì§€ë§Œ
 
-    // ¾ÆÀÌÅÛ Á¾·ùº° Ä«¿îÆ® (º¹Á¦)
-    UPROPERTY(Replicated)
-    int32 CurrentPlankCount;
+    UPROPERTY(EditAnywhere, Category = "Spawn")
+    float SpawnHeight = 100.0f;  // ìŠ¤í° ë†’ì´
 
-    UPROPERTY(Replicated)
-    int32 CurrentTentCount;
-
-    UPROPERTY(Replicated)
-    int32 CurrentGunCount;
+    UPROPERTY(EditAnywhere, Category = "Spawn")
+    float SpawnRadius = 100.0f;  // ìŠ¤í° ë°˜ê²½ (ì¢ê²Œ)
 
 protected:
-    // ¶óÀÌÇÁ»çÀÌÅ¬ ÇÔ¼ö
     virtual void BeginPlay() override;
-    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-    // ½ºÆù ÇÔ¼ö
+    // ğŸ†• ë‹¨ìˆœí•œ ìŠ¤í° í•¨ìˆ˜
     UFUNCTION(Server, Reliable)
     void ServerSpawnItem();
 
     UFUNCTION()
     void StartSpawnTimer();
 
-    // ³×Æ®¿öÅ© ÇÔ¼ö
-    UFUNCTION()
-    void OnRep_SpawnedItems();
-
-    UFUNCTION(NetMulticast, Reliable)
-    void MulticastOnItemSpawned(AItem* SpawnedItem, int32 SpawnPointIndex);
-
-    UFUNCTION(NetMulticast, Reliable)
-    void MulticastOnItemRemoved(AItem* RemovedItem, int32 SpawnPointIndex);
-
-    // ¿À¹ö·¦ ÀÌº¥Æ®
-    UFUNCTION()
-    void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
-        AActor* OtherActor,
-        UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex,
-        bool bFromSweep,
-        const FHitResult& SweepResult);
-
-    UFUNCTION()
-    void OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
-        AActor* OtherActor,
-        UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex);
-
 private:
-    // Å¸ÀÌ¸Ó ÇÚµé
     FTimerHandle SpawnTimer;
 
-    // ÇïÆÛ ÇÔ¼ö
-    bool ValidateSpawnConditions(TSubclassOf<AItem>& OutItemToSpawn) const;
-    void CleanupSpawnedItems();
-    void UpdateSpawnState();
-    void InitializeSpawnVolume();
-    void ConfigureSpawnedItem(AItem* SpawnedItem, int32 SpawnPointIndex);
+    // ğŸ†• í˜„ì¬ ìŠ¤í°ëœ ì•„ì´í…œ ê°œìˆ˜ ì¶”ì 
+    UPROPERTY(Replicated)
+    int32 CurrentItemCount = 0;
 
-    // ½ºÆù Æ÷ÀÎÆ® °ü¸® ÇÔ¼ö
-    void InitializeSpawnPoints();
-    void ArrangeSpawnPointsInGrid(int32 Rows, int32 Columns, float SpacingX, float SpacingY);
-    int32 FindFreeSpawnPointForItem(TSubclassOf<AItem> ItemClass) const;
-    void MarkSpawnPointOccupied(int32 Index, AItem* Item, bool bOccupied);
-    bool IsSpawnPointOccupied(int32 Index) const;
-    int32 GetSpawnPointIndexForPosition(const FVector& Position) const;
-
-    // ¾ÆÀÌÅÛ Ä«¿îÆ® °ü¸® ÇÔ¼ö
-    void IncrementItemCount(TSubclassOf<AItem> ItemClass);
-    void DecrementItemCount(TSubclassOf<AItem> ItemClass);
-    int32 GetCurrentCountForItemClass(TSubclassOf<AItem> ItemClass) const;
-    int32 GetMaxCountForItemClass(TSubclassOf<AItem> ItemClass) const;
+    // ğŸ†• ë‹¨ìˆœí•œ í—¬í¼ í•¨ìˆ˜ë“¤
+    FVector GetRandomSpawnLocation() const;
+    void CleanupDestroyedItems();
+    bool CanSpawnMoreItems() const;
 };

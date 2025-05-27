@@ -1,6 +1,9 @@
 // Copyright BridgeRun Game, Inc. All Rights Reserved.
 #include "Core/BridgeRunGameInstance.h"
 
+
+TWeakObjectPtr<UBridgeRunGameInstance> UBridgeRunGameInstance::Instance;
+
 UBridgeRunGameInstance::UBridgeRunGameInstance()
 {
     // 빈 생성자
@@ -11,14 +14,25 @@ void UBridgeRunGameInstance::Init()
     // 부모 클래스의 Init 호출
     UGameInstance::Init();
 
-    // 기본 팀 점수 초기화
+    Instance = this;
+
+    // 기본 값 초기화 추가
+    CurrentPlayerName = TEXT("");
+    PlayerNameText = FText::FromString(TEXT(""));
+    SkinIndex = 0;
+    bSkipLoginScreen = false;
+    bHasPlayerName = false;
+    bReturningFromGame = false;
+
+
+    // 기본 팀 점수 초기화 (기존 코드 그대로)
     TeamScores.SetNum(NumberOfTeams);
     for (int32 i = 0; i < TeamScores.Num(); i++)
     {
         TeamScores[i] = 0;
     }
 
-    // 플레이어 팀 정보 배열 초기화
+    // 플레이어 팀 정보 배열 초기화 (기존 코드 그대로)
     PlayersTeamInfo.Empty();
 }
 
@@ -67,25 +81,6 @@ bool UBridgeRunGameInstance::IsValidTeamID(int32 TeamID) const
     return (TeamID >= 0 && TeamID < NumberOfTeams);
 }
 
-void UBridgeRunGameInstance::SavePlayerTeamInfo(const FString& InPlayerID, int32 InTeamID)
-{
-    // 이미 존재하는 플레이어 정보인지 확인
-    for (int32 i = 0; i < PlayersTeamInfo.Num(); i++)
-    {
-        if (PlayersTeamInfo[i].PlayerID == InPlayerID)
-        {
-            // 기존 정보 업데이트
-            PlayersTeamInfo[i].TeamID = InTeamID;
-            UE_LOG(LogTemp, Log, TEXT("Updated team info for player %s: TeamID=%d"), *InPlayerID, InTeamID);
-            return;
-        }
-    }
-
-    // 새 플레이어 정보 추가 - 생성자 사용
-    PlayersTeamInfo.Add(FPlayerTeamInfo(InPlayerID, InTeamID));
-    UE_LOG(LogTemp, Log, TEXT("Added new team info for player %s: TeamID=%d"), *InPlayerID, InTeamID);
-}
-
 int32 UBridgeRunGameInstance::GetPlayerTeamID(const FString& InPlayerID) const
 {
     // 플레이어 ID로 팀 정보 검색
@@ -110,36 +105,53 @@ void UBridgeRunGameInstance::ClearPlayersTeamInfo()
 
 void UBridgeRunGameInstance::PrintPlayersTeamInfo() const
 {
-    UE_LOG(LogTemp, Log, TEXT("Players Team Info (%d entries):"), PlayersTeamInfo.Num());
-    for (const FPlayerTeamInfo& Info : PlayersTeamInfo)
-    {
-        UE_LOG(LogTemp, Log, TEXT("Player %s: TeamID=%d"), *Info.PlayerID, Info.TeamID);
-    }
 
-    // 팀별 플레이어 수 출력
+    // 팀별 플레이어 수 출력 (수정된 부분)
     TArray<int32> TeamCounts = GetTeamPlayerCounts();
-    UE_LOG(LogTemp, Log, TEXT("Team Player Counts:"));
     for (int32 i = 0; i < TeamCounts.Num(); i++)
     {
-        UE_LOG(LogTemp, Log, TEXT("Team %d: %d players"), i, TeamCounts[i]);
+        if (TeamCounts[i] > 0)
+        {
+            // GetPlayerNamesByTeam 대신 직접 구현
+            TArray<FString> TeamNames;
+            for (const FPlayerTeamInfo& Info : PlayersTeamInfo)
+            {
+                if (Info.TeamID == i && !Info.PlayerName.IsEmpty())
+                {
+                    TeamNames.Add(Info.PlayerName);
+                }
+            }
+
+            FString NamesString = FString::Join(TeamNames, TEXT(", "));
+        }
     }
 }
 
 TArray<int32> UBridgeRunGameInstance::GetTeamPlayerCounts() const
 {
-    // 팀별 플레이어 수 계산
-    TArray<int32> TeamCounts;
-    TeamCounts.SetNumZeroed(NumberOfTeams);
-
-    for (const FPlayerTeamInfo& Info : PlayersTeamInfo)
+    // 저장된 값이 있으면 그걸 반환
+    if (StoredTeamCounts.Num() > 0)
     {
-        if (IsValidTeamID(Info.TeamID))
-        {
-            TeamCounts[Info.TeamID]++;
-        }
+        return StoredTeamCounts;
     }
 
-    return TeamCounts;
+    // 없으면 기본값 [0,0,0,0] 반환
+    TArray<int32> DefaultCounts;
+    DefaultCounts.SetNumZeroed(NumberOfTeams);
+    return DefaultCounts;
+}
+
+void UBridgeRunGameInstance::SetTeamPlayerCounts(const TArray<int32>& NewTeamCounts)
+{
+ 
+    StoredTeamCounts = NewTeamCounts;
+
+    // 디버그 로그
+    UE_LOG(LogTemp, Warning, TEXT("SetTeamPlayerCounts: [%d,%d,%d,%d]"),
+        NewTeamCounts.Num() > 0 ? NewTeamCounts[0] : 0,
+        NewTeamCounts.Num() > 1 ? NewTeamCounts[1] : 0,
+        NewTeamCounts.Num() > 2 ? NewTeamCounts[2] : 0,
+        NewTeamCounts.Num() > 3 ? NewTeamCounts[3] : 0);
 }
 
 int32 UBridgeRunGameInstance::GetActiveTeamsCount() const
@@ -158,6 +170,37 @@ int32 UBridgeRunGameInstance::GetActiveTeamsCount() const
 
     return ActiveTeams;
 }
+
+void UBridgeRunGameInstance::SetCurrentPlayerName(const FString& NewPlayerName)
+{
+    CurrentPlayerName = NewPlayerName;
+    PlayerNameText = FText::FromString(NewPlayerName);
+    bHasPlayerName = true;
+    UE_LOG(LogTemp, Log, TEXT("Current player name set to: %s"), *CurrentPlayerName);
+}
+
+FString UBridgeRunGameInstance::GetCurrentPlayerName() const
+{
+    return CurrentPlayerName;
+}
+
+FText UBridgeRunGameInstance::GetCurrentPlayerNameAsText() const
+{
+    return PlayerNameText;
+}
+
+FString UBridgeRunGameInstance::AddPlayerInfo(const FString& PlayerName, int32 TeamID)
+{
+    // 자동으로 고유 ID 생성하여 플레이어 추가
+    FPlayerTeamInfo NewPlayer(PlayerName, TeamID);
+    PlayersTeamInfo.Add(NewPlayer);
+
+    UE_LOG(LogTemp, Log, TEXT("Added player: %s (ID: %s) to Team %d"),
+        *PlayerName, *NewPlayer.PlayerID, TeamID);
+
+    return NewPlayer.PlayerID; // 생성된 고유 ID 반환
+}
+
 
 bool UBridgeRunGameInstance::HasMinimumTeams(int32 MinTeamCount) const
 {
@@ -196,4 +239,85 @@ bool UBridgeRunGameInstance::AreTeamsBalanced() const
         ActiveTeams, MinPlayers == INT_MAX ? 0 : MinPlayers, MaxPlayers, IsBalanced);
 
     return IsBalanced;
+}
+
+
+
+// BridgeRunGameInstance.cpp에 추가할 함수들
+
+// =========================
+// 기존 SavePlayerTeamInfo 함수 수정 (이름 파라미터 추가)
+// =========================
+void UBridgeRunGameInstance::SavePlayerTeamInfo(const FString& InPlayerID, int32 InTeamID, const FString& InPlayerName)
+{
+    // 이미 존재하는 플레이어 정보인지 확인
+    for (int32 i = 0; i < PlayersTeamInfo.Num(); i++)
+    {
+        if (PlayersTeamInfo[i].PlayerID == InPlayerID)
+        {
+            // 기존 정보 업데이트
+            PlayersTeamInfo[i].TeamID = InTeamID;
+            if (!InPlayerName.IsEmpty()) // 이름이 제공된 경우에만 업데이트
+            {
+                PlayersTeamInfo[i].PlayerName = InPlayerName;
+            }
+            UE_LOG(LogTemp, Log, TEXT("Updated player info: %s -> Team %d, Name: %s"),
+                *InPlayerID, InTeamID, *PlayersTeamInfo[i].PlayerName);
+            return;
+        }
+    }
+
+    // 새 플레이어 정보 추가 - 새로운 생성자 사용
+    PlayersTeamInfo.Add(FPlayerTeamInfo(InPlayerID, InPlayerName, InTeamID));
+    UE_LOG(LogTemp, Log, TEXT("Added new player info: %s -> Team %d, Name: %s"),
+        *InPlayerID, InTeamID, *InPlayerName);
+}
+
+// =========================
+// 새로 추가할 함수들
+// =========================
+
+FString UBridgeRunGameInstance::GetPlayerNameByID(const FString& InPlayerID) const
+{
+    for (const FPlayerTeamInfo& Info : PlayersTeamInfo)
+    {
+        if (Info.PlayerID == InPlayerID)
+        {
+            return Info.PlayerName.IsEmpty() ? "Unknown Player" : Info.PlayerName;
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Player name not found for ID: %s"), *InPlayerID);
+    return "Unknown Player";
+}
+
+
+
+TArray<FPlayerTeamInfo> UBridgeRunGameInstance::GetAllPlayersInfo() const
+{
+    return PlayersTeamInfo;
+}
+
+
+
+TArray<FPlayerTeamInfo> UBridgeRunGameInstance::GetPlayersByTeam(int32 TeamID) const
+{
+    TArray<FPlayerTeamInfo> TeamPlayers;
+
+    for (const FPlayerTeamInfo& Info : PlayersTeamInfo)
+    {
+        if (Info.TeamID == TeamID)
+        {
+            TeamPlayers.Add(Info);
+        }
+    }
+
+    return TeamPlayers;
+}
+
+
+
+UBridgeRunGameInstance* UBridgeRunGameInstance::GetInstance()
+{
+    return Instance.Get();
 }

@@ -1,4 +1,4 @@
-// Private/Item/Item_Gun.cpp
+ï»¿// Private/Item/Item_Gun.cpp
 #include "Item/Item_Gun.h"
 #include "Characters/Citizen.h"
 #include "Item/Item_Tent.h"
@@ -9,6 +9,8 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Net/UnrealNetwork.h"
+#include "Item/Item_Trophy.h"           
+#include "Core/BridgeRunPlayerState.h"
 #include "Kismet/GameplayStatics.h"
 
 AItem_Gun::AItem_Gun()
@@ -28,21 +30,21 @@ void AItem_Gun::BeginPlay()
 {
     Super::BeginPlay();
 
-    // ÃÊ±â Åº¾à ¼³Á¤
+    // ì´ˆê¸° íƒ„ì•½ ì„¤ì •
     CurrentAmmo = MaxAmmo;
 
     if (MeshComponent)
     {
         if (bIsHeld)
         {
-            // µé°í ÀÖÀ» ¶§ ¼³Á¤
+            // ë“¤ê³  ìˆì„ ë•Œ ì„¤ì •
             MeshComponent->SetSimulatePhysics(false);
             MeshComponent->SetEnableGravity(false);
             MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         }
         else
         {
-            // ¹Ù´Ú¿¡ ÀÖÀ» ¶§ ¼³Á¤
+            // ë°”ë‹¥ì— ìˆì„ ë•Œ ì„¤ì •
             MeshComponent->SetSimulatePhysics(true);
             MeshComponent->SetEnableGravity(true);
             MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -50,7 +52,7 @@ void AItem_Gun::BeginPlay()
             MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
         }
 
-        // ³×Æ®¿öÅ© º¹Á¦ ¼³Á¤
+        // ë„¤íŠ¸ì›Œí¬ ë³µì œ ì„¤ì •
         MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
     }
 }
@@ -102,7 +104,7 @@ void AItem_Gun::OnRep_AimState()
         {
             if (bIsAiming)
             {
-                // Á¶ÁØ ½ÃÀÛ - ÇöÀç ¼³Á¤ ÀúÀå ÈÄ »õ ¼³Á¤ Àû¿ë
+                // ì¡°ì¤€ ì‹œì‘ - í˜„ì¬ ì„¤ì • ì €ì¥ í›„ ìƒˆ ì„¤ì • ì ìš©
                 DefaultFOV = Camera->FieldOfView;
 
                 if (USpringArmComponent* SpringArm = Player->FindComponentByClass<USpringArmComponent>())
@@ -115,7 +117,7 @@ void AItem_Gun::OnRep_AimState()
             }
             else
             {
-                // Á¶ÁØ Á¾·á - ±âº» ¼³Á¤ º¹¿ø
+                // ì¡°ì¤€ ì¢…ë£Œ - ê¸°ë³¸ ì„¤ì • ë³µì›
                 Camera->SetFieldOfView(DefaultFOV);
 
                 if (USpringArmComponent* SpringArm = Player->FindComponentByClass<USpringArmComponent>())
@@ -131,27 +133,27 @@ void AItem_Gun::PickUp_Implementation(ACharacter* Character)
 {
     if (!Character) return;
 
-    // »óÅÂ ¾÷µ¥ÀÌÆ®
+    // ìƒíƒœ ì—…ë°ì´íŠ¸
     bIsHeld = true;
     SetOwner(Character);
 
     if (MeshComponent)
     {
-        // ¹°¸® ¹× Ãæµ¹ ºñÈ°¼ºÈ­
+        // ë¬¼ë¦¬ ë° ì¶©ëŒ ë¹„í™œì„±í™”
         MeshComponent->SetSimulatePhysics(false);
         MeshComponent->SetEnableGravity(false);
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     }
 
-    // Ä³¸¯ÅÍ¿¡ ºÎÂø
+    // ìºë¦­í„°ì— ë¶€ì°©
     FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
     AttachToActor(Character, AttachRules);
 
-    // »ó´ëÀû À§Ä¡ ¼³Á¤
+    // ìƒëŒ€ì  ìœ„ì¹˜ ì„¤ì •
     SetActorRelativeLocation(FVector(30.0f, 10.0f, 0.0f));
     SetActorRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
 
-    // ³×Æ®¿öÅ© ¾÷µ¥ÀÌÆ®
+    // ë„¤íŠ¸ì›Œí¬ ì—…ë°ì´íŠ¸
     ForceNetUpdate();
 }
 
@@ -159,13 +161,13 @@ void AItem_Gun::Drop_Implementation()
 {
     if (!HasAuthority()) return;
 
-    // Á¶ÁØ ÁßÀÌ¸é ÇØÁ¦
+    // ì¡°ì¤€ ì¤‘ì´ë©´ í•´ì œ
     if (bIsAiming)
     {
         ToggleAim();
     }
 
-    // »óÅÂ ¾÷µ¥ÀÌÆ®
+    // ìƒíƒœ ì—…ë°ì´íŠ¸
     bIsHeld = false;
     OnRep_HeldState();
 }
@@ -176,31 +178,31 @@ void AItem_Gun::Fire_Implementation()
 
     if (ACitizen* Player = Cast<ACitizen>(GetOwner()))
     {
-        // ¹ß»ç À§Ä¡ ¹× ¹æÇâ °è»ê
+        // ë°œì‚¬ ìœ„ì¹˜ ë° ë°©í–¥ ê³„ì‚°
         FVector Start = GetActorLocation();
         FVector Forward = Player->GetActorForwardVector();
         FVector End = Start + (Forward * 5000.0f);
 
-        // Ãæµ¹ Äõ¸® ¼³Á¤
+        // ì¶©ëŒ ì¿¼ë¦¬ ì„¤ì •
         FHitResult HitResult;
         FCollisionQueryParams QueryParams;
         QueryParams.AddIgnoredActor(this);
         QueryParams.AddIgnoredActor(Player);
 
-        // ¶óÀÎ Æ®·¹ÀÌ½º ¼öÇà
+        // ë¼ì¸ íŠ¸ë ˆì´ìŠ¤ ìˆ˜í–‰
         bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, QueryParams);
 
-        // È÷Æ® °á°ú Ã³¸®
+        // íˆíŠ¸ ê²°ê³¼ ì²˜ë¦¬
         if (bHit)
         {
             End = HitResult.ImpactPoint;
             ProcessFireHit(HitResult);
         }
 
-        // µğ¹ö±× È¿°ú Ç¥½Ã
+        // ë””ë²„ê·¸ íš¨ê³¼ í‘œì‹œ
         ShowFireDebugEffects(Start, End, HitResult);
 
-        // Åº¾à °¨¼Ò
+        // íƒ„ì•½ ê°ì†Œ
         UpdateAmmoCount();
     }
 }
@@ -209,7 +211,7 @@ void AItem_Gun::ShowFireDebugEffects(const FVector& Start, const FVector& End, c
 {
     if (!bShowDebugLine) return;
 
-    // ÃÑ¾Ë ±ËÀû Ç¥½Ã
+    // ì´ì•Œ ê¶¤ì  í‘œì‹œ
     DrawDebugLine(
         GetWorld(),
         Start,
@@ -221,7 +223,7 @@ void AItem_Gun::ShowFireDebugEffects(const FVector& Start, const FVector& End, c
         1.0f
     );
 
-    // È÷Æ® À§Ä¡ Ç¥½Ã (È÷Æ®°¡ ÀÖ´Â °æ¿ì)
+    // íˆíŠ¸ ìœ„ì¹˜ í‘œì‹œ (íˆíŠ¸ê°€ ìˆëŠ” ê²½ìš°)
     if (HitResult.bBlockingHit)
     {
         DrawDebugSphere(
@@ -238,14 +240,84 @@ void AItem_Gun::ShowFireDebugEffects(const FVector& Start, const FVector& End, c
 
 void AItem_Gun::ProcessFireHit(const FHitResult& HitResult)
 {
-    // ÅÙÆ® È÷Æ® Ã¼Å©
-    if (AItem_Tent* HitTent = Cast<AItem_Tent>(HitResult.GetActor()))
-    {
-        // ÅÙÆ®¿¡ µ¥¹ÌÁö Àü´Ş
-        HitTent->OnBulletHit();
+    // ğŸš¨ ë„¤íŠ¸ì›Œí¬ ì•ˆì „: ì„œë²„ì—ì„œë§Œ ì‹¤í–‰
+    if (!HasAuthority()) return;
 
-        // ÅÙÆ® È÷Æ® µğ¹ö±× ¸Ş½ÃÁö
-        UE_LOG(LogTemp, Display, TEXT("Hit tent at location: %s"), *HitResult.ImpactPoint.ToString());
+    AActor* HitActor = HitResult.GetActor();
+    if (!HitActor) return;
+
+    // ğŸ“Š íˆíŠ¸ ì¹´ìš´íŒ… í”Œë˜ê·¸
+    bool bShouldCountHit = false;
+
+    // ğŸ¯ í”Œë ˆì´ì–´ í”¼ê²© ì²˜ë¦¬
+    if (ACitizen* HitPlayer = Cast<ACitizen>(HitActor))
+    {
+        bShouldCountHit = true;
+
+        // ë„‰ë°± ë°©í–¥ ê³„ì‚°
+        FVector ShootDirection = (HitResult.ImpactPoint - GetActorLocation()).GetSafeNormal();
+        FVector KnockbackForce = ShootDirection * 10.0f; // 10cm
+        KnockbackForce.Z = 2.0f; // ì•½ê°„ ìœ„ë¡œ
+
+        // ğŸš€ í”Œë ˆì´ì–´ ë„‰ë°± (ë„¤íŠ¸ì›Œí¬ ìë™ ë™ê¸°í™”)
+        HitPlayer->LaunchCharacter(KnockbackForce, false, false);
+
+        // ğŸ† íŠ¸ë¡œí”¼ ê°•ì œ ë“œë¡­ ì²˜ë¦¬
+        if (HitPlayer->HeldTrophy)
+        {
+            AItem_Trophy* Trophy = HitPlayer->HeldTrophy;
+            Trophy->Drop(); // ì´ë¯¸ Server RPC
+            HitPlayer->HeldTrophy = nullptr;
+
+            // íŠ¸ë¡œí”¼ ë„‰ë°±
+            if (Trophy->MeshComponent)
+            {
+                Trophy->MeshComponent->AddImpulse(ShootDirection * 150.0f);
+            }
+        }
+    }
+    // ğŸ† íŠ¸ë¡œí”¼ ì§ê²© ì²˜ë¦¬
+    else if (AItem_Trophy* Trophy = Cast<AItem_Trophy>(HitResult.GetActor()))
+    {
+        bShouldCountHit = true;
+
+        FVector ShootDirection = (HitResult.ImpactPoint - GetActorLocation()).GetSafeNormal();
+
+        // íŠ¸ë¡œí”¼ ë„‰ë°±
+        if (Trophy->MeshComponent)
+        {
+            Trophy->MeshComponent->AddImpulse(ShootDirection * 150.0f);
+        }
+
+        // ì†Œì§€ìê°€ ìˆìœ¼ë©´ ê°•ì œ ë“œë¡­
+        if (Trophy->GetOwner())
+        {
+            if (ACitizen* TrophyHolder = Cast<ACitizen>(Trophy->GetOwner()))
+            {
+                TrophyHolder->HeldTrophy = nullptr;
+            }
+            Trophy->Drop(); // ì´ë¯¸ Server RPC
+        }
+    }
+    // ğŸ  í…íŠ¸ í”¼ê²© (ê¸°ì¡´ ì½”ë“œ ìœ ì§€)
+    else if (AItem_Tent* HitTent = Cast<AItem_Tent>(HitActor))
+    {
+        HitTent->OnBulletHit(); // ì´ë¯¸ Server RPC
+    }
+
+    // ğŸ“ˆ íˆíŠ¸ ì¹´ìš´íŒ… (ì„œë²„ â†’ ëª¨ë“  í´ë¼ì´ì–¸íŠ¸ ë™ê¸°í™”)
+    if (bShouldCountHit)
+    {
+        if (ACitizen* ShooterCitizen = Cast<ACitizen>(GetOwner()))
+        {
+            if (APlayerController* PC = Cast<APlayerController>(ShooterCitizen->GetController()))
+            {
+                if (ABridgeRunPlayerState* PS = Cast<ABridgeRunPlayerState>(PC->PlayerState))
+                {
+                    PS->ServerAddHitCount(); // Server RPC â†’ ìë™ ë³µì œ
+                }
+            }
+        }
     }
 }
 
@@ -253,10 +325,10 @@ void AItem_Gun::UpdateAmmoCount(bool bLogChange)
 {
     CurrentAmmo--;
 
-    // Åº¾à º¯°æ ·Î±× (¿äÃ»µÈ °æ¿ì)
+    // íƒ„ì•½ ë³€ê²½ ë¡œê·¸ (ìš”ì²­ëœ ê²½ìš°)
     if (bLogChange)
     {
-        // È­¸é ¸Ş½ÃÁö Ç¥½Ã
+        // í™”ë©´ ë©”ì‹œì§€ í‘œì‹œ
         if (GEngine)
         {
             GEngine->AddOnScreenDebugMessage(
@@ -267,7 +339,7 @@ void AItem_Gun::UpdateAmmoCount(bool bLogChange)
             );
         }
 
-        // ·Î±× Ãâ·Â
+        // ë¡œê·¸ ì¶œë ¥
         UE_LOG(LogTemp, Display, TEXT("Ammo remaining: %d / %d"), CurrentAmmo, MaxAmmo);
     }
 }
@@ -276,7 +348,7 @@ void AItem_Gun::ToggleAim_Implementation()
 {
     if (!HasAuthority()) return;
 
-    // Á¶ÁØ »óÅÂ Åä±Û
+    // ì¡°ì¤€ ìƒíƒœ í† ê¸€
     bIsAiming = !bIsAiming;
     OnRep_AimState();
 }
@@ -285,32 +357,32 @@ void AItem_Gun::ThrowForward_Implementation()
 {
     if (!GetOwner() || !HasAuthority()) return;
 
-    // ¼ÒÀ¯ÀÚ·ÎºÎÅÍ ºĞ¸®
+    // ì†Œìœ ìë¡œë¶€í„° ë¶„ë¦¬
     DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
-    // ¹°¸® »óÅÂ ÃÊ±âÈ­
+    // ë¬¼ë¦¬ ìƒíƒœ ì´ˆê¸°í™”
     if (MeshComponent)
     {
-        // Ãæµ¹ ¼³Á¤ È°¼ºÈ­
+        // ì¶©ëŒ ì„¤ì • í™œì„±í™”
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
         MeshComponent->SetCollisionObjectType(ECC_PhysicsBody);
         MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
 
-        // ¹°¸® ½Ã¹Ä·¹ÀÌ¼Ç È°¼ºÈ­
+        // ë¬¼ë¦¬ ì‹œë®¬ë ˆì´ì…˜ í™œì„±í™”
         MeshComponent->SetSimulatePhysics(true);
         MeshComponent->SetEnableGravity(true);
 
-        // ¹°¸® Æ¯¼º ¼³Á¤
+        // ë¬¼ë¦¬ íŠ¹ì„± ì„¤ì •
         MeshComponent->SetLinearDamping(LinearDamping);
         MeshComponent->SetAngularDamping(AngularDamping);
 
-        // ³×Æ®¿öÅ© µ¿±âÈ­ ¼³Á¤
+        // ë„¤íŠ¸ì›Œí¬ ë™ê¸°í™” ì„¤ì •
         MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
 
-        // ÄÄÆ÷³ÍÆ® ¾÷µ¥ÀÌÆ®
+        // ì»´í¬ë„ŒíŠ¸ ì—…ë°ì´íŠ¸
         MeshComponent->UpdateComponentToWorld();
 
-        // ÀÓÆŞ½º Ãß°¡ (Ãæµ¹ ¼³Á¤ ÈÄ)
+        // ì„í„ìŠ¤ ì¶”ê°€ (ì¶©ëŒ ì„¤ì • í›„)
         if (GetOwner())
         {
             FVector ThrowDirection = GetOwner()->GetActorForwardVector();
@@ -318,10 +390,10 @@ void AItem_Gun::ThrowForward_Implementation()
         }
     }
 
-    // »óÅÂ ¾÷µ¥ÀÌÆ®
+    // ìƒíƒœ ì—…ë°ì´íŠ¸
     bIsHeld = false;
     SetOwner(nullptr);
 
-    // ³×Æ®¿öÅ© ¾÷µ¥ÀÌÆ® °­Á¦
+    // ë„¤íŠ¸ì›Œí¬ ì—…ë°ì´íŠ¸ ê°•ì œ
     ForceNetUpdate();
 }

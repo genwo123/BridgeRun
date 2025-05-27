@@ -1,4 +1,4 @@
-// Private/Item/Item_Plank.cpp
+ï»¿// Private/Item/Item_Plank.cpp
 #include "Item/Item_Plank.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Character.h"
@@ -24,15 +24,15 @@ void AItem_Plank::BeginPlay()
 
     if (MeshComponent)
     {
-        // ÆÇÀÚÀÇ ÃÊ±â Ãæµ¹ ¹× ¹°¸® ¼³Á¤
+        // íŒìžì˜ ì´ˆê¸° ì¶©ëŒ ë° ë¬¼ë¦¬ ì„¤ì •
         SetupCollisionSettings();
 
-        // ¹°¸® ¼³Á¤
+        // ë¬¼ë¦¬ ì„¤ì •
         MeshComponent->SetSimulatePhysics(true);
         MeshComponent->SetEnableGravity(true);
         MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
 
-        // ³×Æ®¿öÅ© ¾÷µ¥ÀÌÆ® °­Á¦
+        // ë„¤íŠ¸ì›Œí¬ ì—…ë°ì´íŠ¸ ê°•ì œ
         ForceNetUpdate();
     }
 }
@@ -41,73 +41,82 @@ void AItem_Plank::SetupCollisionSettings()
 {
     if (!MeshComponent) return;
 
-    // ±âº» Ãæµ¹ ¼³Á¤
+    // ê¸°ë³¸ ì¶©ëŒ ì„¤ì •
     MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
 
-    // Ãµ¸·°úÀÇ Ãæµ¹¸¸ ¹«½ÃÇÏµµ·Ï ¼³Á¤
-    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap); // Ãµ¸· Àü¿ë Ã¤³Î
+    // ì²œë§‰ê³¼ì˜ ì¶©ëŒë§Œ ë¬´ì‹œí•˜ë„ë¡ ì„¤ì •
+    MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap); // ì²œë§‰ ì „ìš© ì±„ë„
 }
 
 void AItem_Plank::OnPlaced_Implementation()
 {
-    if (!HasAuthority()) return;
+    if (!HasAuthority())
+    {
+        UE_LOG(LogTemp, Error, TEXT("OnPlaced called on non-authority!"));
+        return;
+    }
 
-    // »óÅÂ ¾÷µ¥ÀÌÆ®
+    UE_LOG(LogTemp, Warning, TEXT("OnPlaced_Implementation called - setting bIsBuiltPlank to true"));
+
+    // ìƒíƒœ ì—…ë°ì´íŠ¸
     bIsBuiltPlank = true;
 
     if (MeshComponent)
     {
-        // ÆÇÀÚ¸¦ ¼³Ä¡µÈ »óÅÂ·Î º¯°æ
+        // íŒìžë¥¼ ì„¤ì¹˜ëœ ìƒíƒœë¡œ ë³€ê²½
         ApplyBuiltPlankState();
+        UE_LOG(LogTemp, Warning, TEXT("ApplyBuiltPlankState called in OnPlaced"));
 
-        // ¸ðµç Å¬¶óÀÌ¾ðÆ®¿¡ µ¿±âÈ­
+        // ðŸ†• ê°•ì œë¡œ ë„¤íŠ¸ì›Œí¬ ì—…ë°ì´íŠ¸
+        ForceNetUpdate();
+
+        // ðŸ†• ëª¨ë“  í´ë¼ì´ì–¸íŠ¸ì— ìƒíƒœ ë™ê¸°í™”
         MulticastSetPlankPhysicsState(EComponentMobility::Stationary);
     }
-
-    ForceNetUpdate();
 }
+
 
 void AItem_Plank::ApplyBuiltPlankState()
 {
     if (!MeshComponent) return;
 
-    // ¹°¸® ½Ã¹Ä·¹ÀÌ¼Ç ¿ÏÀüÈ÷ ºñÈ°¼ºÈ­
+    // ë¬¼ë¦¬ ì‹œë®¬ë ˆì´ì…˜ ì™„ì „ížˆ ë¹„í™œì„±í™”
     MeshComponent->SetSimulatePhysics(false);
     MeshComponent->SetEnableGravity(false);
 
-    // °íÁ¤ »óÅÂ·Î ¼³Á¤
+    // ê³ ì • ìƒíƒœë¡œ ì„¤ì •
     MeshComponent->SetMobility(EComponentMobility::Stationary);
 
-    // Ãæµ¹ ¼³Á¤
+    // ì¶©ëŒ ì„¤ì •
     MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
     MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
     MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
 
-    // À§Ä¡ ¾÷µ¥ÀÌÆ® °­Á¦
+    // ìœ„ì¹˜ ì—…ë°ì´íŠ¸ ê°•ì œ
     MeshComponent->UpdateComponentToWorld();
 }
 
 void AItem_Plank::MulticastSetPlankPhysicsState_Implementation(EComponentMobility::Type NewMobility)
 {
-    // ¼­¹ö Ã¼Å© Á¦°Å - ¸ðµç Å¬¶óÀÌ¾ðÆ®¿¡¼­ ½ÇÇà
+    // ì„œë²„ ì²´í¬ ì œê±° - ëª¨ë“  í´ë¼ì´ì–¸íŠ¸ì—ì„œ ì‹¤í–‰
     if (MeshComponent)
     {
-        // ¹°¸® ½Ã¹Ä·¹ÀÌ¼Ç ºñÈ°¼ºÈ­
+        // ë¬¼ë¦¬ ì‹œë®¬ë ˆì´ì…˜ ë¹„í™œì„±í™”
         MeshComponent->SetSimulatePhysics(false);
         MeshComponent->SetEnableGravity(false);
 
-        // °íÁ¤ »óÅÂ·Î ¼³Á¤
+        // ê³ ì • ìƒíƒœë¡œ ì„¤ì •
         MeshComponent->SetMobility(NewMobility);
 
-        // Ãæµ¹ ¼³Á¤
+        // ì¶©ëŒ ì„¤ì •
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
         MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
         MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
         MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
 
-        // À§Ä¡ ¾÷µ¥ÀÌÆ® °­Á¦
+        // ìœ„ì¹˜ ì—…ë°ì´íŠ¸ ê°•ì œ
         MeshComponent->UpdateComponentToWorld();
     }
 }
@@ -122,14 +131,41 @@ void AItem_Plank::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 
 void AItem_Plank::OnRep_IsBuilt()
 {
+    UE_LOG(LogTemp, Error, TEXT("=== OnRep_IsBuilt CALLED: bIsBuiltPlank = %s ==="),
+        bIsBuiltPlank ? TEXT("TRUE") : TEXT("FALSE"));
+
     if (bIsBuiltPlank)
     {
+        UE_LOG(LogTemp, Error, TEXT("Applying built plank state from OnRep"));
+        // ðŸ†• ApplyBuiltPlankState ëŒ€ì‹  ì§ì ‘ ì„¤ì •
+        if (MeshComponent)
+        {
+            // Mobilityë¥¼ ë¨¼ì € Movableë¡œ ì„¤ì •í•œ í›„ ë¬¼ë¦¬ ë¹„í™œì„±í™”
+            MeshComponent->SetMobility(EComponentMobility::Movable);
+            MeshComponent->SetSimulatePhysics(false);
+            MeshComponent->SetEnableGravity(false);
+
+            // ê·¸ ë‹¤ìŒì— Stationaryë¡œ ë³€ê²½
+            MeshComponent->SetMobility(EComponentMobility::Stationary);
+
+            // ì¶©ëŒ ì„¤ì •
+            MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+            MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
+            MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+            MeshComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap);
+
+            UE_LOG(LogTemp, Log, TEXT("OnRep: Plank physics properly disabled and set to stationary"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Setting plank to physics mode from OnRep"));
         if (MeshComponent)
         {
             MeshComponent->SetMobility(EComponentMobility::Movable);
             MeshComponent->SetSimulatePhysics(true);
+            MeshComponent->SetEnableGravity(true);
             MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-            MeshComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
         }
     }
 }

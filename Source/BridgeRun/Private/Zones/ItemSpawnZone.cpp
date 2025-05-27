@@ -1,9 +1,10 @@
-#include "Zones/ItemSpawnZone.h"
+ï»¿#include "Zones/ItemSpawnZone.h"
 #include "Components/BoxComponent.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Item/Item.h"             
-#include "Item/Item_Gun.h"         
+#include "Item/Item.h"
 #include "Engine/World.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Engine/Engine.h"
 #include "Net/UnrealNetwork.h"
 
 AItemSpawnZone::AItemSpawnZone()
@@ -11,146 +12,50 @@ AItemSpawnZone::AItemSpawnZone()
     PrimaryActorTick.bCanEverTick = false;
     bReplicates = true;
 
-    // ÄÄÆ÷³ÍÆ® »ı¼º
+    // ğŸ†• ë‹¨ìˆœí•œ ì»´í¬ë„ŒíŠ¸ ì„¤ì •
     SpawnVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("SpawnVolume"));
     RootComponent = SpawnVolume;
 
-    // °íÁ¤ Å©±â - ¿¡µğÅÍ¿Í ÇÃ·¹ÀÌ ¸ğµå¿¡¼­ ÀÏÄ¡ÇÏ°Ô ¼³Á¤
-    const FVector FixedSize(200.0f, 200.0f, 20.0f);
-    SpawnVolume->SetBoxExtent(FixedSize);
+    // ğŸ†• ì‘ì€ ìŠ¤í° ì˜ì—­ (2m x 2m x 0.2m)
+    SpawnVolume->SetBoxExtent(FVector(100.0f, 100.0f, 10.0f));
+    SpawnVolume->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-    // ¹Ù´Ú ¸Ş½Ã ÄÄÆ÷³ÍÆ®
+    // ğŸ†• ë°”ë‹¥ ë©”ì‹œ (ì‹œê°ì  í‘œì‹œìš©)
     FloorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FloorMesh"));
     FloorMesh->SetupAttachment(SpawnVolume);
-    FloorMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -5.0f));
+    FloorMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -10.0f));
     FloorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    FloorMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
+    FloorMesh->SetCollisionResponseToAllChannels(ECR_Block);
 
-    // ½ºÅÂÆ½ ¸Ş½Ã ¿¡¼Â ·Îµå ¹× ¼³Á¤
+    // ğŸ†• ê¸°ë³¸ í”Œë ˆì¸ ë©”ì‹œ ì‚¬ìš©
     static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMeshAsset(TEXT("/Engine/BasicShapes/Plane.Plane"));
     if (PlaneMeshAsset.Succeeded())
     {
         FloorMesh->SetStaticMesh(PlaneMeshAsset.Object);
-        // Plane ¸Ş½Ã´Â 100x100 À¯´ÖÀÌ¹Ç·Î º¼·ı Å©±â¿¡ ¸Â°Ô Á¶Á¤
-        FloorMesh->SetRelativeScale3D(FVector(4.0f, 4.0f, 1.0f));
+        FloorMesh->SetRelativeScale3D(FVector(2.0f, 2.0f, 1.0f));  // ì‘ê²Œ ì„¤ì •
     }
 
-    // ½ºÆù Æ÷ÀÎÆ® »ı¼º (4x4 = 16°³)
-    const int32 TotalPoints = 16;
-    for (int i = 0; i < TotalPoints; i++)
-    {
-        FString ComponentName = FString::Printf(TEXT("SpawnPoint%d"), i);
-        USceneComponent* SpawnPoint = CreateDefaultSubobject<USceneComponent>(*ComponentName);
-        SpawnPoint->SetupAttachment(RootComponent);
-        SpawnPoints.Add(SpawnPoint);
-
-        FSpawnPointInfo NewPointInfo;
-        SpawnPointInfos.Add(NewPointInfo);
-    }
-
-    // ½ºÆù Æ÷ÀÎÆ®¸¦ 4x4 ±×¸®µå·Î ¹èÄ¡
-    ArrangeSpawnPointsInGrid(4, 4, 80.0f, 80.0f);
-
-    InitializeSpawnVolume();
-
-    // ±âº»°ª ¼³Á¤
-    SpawnInterval = 5.0f;
-    CurrentPlankCount = 0;
-    CurrentTentCount = 0;
-    CurrentGunCount = 0;
-}
-
-void AItemSpawnZone::ArrangeSpawnPointsInGrid(int32 Rows, int32 Columns, float SpacingX, float SpacingY)
-{
-    if (SpawnPoints.Num() < Rows * Columns) return;
-
-    // Áß¾Ó Á¤·ÄÀ» À§ÇÑ ½ÃÀÛ À§Ä¡ °è»ê
-    float StartX = -((Columns - 1) * SpacingX) / 2.0f;
-    float StartY = -((Rows - 1) * SpacingY) / 2.0f;
-
-    for (int32 Row = 0; Row < Rows; Row++)
-    {
-        for (int32 Column = 0; Column < Columns; Column++)
-        {
-            int32 Index = Row * Columns + Column;
-            if (Index < SpawnPoints.Num())
-            {
-                float X = StartX + Column * SpacingX;
-                float Y = StartY + Row * SpacingY;
-                SpawnPoints[Index]->SetRelativeLocation(FVector(X, Y, 10.0f));
-            }
-        }
-    }
-}
-
-
-void AItemSpawnZone::InitializeSpawnVolume()
-{
-    if (!SpawnVolume) return;
-
-    SpawnVolume->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    SpawnVolume->SetGenerateOverlapEvents(true);
-    SpawnVolume->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
-    SpawnVolume->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Overlap);
-    SpawnVolume->SetIsReplicated(true);
-
-    SpawnVolume->OnComponentBeginOverlap.AddDynamic(this, &AItemSpawnZone::OnOverlapBegin);
-    SpawnVolume->OnComponentEndOverlap.AddDynamic(this, &AItemSpawnZone::OnOverlapEnd);
-}
-
-void AItemSpawnZone::InitializeSpawnPoints()
-{
-    if (SpawnPointInfos.Num() < SpawnPoints.Num())
-    {
-        int32 NumToAdd = SpawnPoints.Num() - SpawnPointInfos.Num();
-        for (int32 i = 0; i < NumToAdd; i++)
-        {
-            FSpawnPointInfo NewInfo;
-            SpawnPointInfos.Add(NewInfo);
-        }
-    }
-
-    for (int32 i = 0; i < SpawnPointInfos.Num(); i++)
-    {
-        SpawnPointInfos[i].bIsOccupied = false;
-        SpawnPointInfos[i].SpawnedItem = nullptr;
-    }
+    // ğŸ†• ê¸°ë³¸ê°’ ì„¤ì •
+    SpawnInterval = 20.0f;
+    MaxItems = 15;
+    SpawnHeight = 100.0f;
+    SpawnRadius = 80.0f;  // ì‘ì€ ë°˜ê²½
+    CurrentItemCount = 0;
 }
 
 void AItemSpawnZone::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-    DOREPLIFETIME(AItemSpawnZone, SpawnedItems);
-    DOREPLIFETIME(AItemSpawnZone, CurrentPlankCount);
-    DOREPLIFETIME(AItemSpawnZone, CurrentTentCount);
-    DOREPLIFETIME(AItemSpawnZone, CurrentGunCount);
+    DOREPLIFETIME(AItemSpawnZone, CurrentItemCount);
 }
 
 void AItemSpawnZone::BeginPlay()
 {
     Super::BeginPlay();
 
-    InitializeSpawnPoints();
-
     if (HasAuthority())
     {
         StartSpawnTimer();
-    }
-}
-
-void AItemSpawnZone::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-    Super::EndPlay(EndPlayReason);
-
-    if (HasAuthority())
-    {
-        CleanupSpawnedItems();
-    }
-
-    if (UWorld* World = GetWorld())
-    {
-        World->GetTimerManager().ClearTimer(SpawnTimer);
     }
 }
 
@@ -160,347 +65,119 @@ void AItemSpawnZone::StartSpawnTimer()
 
     if (UWorld* World = GetWorld())
     {
-        if (!World->GetTimerManager().IsTimerActive(SpawnTimer))
-        {
-            World->GetTimerManager().SetTimer(SpawnTimer, this, &AItemSpawnZone::ServerSpawnItem, SpawnInterval, true);
-        }
+        World->GetTimerManager().SetTimer(
+            SpawnTimer,
+            this,
+            &AItemSpawnZone::ServerSpawnItem,
+            SpawnInterval,
+            true
+        );
     }
 }
 
 void AItemSpawnZone::ServerSpawnItem_Implementation()
 {
-    if (!HasAuthority()) return;
+    if (!HasAuthority() || !CanSpawnMoreItems()) return;
 
-    TSubclassOf<AItem> ItemToSpawn;
-    if (!ValidateSpawnConditions(ItemToSpawn)) return;
+    // ğŸ†• íŒŒê´´ëœ ì•„ì´í…œë“¤ ì •ë¦¬
+    CleanupDestroyedItems();
 
-    UWorld* World = GetWorld();
-    if (!World || !ItemToSpawn) return;
+    if (!CanSpawnMoreItems()) return;
 
-    int32 SpawnPointIndex = FindFreeSpawnPointForItem(ItemToSpawn);
-    if (SpawnPointIndex < 0) return;
+    // ğŸ†• ëœë¤í•˜ê²Œ ì•„ì´í…œ ì„ íƒ
+    if (ItemsToSpawn.Num() == 0) return;
 
-    FVector SpawnLocation = SpawnPoints[SpawnPointIndex]->GetComponentLocation();
-    FRotator SpawnRotation = SpawnPoints[SpawnPointIndex]->GetComponentRotation();
+    int32 RandomIndex = FMath::RandRange(0, ItemsToSpawn.Num() - 1);
+    TSubclassOf<AItem> ItemClass = ItemsToSpawn[RandomIndex];
+
+    // ğŸ†• ëœë¤ ìœ„ì¹˜ì—ì„œ ìŠ¤í°
+    FVector SpawnLocation = GetRandomSpawnLocation();
+    FRotator SpawnRotation = FRotator(0, FMath::RandRange(0, 360), 0);
 
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
     SpawnParams.Owner = this;
 
-    if (AItem* SpawnedItem = World->SpawnActor<AItem>(ItemToSpawn, SpawnLocation, SpawnRotation, SpawnParams))
+    if (AItem* SpawnedItem = GetWorld()->SpawnActor<AItem>(ItemClass, SpawnLocation, SpawnRotation, SpawnParams))
     {
-        ConfigureSpawnedItem(SpawnedItem, SpawnPointIndex);
+        // ğŸ†• ê¸°ë³¸ ì•„ì´í…œ ì„¤ì • (ë¬¼ë¦¬ í™œì„±í™”ë¡œ ìì—°ìŠ¤ëŸ½ê²Œ ë–¨ì–´ì§€ê²Œ)
+        SpawnedItem->SetReplicates(true);
+        SpawnedItem->SetReplicateMovement(true);
 
-        IncrementItemCount(ItemToSpawn);
-
-        SpawnedItems.Add(SpawnedItem);
-        MarkSpawnPointOccupied(SpawnPointIndex, SpawnedItem, true);
-
-        MulticastOnItemSpawned(SpawnedItem, SpawnPointIndex);
-
-        UpdateSpawnState();
-    }
-}
-
-void AItemSpawnZone::ConfigureSpawnedItem(AItem* SpawnedItem, int32 SpawnPointIndex)
-{
-    if (!SpawnedItem) return;
-
-    SpawnedItem->SetReplicates(true);
-    SpawnedItem->SetReplicateMovement(true);
-
-    if (SpawnedItem->MeshComponent)
-    {
-        SpawnedItem->MeshComponent->SetSimulatePhysics(false);
-        SpawnedItem->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    }
-
-    if (AItem_Gun* Gun = Cast<AItem_Gun>(SpawnedItem))
-    {
-        Gun->InitializeAmmo();
-        if (Gun->CollisionComponent)
+        if (SpawnedItem->MeshComponent)
         {
-            Gun->CollisionComponent->SetGenerateOverlapEvents(true);
-        }
-    }
-}
+            // ğŸ†• ë¬¼ë¦¬ í™œì„±í™” - ìì—°ìŠ¤ëŸ½ê²Œ ë–¨ì–´ì ¸ì„œ ìŒ“ì´ê²Œ
+            SpawnedItem->MeshComponent->SetSimulatePhysics(true);
+            SpawnedItem->MeshComponent->SetEnableGravity(true);
+            SpawnedItem->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+            SpawnedItem->MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
 
-int32 AItemSpawnZone::FindFreeSpawnPointForItem(TSubclassOf<AItem> ItemClass) const
-{
-    TArray<int32> CompatiblePoints;
-
-    for (int32 i = 0; i < SpawnPointInfos.Num(); i++)
-    {
-        if (SpawnPointInfos[i].bIsOccupied) continue;
-
-        bool bIsPreferred = !SpawnPointInfos[i].PreferredItemClass ||
-            SpawnPointInfos[i].PreferredItemClass == ItemClass;
-
-        if (bIsPreferred)
-        {
-            return i;
+            // ğŸ†• ë„¤íŠ¸ì›Œí¬ ë¬¼ë¦¬ ë™ê¸°í™”
+            SpawnedItem->MeshComponent->bReplicatePhysicsToAutonomousProxy = true;
         }
 
-        CompatiblePoints.Add(i);
+        CurrentItemCount++;
+        UE_LOG(LogTemp, Log, TEXT("Spawned item at %s, total items: %d"),
+            *SpawnLocation.ToString(), CurrentItemCount);
     }
-
-    if (CompatiblePoints.Num() > 0)
-    {
-        int32 RandomIndex = FMath::RandRange(0, CompatiblePoints.Num() - 1);
-        return CompatiblePoints[RandomIndex];
-    }
-
-    return -1;
 }
 
-bool AItemSpawnZone::ValidateSpawnConditions(TSubclassOf<AItem>& OutItemToSpawn) const
+FVector AItemSpawnZone::GetRandomSpawnLocation() const
 {
-    if (ItemsToSpawn.Num() == 0) return false;
+    // ğŸ†• ì‘ì€ ì›í˜• ì˜ì—­ì—ì„œ ëœë¤ ìœ„ì¹˜ ìƒì„±
+    FVector BaseLocation = GetActorLocation();
 
-    TArray<TSubclassOf<AItem>> SpawnableItems;
+    float RandomAngle = FMath::RandRange(0.0f, 360.0f);
+    float RandomRadius = FMath::RandRange(0.0f, SpawnRadius);
 
-    for (auto ItemClass : ItemsToSpawn)
-    {
-        int32 CurrentCount = GetCurrentCountForItemClass(ItemClass);
-        int32 MaxCount = GetMaxCountForItemClass(ItemClass);
+    float X = RandomRadius * FMath::Cos(FMath::DegreesToRadians(RandomAngle));
+    float Y = RandomRadius * FMath::Sin(FMath::DegreesToRadians(RandomAngle));
 
-        if (CurrentCount < MaxCount)
-        {
-            SpawnableItems.Add(ItemClass);
-        }
-    }
-
-    if (SpawnableItems.Num() == 0) return false;
-
-    int32 RandomIndex = FMath::RandRange(0, SpawnableItems.Num() - 1);
-    OutItemToSpawn = SpawnableItems[RandomIndex];
-
-    return true;
+    return FVector(
+        BaseLocation.X + X,
+        BaseLocation.Y + Y,
+        BaseLocation.Z + SpawnHeight
+    );
 }
 
-int32 AItemSpawnZone::GetCurrentCountForItemClass(TSubclassOf<AItem> ItemClass) const
-{
-    if (ItemClass->GetName().Contains("Plank"))
-    {
-        return CurrentPlankCount;
-    }
-    else if (ItemClass->GetName().Contains("Tent"))
-    {
-        return CurrentTentCount;
-    }
-    else if (ItemClass->GetName().Contains("Gun"))
-    {
-        return CurrentGunCount;
-    }
-
-    return 0;
-}
-
-int32 AItemSpawnZone::GetMaxCountForItemClass(TSubclassOf<AItem> ItemClass) const
-{
-    if (ItemClass->GetName().Contains("Plank"))
-    {
-        return MaxPlankCount;
-    }
-    else if (ItemClass->GetName().Contains("Tent"))
-    {
-        return MaxTentCount;
-    }
-    else if (ItemClass->GetName().Contains("Gun"))
-    {
-        return MaxGunCount;
-    }
-
-    return 0;
-}
-
-void AItemSpawnZone::IncrementItemCount(TSubclassOf<AItem> ItemClass)
-{
-    if (ItemClass->GetName().Contains("Plank"))
-    {
-        CurrentPlankCount++;
-    }
-    else if (ItemClass->GetName().Contains("Tent"))
-    {
-        CurrentTentCount++;
-    }
-    else if (ItemClass->GetName().Contains("Gun"))
-    {
-        CurrentGunCount++;
-    }
-}
-
-void AItemSpawnZone::DecrementItemCount(TSubclassOf<AItem> ItemClass)
-{
-    if (ItemClass->GetName().Contains("Plank"))
-    {
-        if (CurrentPlankCount > 0) CurrentPlankCount--;
-    }
-    else if (ItemClass->GetName().Contains("Tent"))
-    {
-        if (CurrentTentCount > 0) CurrentTentCount--;
-    }
-    else if (ItemClass->GetName().Contains("Gun"))
-    {
-        if (CurrentGunCount > 0) CurrentGunCount--;
-    }
-}
-
-void AItemSpawnZone::MarkSpawnPointOccupied(int32 Index, AItem* Item, bool bOccupied)
-{
-    if (Index >= 0 && Index < SpawnPointInfos.Num())
-    {
-        SpawnPointInfos[Index].bIsOccupied = bOccupied;
-        SpawnPointInfos[Index].SpawnedItem = bOccupied ? Item : nullptr;
-    }
-}
-
-bool AItemSpawnZone::IsSpawnPointOccupied(int32 Index) const
-{
-    if (Index >= 0 && Index < SpawnPointInfos.Num())
-    {
-        return SpawnPointInfos[Index].bIsOccupied;
-    }
-    return true;
-}
-
-int32 AItemSpawnZone::GetSpawnPointIndexForPosition(const FVector& Position) const
-{
-    float ClosestDistSq = FLT_MAX;
-    int32 ClosestIndex = -1;
-
-    for (int32 i = 0; i < SpawnPoints.Num(); i++)
-    {
-        float DistSq = FVector::DistSquared(Position, SpawnPoints[i]->GetComponentLocation());
-        if (DistSq < ClosestDistSq)
-        {
-            ClosestDistSq = DistSq;
-            ClosestIndex = i;
-        }
-    }
-
-    return ClosestIndex;
-}
-
-void AItemSpawnZone::MulticastOnItemSpawned_Implementation(AItem* SpawnedItem, int32 SpawnPointIndex)
-{
-    if (!SpawnedItem) return;
-
-    if (SpawnedItem->CollisionComponent)
-    {
-        SpawnedItem->CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    }
-}
-
-void AItemSpawnZone::MulticastOnItemRemoved_Implementation(AItem* RemovedItem, int32 SpawnPointIndex)
-{
-    if (!RemovedItem) return;
-
-    SpawnedItems.Remove(RemovedItem);
-
-    if (SpawnPointIndex >= 0 && SpawnPointIndex < SpawnPointInfos.Num())
-    {
-        SpawnPointInfos[SpawnPointIndex].bIsOccupied = false;
-        SpawnPointInfos[SpawnPointIndex].SpawnedItem = nullptr;
-    }
-}
-
-void AItemSpawnZone::OnRep_SpawnedItems()
-{
-    UpdateSpawnState();
-}
-
-void AItemSpawnZone::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent,
-    AActor* OtherActor,
-    UPrimitiveComponent* OtherComp,
-    int32 OtherBodyIndex,
-    bool bFromSweep,
-    const FHitResult& SweepResult)
+void AItemSpawnZone::CleanupDestroyedItems()
 {
     if (!HasAuthority()) return;
 
-    if (AItem* Item = Cast<AItem>(OtherActor))
+    // ğŸ†• ë” ì•ˆì „í•œ ë°©ì‹ìœ¼ë¡œ ë³€ê²½
+    int32 ValidItemCount = 0;
+    FVector CenterLocation = GetActorLocation();
+    float CheckRadius = SpawnRadius + 50.0f;
+
+    // ğŸ†• null ì²´í¬ë¥¼ ê°•í™”í•œ ì•ˆì „í•œ ë°©ì‹
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    for (TActorIterator<AItem> ActorItr(World); ActorItr; ++ActorItr)
     {
-        if (!SpawnedItems.Contains(Item))
+        AItem* Item = *ActorItr;
+
+        // ğŸ†• ë” ì—„ê²©í•œ ìœ íš¨ì„± ê²€ì‚¬
+        if (!Item || !IsValid(Item) || Item->IsPendingKill())
         {
-            SpawnedItems.Add(Item);
+            continue;
+        }
 
-            TSubclassOf<AItem> ItemClass = Item->GetClass();
-            IncrementItemCount(ItemClass);
+        // ğŸ†• ì•ˆì „í•œ ê±°ë¦¬ ê³„ì‚°
+        FVector ItemLocation = Item->GetActorLocation();
+        float Distance = FVector::Dist(ItemLocation, CenterLocation);
 
-            UpdateSpawnState();
+        if (Distance <= CheckRadius)
+        {
+            ValidItemCount++;
         }
     }
+
+    CurrentItemCount = FMath::Max(0, ValidItemCount);
+    UE_LOG(LogTemp, Log, TEXT("Cleanup: Found %d valid items in spawn zone"), ValidItemCount);
 }
 
-void AItemSpawnZone::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent,
-    AActor* OtherActor,
-    UPrimitiveComponent* OtherComp,
-    int32 OtherBodyIndex)
+bool AItemSpawnZone::CanSpawnMoreItems() const
 {
-    if (!HasAuthority()) return;
-
-    if (AItem* Item = Cast<AItem>(OtherActor))
-    {
-        if (SpawnedItems.Contains(Item))
-        {
-            int32 SpawnPointIndex = GetSpawnPointIndexForPosition(Item->GetActorLocation());
-
-            if (SpawnPointIndex >= 0)
-            {
-                MarkSpawnPointOccupied(SpawnPointIndex, nullptr, false);
-            }
-
-            TSubclassOf<AItem> ItemClass = Item->GetClass();
-            DecrementItemCount(ItemClass);
-
-            MulticastOnItemRemoved(Item, SpawnPointIndex);
-            UpdateSpawnState();
-        }
-    }
-}
-
-void AItemSpawnZone::CleanupSpawnedItems()
-{
-    for (AItem* Item : SpawnedItems)
-    {
-        if (Item)
-        {
-            Item->Destroy();
-        }
-    }
-
-    SpawnedItems.Empty();
-    CurrentPlankCount = 0;
-    CurrentTentCount = 0;
-    CurrentGunCount = 0;
-
-    for (int32 i = 0; i < SpawnPointInfos.Num(); i++)
-    {
-        SpawnPointInfos[i].bIsOccupied = false;
-        SpawnPointInfos[i].SpawnedItem = nullptr;
-    }
-}
-
-void AItemSpawnZone::UpdateSpawnState()
-{
-    if (!HasAuthority()) return;
-
-    bool bShouldSpawn = CurrentPlankCount < MaxPlankCount ||
-        CurrentTentCount < MaxTentCount ||
-        CurrentGunCount < MaxGunCount;
-
-    if (bShouldSpawn)
-    {
-        StartSpawnTimer();
-    }
-    else
-    {
-        if (UWorld* World = GetWorld())
-        {
-            World->GetTimerManager().ClearTimer(SpawnTimer);
-        }
-    }
-
-    ForceNetUpdate();
+    return CurrentItemCount < MaxItems;
 }
