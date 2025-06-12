@@ -119,8 +119,7 @@ gantt
 
 ## 🏆 수상 & 인정
 
-[![공모전](https://img.shields.io/badge/🏆_게임공모전-출품예정-gold?style=flat-square)](#)
-[![포트폴리오](https://img.shields.io/badge/📁_포트폴리오-Featured-blue?style=flat-square)](#)
+
 
 ---
 
@@ -129,13 +128,5 @@ gantt
 📧 **Email**: team@bridgerun.game  
 🌐 **Website**: www.bridgerun.game  
 💬 **Discord**: BridgeRun 개발팀
-
----
-
-**⭐ 이 프로젝트가 마음에 드셨다면 Star를 눌러주세요!**
-
-*Built with ❤️ using Unreal Engine 5*
-
-</div>
 
 ---
