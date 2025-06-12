@@ -47,7 +47,7 @@
 </td>
 <td width="30%" align="center">
 
-![시민](./assets/images/character/BR_Citizen.png)
+![시민](../Images/Design_img/character/BR_Citizen.png)
 
 *균형잡힌 올라운더*
 
@@ -86,7 +86,7 @@
 </td>
 <td width="30%" align="center">
 
-![건설가](./assets/images/character/BR_Builder.png)
+![건설가](../Images/Design_img/character/BR_Builder.png)
 
 *판자 건설 마스터*
 
@@ -125,7 +125,7 @@
 </td>
 <td width="30%" align="center">
 
-![직물사](./assets/images/character/BR_TextileYarn.png)
+![직물사](../Images/Design_img/character/BR_TextileYarn.png)
 
 *방어 전략가*
 
@@ -164,7 +164,7 @@
 </td>
 <td width="30%" align="center">
 
-![저격수](./assets/images/character/BR_Sniper.png)
+![저격수](../Images/Design_img/character/BR_Sniper.png)
 
 *원거리 지원 전문가*
 
@@ -202,7 +202,7 @@
 </td>
 <td width="30%" align="center">
 
-![러너](./assets/images/character/BR_Runner.png)
+![러너](../Images/Design_img/character/BR_Runner.png)
 
 *스피드 전문가*
 
@@ -241,7 +241,7 @@
 </td>
 <td width="30%" align="center">
 
-![철거반](./assets/images/character/BR_Demolition.png)
+![철거반](../Images/Design_img/character/BR_Demolition.png)
 
 *파괴 전문가*
 
@@ -278,7 +278,7 @@
 </td>
 <td width="30%" align="center">
 
-![방화범](./assets/images/character/BR_Firebug.png)
+![방화범](../Images/Design_img/character/BR_Firebug.png)
 
 *화염 전문가*
 
@@ -315,7 +315,7 @@
 </td>
 <td width="30%" align="center">
 
-![트래퍼](./assets/images/character/BR_Trapper.png)
+![트래퍼](../Images/Design_img/character/BR_Trapper.png)
 
 *함정 전문가*
 
@@ -352,7 +352,7 @@
 </td>
 <td width="30%" align="center">
 
-![연막병](./assets/images/character/BR_Smokescreen.png)
+![연막병](../Images/Design_img/character/BR_Smokescreen.png)
 
 *은폐 전문가*
 
