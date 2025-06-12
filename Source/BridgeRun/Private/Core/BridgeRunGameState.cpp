@@ -1,249 +1,406 @@
 // Copyright BridgeRun Game, Inc. All Rights Reserved.
 #include "Core/BridgeRunGameState.h"
 #include "Net/UnrealNetwork.h"
-#include "GameFramework/GameMode.h"
 
 ABridgeRunGameState::ABridgeRunGameState()
 {
-    // 기본 4팀 생성 (문서에 따라 3-4팀)
-    Teams.Reserve(4);
-    for (int32 i = 0; i < 4; i++)
-    {
-        FBasicTeamInfo NewTeam;
-        NewTeam.TeamId = i;
-        NewTeam.Score = 0;
-        NewTeam.TotalScore = 0;
-        NewTeam.CurrentRank = i + 1;
-        NewTeam.FirstPlaceCount = 0;
-        Teams.Add(NewTeam);
-    }
+    // 기본값 설정
+    CurrentPhase = EGamePhase::Lobby;
+    PhaseTimeRemaining = 0.0f;
+    CurrentRoundNumber = 1;
 
-    // 기본 경기 시간 설정 (4분)
-    MatchTime = 240.0f;
-
-    // 토템 값 초기화
-    TotemValues.Add(ETotemType::Normal, 10);
-    TotemValues.Add(ETotemType::Gold, 20);
-    TotemValues.Add(ETotemType::Diamond, 30);
-
-    // 토템존 배율 초기화
-    ZoneMultipliers.Add(ETotemZoneType::Team, 1.0f);     // 기본 배율
-    ZoneMultipliers.Add(ETotemZoneType::Neutral, 1.5f);  // 중립존 배율
-
-    // 등수별 점수 초기화
-    RankPoints.Add(1, 5);  // 1등: 5점
-    RankPoints.Add(2, 2);  // 2등: 2점
-    RankPoints.Add(3, -1); // 3등: -1점
-    RankPoints.Add(4, -2); // 4등: -2점
-
-    // 첫 라운드 목표 점수 설정
-    RoundTargetScore = 40;
+    // 팀 데이터는 초기화만 하고, 실제 팀은 나중에 동적으로 추가
+    TeamVictoryPoints.Empty();
 }
 
 void ABridgeRunGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    // 복제할 속성 등록
-    DOREPLIFETIME(ABridgeRunGameState, Teams);
-    DOREPLIFETIME(ABridgeRunGameState, MatchTime);
-    DOREPLIFETIME(ABridgeRunGameState, CurrentRound);
-    DOREPLIFETIME(ABridgeRunGameState, bIsInPreparationPhase);
-    DOREPLIFETIME(ABridgeRunGameState, bGoldenTimeActive);
-    DOREPLIFETIME(ABridgeRunGameState, RoundTargetScore);
-    DOREPLIFETIME(ABridgeRunGameState, bGameOver);
-    DOREPLIFETIME(ABridgeRunGameState, WinnerTeamId);
+    // 네트워크 복제할 변수들 등록
+    DOREPLIFETIME(ABridgeRunGameState, CurrentPhase);
+    DOREPLIFETIME(ABridgeRunGameState, PhaseTimeRemaining);
+    DOREPLIFETIME(ABridgeRunGameState, CurrentRoundNumber);
+    DOREPLIFETIME(ABridgeRunGameState, TeamVictoryPoints);
+    DOREPLIFETIME(ABridgeRunGameState, bGameStarted);
 }
 
-void ABridgeRunGameState::UpdateTeamScore_Implementation(int32 TeamId, int32 NewScore)
+void ABridgeRunGameState::OnRep_GameStarted()
 {
-    // 유효한 팀 ID인지 확인
-    if (TeamId >= 0 && TeamId < Teams.Num())
+    if (bGameStarted)
     {
-        Teams[TeamId].Score = NewScore;
-
-        // 점수가 목표 점수에 도달하면 라운드 종료 신호
-        if (NewScore >= RoundTargetScore && !bIsInPreparationPhase && HasAuthority())
-        {
-            CompleteRound();
-        }
+        UE_LOG(LogTemp, Log, TEXT("Creating team score widgets for %d teams"), TeamVictoryPoints.Num());
+        BP_CreateTeamScoreWidgets();
     }
 }
-
-void ABridgeRunGameState::CompleteRound_Implementation()
+void ABridgeRunGameState::StartGameWithTeams(const TArray<int32>& ActiveTeamIDs)
 {
     if (!HasAuthority()) return;
 
-    // 라운드 종료 처리
-    bIsInPreparationPhase = true;
+    // 팀 초기화
+    InitializeTeams(ActiveTeamIDs);
 
-    // 팀 등수 계산
-    CalculateTeamRanks();
+    // 게임 시작 상태로 변경
+    bGameStarted = true;
 
-    // 등수에 따른 점수 부여
-    AssignRankPoints();
+    // ★ 서버에서도 OnRep_GameStarted 로직을 수동으로 호출
+    OnRep_GameStarted();
 
-    // 다음 라운드 준비
-    CurrentRound++;
+    // 게임 페이즈도 변경
+    SetCurrentPhase(EGamePhase::StrategyTime);
 
-    // 라운드별 목표 점수 및 설정 변경
-    if (CurrentRound == 2)
+    UE_LOG(LogTemp, Log, TEXT("Game started with %d teams"), ActiveTeamIDs.Num());
+}
+
+// === Setter 함수들 ===
+
+void ABridgeRunGameState::SetCurrentPhase(EGamePhase NewPhase)
+{
+    if (HasAuthority()) // 서버에서만 실행
     {
-        RoundTargetScore = 45; // 2라운드 목표 점수
+        CurrentPhase = NewPhase;
+        UE_LOG(LogTemp, Log, TEXT("Game Phase changed to: %d"), (int32)NewPhase);
     }
-    else if (CurrentRound == 3)
+}
+
+void ABridgeRunGameState::SetPhaseTimeRemaining(float NewTime)
+{
+    if (HasAuthority())
     {
-        RoundTargetScore = 50; // 3라운드 목표 점수
+        PhaseTimeRemaining = FMath::Max(0.0f, NewTime); // 음수 방지
     }
-    else if (CurrentRound > 3)
+}
+
+void ABridgeRunGameState::SetCurrentRoundNumber(int32 NewRound)
+{
+    if (HasAuthority())
     {
-        // 모든 라운드 종료, 최종 승자 결정
-        DetermineWinner();
+        CurrentRoundNumber = FMath::Max(1, NewRound); // 최소 1라운드
+        UE_LOG(LogTemp, Log, TEXT("Round changed to: %d"), CurrentRoundNumber);
+    }
+}
+
+// === UI 표시용 함수들 ===
+
+FString ABridgeRunGameState::GetFormattedTime() const
+{
+    if (PhaseTimeRemaining < 0.0f) return TEXT("00:00"); // 안전장치
+
+    int32 Minutes = (int32)PhaseTimeRemaining / 60;
+    int32 Seconds = (int32)PhaseTimeRemaining % 60;
+    return FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds);
+}
+
+FString ABridgeRunGameState::GetRoundText() const
+{
+    return FString::Printf(TEXT("Round %d"), CurrentRoundNumber);
+}
+
+FString ABridgeRunGameState::GetPhaseText() const
+{
+    switch (CurrentPhase)
+    {
+    case EGamePhase::StrategyTime:
+        return TEXT("Strategy Time");
+    case EGamePhase::RoundPlaying:
+        return TEXT("Round Playing");
+    case EGamePhase::RoundEnd:
+        return TEXT("Round End");
+    case EGamePhase::GameEnd:
+        return TEXT("Game End");
+    default:
+        return TEXT("Lobby");
+    }
+}
+
+// === 팀 점수 관련 함수들 ===
+
+void ABridgeRunGameState::UpdateTeamScore(int32 TeamID, int32 NewScore)
+{
+    if (!HasAuthority()) return;
+
+    // 해당 TeamID를 가진 팀 찾기
+    for (FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TeamID == TeamID)
+        {
+            Team.CurrentRoundScore = FMath::Max(0, NewScore); // 음수 방지
+            UE_LOG(LogTemp, Log, TEXT("Team %d score updated to: %d"), TeamID, NewScore);
+            return;
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Team %d not found for score update"), TeamID);
+}
+
+int32 ABridgeRunGameState::GetTeamCurrentScore(int32 TeamID) const
+{
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TeamID == TeamID)
+        {
+            return Team.CurrentRoundScore;
+        }
+    }
+    return 0;
+}
+
+// === 팀 관리 함수들 ===
+
+void ABridgeRunGameState::InitializeTeams(const TArray<int32>& ActiveTeamIDs)
+{
+    if (!HasAuthority()) return;
+
+    // 기존 팀 데이터 초기화
+    TeamVictoryPoints.Empty();
+    TeamVictoryPoints.Reserve(ActiveTeamIDs.Num());
+
+    // 활성화된 팀만 추가
+    for (int32 TeamID : ActiveTeamIDs)
+    {
+        FTeamVictoryData NewTeam;
+        NewTeam.TeamID = TeamID;
+        NewTeam.CurrentRoundScore = 0;
+        NewTeam.TotalVictoryPoints = 0;
+        TeamVictoryPoints.Add(NewTeam);
+
+        UE_LOG(LogTemp, Log, TEXT("Team %d initialized"), TeamID);
+    }
+
+    // 네트워크 업데이트 강제
+    ForceNetUpdate();
+}
+
+FString ABridgeRunGameState::GetTeamName(int32 TeamID) const
+{
+    switch (TeamID)
+    {
+    case 0: return TEXT("Red Team");
+    case 1: return TEXT("Blue Team");
+    case 2: return TEXT("Yellow Team");
+    case 3: return TEXT("Green Team");
+    default: return FString::Printf(TEXT("Team %d"), TeamID);
+    }
+}
+
+FSlateColor ABridgeRunGameState::GetTeamColor(int32 TeamID) const
+{
+    switch (TeamID)
+    {
+    case 0: return FSlateColor(FLinearColor::Red);        // 빨강
+    case 1: return FSlateColor(FLinearColor::Blue);       // 파랑
+    case 2: return FSlateColor(FLinearColor::Yellow);     // 노랑
+    case 3: return FSlateColor(FLinearColor::Green);      // 초록
+    default: return FSlateColor(FLinearColor::White);
+    }
+}
+
+bool ABridgeRunGameState::IsTeamActive(int32 TeamID) const
+{
+    // TeamVictoryPoints 배열에 해당 TeamID가 있는지 확인
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TeamID == TeamID)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+int32 ABridgeRunGameState::GetActiveTeamCount() const
+{
+    return TeamVictoryPoints.Num();
+}
+
+TArray<int32> ABridgeRunGameState::GetActiveTeamIDs() const
+{
+    TArray<int32> ActiveIDs;
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        ActiveIDs.Add(Team.TeamID);
+    }
+    return ActiveIDs;
+}
+
+// === 순위 관련 함수들 ===
+
+TArray<int32> ABridgeRunGameState::GetTeamRankings() const
+{
+    TArray<FTeamVictoryData> SortedTeams = TeamVictoryPoints;
+
+    // 승점 순으로 정렬 (내림차순)
+    SortedTeams.Sort([](const FTeamVictoryData& A, const FTeamVictoryData& B) {
+        return A.TotalVictoryPoints > B.TotalVictoryPoints;
+        });
+
+    TArray<int32> Rankings;
+    for (const FTeamVictoryData& Team : SortedTeams)
+    {
+        Rankings.Add(Team.TeamID);
+    }
+
+    return Rankings;
+}
+
+int32 ABridgeRunGameState::GetTeamRank(int32 TeamID) const
+{
+    TArray<int32> Rankings = GetTeamRankings();
+    int32 RankIndex = Rankings.Find(TeamID);
+    return (RankIndex != INDEX_NONE) ? RankIndex + 1 : 0; // 0-based를 1-based로 변환
+}
+
+bool ABridgeRunGameState::IsGameTied() const
+{
+    if (TeamVictoryPoints.Num() < 2)
+        return false;
+
+    // 최고 승점 찾기
+    int32 HighestScore = INT32_MIN;
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TotalVictoryPoints > HighestScore)
+        {
+            HighestScore = Team.TotalVictoryPoints;
+        }
+    }
+
+    // 최고 승점을 가진 팀이 몇 개인지 확인
+    int32 TiedCount = 0;
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TotalVictoryPoints == HighestScore)
+        {
+            TiedCount++;
+        }
+    }
+
+    return TiedCount > 1;
+}
+
+TArray<int32> ABridgeRunGameState::GetWinningTeams() const
+{
+    TArray<int32> WinningTeams;
+    if (TeamVictoryPoints.Num() == 0)
+        return WinningTeams;
+
+    // 최고 승점 찾기
+    int32 HighestScore = INT32_MIN;
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TotalVictoryPoints > HighestScore)
+        {
+            HighestScore = Team.TotalVictoryPoints;
+        }
+    }
+
+    // 최고 승점을 가진 모든 팀 찾기
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TotalVictoryPoints == HighestScore)
+        {
+            WinningTeams.Add(Team.TeamID);
+        }
+    }
+
+    return WinningTeams;
+}
+
+FString ABridgeRunGameState::GetRankDisplayText(int32 TeamID) const
+{
+    int32 MyRank = GetTeamRank(TeamID);
+    if (MyRank == 0)
+    {
+        return TEXT("Rank Unknown");
+    }
+
+    // 동점 확인
+    int32 MyPoints = GetTeamVictoryPoints(TeamID);
+    int32 SameRankCount = 0;
+
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TotalVictoryPoints == MyPoints)
+        {
+            SameRankCount++;
+        }
+    }
+
+    if (SameRankCount > 1)
+    {
+        return FString::Printf(TEXT("%d Place (Tied)"), MyRank);
+    }
+    else
+    {
+        return FString::Printf(TEXT("%d Place"), MyRank);
+    }
+}
+
+int32 ABridgeRunGameState::GetTeamVictoryPoints(int32 TeamID) const
+{
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TeamID == TeamID)
+        {
+            return Team.TotalVictoryPoints;
+        }
+    }
+    return 0;
+}
+
+void ABridgeRunGameState::CalculateRoundVictoryPoints()
+{
+    if (!HasAuthority())
         return;
-    }
 
-    // 라운드 종료 후 각 팀 점수 초기화
-    for (FBasicTeamInfo& Team : Teams)
-    {
-        Team.Score = 0;
-    }
-
-    // 준비 시간 후 다음 라운드 시작
-    FTimerHandle TimerHandle;
-    GetWorld()->GetTimerManager().SetTimer(
-        TimerHandle,
-        [this]() { StartRound(); },
-        PreparationTime,
-        false
-    );
-
-    // 경기 시간 리셋
-    MatchTime = RoundTime;
-}
-
-void ABridgeRunGameState::StartRound_Implementation()
-{
-    if (!HasAuthority()) return;
-
-    // 라운드 시작
-    bIsInPreparationPhase = false;
-    bGoldenTimeActive = false;
-
-    // 3라운드에서 골든타임 타이머 설정
-    if (CurrentRound == 3)
-    {
-        // 라운드 종료 1분 전에 골든타임 활성화
-        FTimerHandle GoldenTimeHandle;
-        GetWorld()->GetTimerManager().SetTimer(
-            GoldenTimeHandle,
-            [this]() { ActivateGoldenTime(); },
-            RoundTime - 60.0f, // 1분 전
-            false
-        );
-    }
-}
-
-void ABridgeRunGameState::ActivateGoldenTime_Implementation()
-{
-    if (!HasAuthority()) return;
-
-    // 골든타임 활성화 (3라운드 마지막 1분)
-    bGoldenTimeActive = true;
-}
-
-void ABridgeRunGameState::AddTotemScore(int32 TeamId, ETotemType TotemType, ETotemZoneType ZoneType, float TimeHeld)
-{
-    if (!HasAuthority() || TeamId < 0 || TeamId >= Teams.Num())
-        return;
-
-    // 토템 기본 가치 가져오기
-    int32 BaseValue = TotemValues[TotemType];
-
-    // 토템존 배율 가져오기
-    float ZoneMultiplier = ZoneMultipliers[ZoneType];
-
-    // 유지 시간에 따른 추가 배율
-    float TimeMultiplier = 1.0f;
-    if (TimeHeld >= 60.0f)
-    {
-        TimeMultiplier = 2.0f; // 60초 이상 유지 시 2배
-    }
-    else if (TimeHeld >= 30.0f)
-    {
-        TimeMultiplier = 1.5f; // 30초 이상 유지 시 1.5배
-    }
-
-    // 골든타임 배율 적용
-    float GoldenTimeMultiplier = bGoldenTimeActive ? 2.0f : 1.0f;
-
-    // 최종 점수 계산
-    int32 FinalScore = FMath::RoundToInt(BaseValue * ZoneMultiplier * TimeMultiplier * GoldenTimeMultiplier);
-
-    // 팀 점수 업데이트
-    int32 NewScore = Teams[TeamId].Score + FinalScore;
-    UpdateTeamScore(TeamId, NewScore);
-}
-
-void ABridgeRunGameState::CalculateTeamRanks()
-{
-    // 점수 기준으로 팀 정렬
-    Teams.Sort([](const FBasicTeamInfo& A, const FBasicTeamInfo& B) {
-        return A.Score > B.Score; // 내림차순 정렬
+    // 현재 라운드 점수를 기준으로 팀 정렬
+    TArray<FTeamVictoryData> SortedTeams = TeamVictoryPoints;
+    SortedTeams.Sort([](const FTeamVictoryData& A, const FTeamVictoryData& B) {
+        return A.CurrentRoundScore > B.CurrentRoundScore;
         });
 
-    // 등수 할당
-    for (int32 i = 0; i < Teams.Num(); i++)
-    {
-        Teams[i].CurrentRank = i + 1;
+    // 브릿지런 승점 시스템: 1등(+5), 2등(+2), 3등(-1), 4등(-2)
+    TArray<int32> VictoryPointsTable = { 5, 2, -1, -2 };
 
-        // 1등 카운트 증가
-        if (i == 0)
-        {
-            Teams[i].FirstPlaceCount++;
-        }
-    }
-}
-
-void ABridgeRunGameState::AssignRankPoints()
-{
-    // 각 팀에 등수별 점수 부여
-    for (FBasicTeamInfo& Team : Teams)
+    for (int32 i = 0; i < SortedTeams.Num(); i++)
     {
-        // 등수별 점수 가져오기
-        int32* Points = RankPoints.Find(Team.CurrentRank);
-        if (Points)
+        int32 TeamID = SortedTeams[i].TeamID;
+        int32 PointsToAdd = (i < VictoryPointsTable.Num()) ? VictoryPointsTable[i] : -2;
+
+        // 해당 팀의 승점 업데이트
+        for (FTeamVictoryData& Team : TeamVictoryPoints)
         {
-            // 누적 점수에 추가
-            Team.TotalScore += *Points;
+            if (Team.TeamID == TeamID)
+            {
+                Team.TotalVictoryPoints += PointsToAdd;
+                Team.RoundResults.Add(i + 1); // 이번 라운드 순위 저장
+
+                UE_LOG(LogTemp, Log, TEXT("Team %d: Round rank %d, gained %d victory points, total: %d"),
+                    TeamID, i + 1, PointsToAdd, Team.TotalVictoryPoints);
+                break;
+            }
         }
     }
 
-    // 누적 점수로 팀 재정렬
-    Teams.Sort([](const FBasicTeamInfo& A, const FBasicTeamInfo& B) {
-        return A.TotalScore > B.TotalScore; // 내림차순 정렬
-        });
+    // 네트워크 업데이트 강제
+    ForceNetUpdate();
+
+    UE_LOG(LogTemp, Log, TEXT("Round victory points calculated for %d teams"), SortedTeams.Num());
 }
 
-void ABridgeRunGameState::DetermineWinner()
+bool ABridgeRunGameState::ShouldEndGame() const
 {
-    if (!HasAuthority()) return;
+    return CurrentRoundNumber >= 3 && CurrentPhase == EGamePhase::RoundEnd;
+}
 
-    // 게임 종료 설정
-    bGameOver = true;
-
-    // 최종 점수로 팀 정렬
-    Teams.Sort([](const FBasicTeamInfo& A, const FBasicTeamInfo& B) {
-        // 점수가 같으면 1등 횟수로 비교
-        if (A.TotalScore == B.TotalScore)
-        {
-            return A.FirstPlaceCount > B.FirstPlaceCount;
-        }
-        return A.TotalScore > B.TotalScore; // 내림차순 정렬
-        });
-
-    // 1등 팀을 승자로 설정
-    if (Teams.Num() > 0)
+void ABridgeRunGameState::MulticastGameOverUI_Implementation()
+{
+    // 각 클라이언트에서 실행됨
+    if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
     {
-        WinnerTeamId = Teams[0].TeamId;
+        if (PC->IsLocalController())
+        {
+            ShowGameOverUIEvent(); // 블루프린트 이벤트
+        }
     }
 }

@@ -108,6 +108,12 @@ void AItem_Trophy::PickUp_Implementation(ACharacter* Character)
         int32 PlayerTeamID = CitizenCharacter->TeamID;
         OwningTeamID = PlayerTeamID;
 
+        // ?? 새로 추가: 트로피를 가져온 플레이어 저장
+        TrophyBringer = Cast<APlayerController>(CitizenCharacter->GetController());
+
+        UE_LOG(LogTemp, Log, TEXT("Trophy picked up by player %s (Team %d)"),
+            TrophyBringer ? *TrophyBringer->GetName() : TEXT("Unknown"), PlayerTeamID);
+
         // 팀 머티리얼 적용
         MulticastSetTeamMaterial(PlayerTeamID);
     }
@@ -123,6 +129,7 @@ void AItem_Trophy::PickUp_Implementation(ACharacter* Character)
     // 네트워크 동기화를 위한 상태 업데이트
     ForceNetUpdate();
 }
+
 
 void AItem_Trophy::Drop_Implementation()
 {

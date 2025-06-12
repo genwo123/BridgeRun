@@ -1,249 +1,537 @@
-// Copyright BridgeRun Game, Inc. All Rights Reserved.
-// ÄÚ¾î ¿£Áø Çì´õ
+ï»¿// Copyright BridgeRun Game, Inc. All Rights Reserved.
 #include "Core/BridgeRunGameMode.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Net/UnrealNetwork.h"
 
-// °ÔÀÓ ÇÁ·¹ÀÓ¿öÅ© Çì´õ
+// ê²Œì„ í”„ë ˆì„ì›Œí¬ í—¤ë”
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/PlayerState.h"
 
-// ºê¸´Áö·± °ÔÀÓ Çì´õ
+// ë¸Œë¦¿ì§€ëŸ° ê²Œì„ í—¤ë”
 #include "Core/BridgeRunGameInstance.h"
 #include "Core/BridgeRunPlayerState.h"
 #include "Core/TeamManagerComponent.h"
+#include "Core/BridgeRunGameState.h"
 #include "Characters/Citizen.h"
 
 ABridgeRunGameMode::ABridgeRunGameMode()
 {
-    // ³×Æ®¿öÅ© È°¼ºÈ­
+    // ë„¤íŠ¸ì›Œí¬ í™œì„±í™”
     bReplicates = true;
 
-    // ±âº» Ä³¸¯ÅÍ Å¬·¡½º ¼³Á¤
+    // ê¸°ë³¸ ìºë¦­í„° í´ë˜ìŠ¤ ì„¤ì •
     static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/BP/BP_Citizen"));
     if (PlayerPawnBPClass.Class != NULL)
     {
         DefaultPawnClass = PlayerPawnBPClass.Class;
     }
 
-    // Ä¿½ºÅÒ PlayerState Å¬·¡½º ¼³Á¤
+    // ì»¤ìŠ¤í…€ PlayerState í´ë˜ìŠ¤ ì„¤ì •
     PlayerStateClass = ABridgeRunPlayerState::StaticClass();
 
-    // ÆÀ °ü¸® ÄÄÆ÷³ÍÆ® »ı¼º
+    // íŒ€ ê´€ë¦¬ ì»´í¬ë„ŒíŠ¸ ìƒì„±
     TeamManagerComponent = CreateDefaultSubobject<UTeamManagerComponent>(TEXT("TeamManager"));
+
+    // ê¸°ë³¸ 3ë¼ìš´ë“œ ì„¤ì • (ê°ê° 3ë¶„)
+    RoundSettingsArray.Add(FRoundSettings(180.0f)); // ë¼ìš´ë“œ 1: 3ë¶„
+    RoundSettingsArray.Add(FRoundSettings(180.0f)); // ë¼ìš´ë“œ 2: 3ë¶„  
+    RoundSettingsArray.Add(FRoundSettings(180.0f)); // ë¼ìš´ë“œ 3: 3ë¶„
 }
 
 void ABridgeRunGameMode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    DOREPLIFETIME(ABridgeRunGameMode, CurrentGameState);
-    DOREPLIFETIME(ABridgeRunGameMode, CurrentRound);
-    DOREPLIFETIME(ABridgeRunGameMode, RoundTimeRemaining);
-    DOREPLIFETIME(ABridgeRunGameMode, bJobSystemActive);
+    // ê¸°ì¡´ ë³µì œ ì†ì„±ë“¤ì€ ì œê±°í•˜ê³  ìƒˆë¡œìš´ ì‹œìŠ¤í…œì€ GameStateì—ì„œ ê´€ë¦¬
+}
+
+// BridgeRunGameMode.cpp - InitializeActiveTeams í•¨ìˆ˜ ìˆ˜ì •
+
+void ABridgeRunGameMode::InitializeActiveTeams()
+{
+    if (!HasAuthority()) return;
+
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState)
+    {
+        UE_LOG(LogTemp, Error, TEXT("GameState is null in InitializeActiveTeams"));
+        return;
+    }
+
+    // â˜… ê°•ì œ íŒ€ í• ë‹¹ ì œê±° - PlayerStateì—ì„œ ì‹¤ì œ ì‚¬ìš© ì¤‘ì¸ íŒ€ë§Œ í™œì„±í™” â˜…
+    TArray<int32> ActiveTeamIDs;
+    TSet<int32> UsedTeams; // ì¤‘ë³µ ì œê±°ìš©
+
+    // ëª¨ë“  í”Œë ˆì´ì–´ì˜ PlayerStateì—ì„œ íŒ€ ID ìˆ˜ì§‘
+    for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
+    {
+        APlayerController* PC = Iterator->Get();
+        if (PC && PC->PlayerState)
+        {
+            ABridgeRunPlayerState* BRPlayerState = Cast<ABridgeRunPlayerState>(PC->PlayerState);
+            if (BRPlayerState)
+            {
+                int32 TeamID = BRPlayerState->GetTeamID();
+                if (TeamID >= 0 && TeamID < 4) // ìœ íš¨í•œ íŒ€ ID
+                {
+                    UsedTeams.Add(TeamID);
+                    UE_LOG(LogTemp, Warning, TEXT("Player %s using TeamID %d"),
+                        *PC->GetName(), TeamID);
+                }
+            }
+        }
+    }
+
+    // Setì„ Arrayë¡œ ë³€í™˜
+    ActiveTeamIDs = UsedTeams.Array();
+
+    // â˜… ìµœì†Œ 2íŒ€ ë³´ì¥ (ì‹¤ì œ ì‚¬ìš© ì¤‘ì¸ íŒ€ì´ ì—†ì„ ë•Œë§Œ) â˜…
+    if (ActiveTeamIDs.Num() < 2)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No teams in use by players, using default teams"));
+        ActiveTeamIDs.Empty();
+        ActiveTeamIDs.Add(0);  // ë¹¨ê°•íŒ€
+        ActiveTeamIDs.Add(1);  // íŒŒë‘íŒ€
+    }
+
+    // íŒ€ ID ì •ë ¬ (ì¼ê´€ì„±ì„ ìœ„í•´)
+    ActiveTeamIDs.Sort();
+
+    // GameStateì— íŒ€ ì´ˆê¸°í™”
+    BRGameState->InitializeTeams(ActiveTeamIDs);
+
+    UE_LOG(LogTemp, Log, TEXT("Initialized %d teams based on player selections"), ActiveTeamIDs.Num());
+
+    // í™œì„±í™”ëœ íŒ€ ë¡œê·¸ ì¶œë ¥
+    for (int32 TeamID : ActiveTeamIDs)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Active Team: %d (%s)"), TeamID, *BRGameState->GetTeamName(TeamID));
+    }
 }
 
 void ABridgeRunGameMode::BeginPlay()
 {
     Super::BeginPlay();
 
-    // ¼­¹ö ¼³Á¤
+    // ì„œë²„ ì„¤ì •
     if (GetWorld()->GetNetMode() == NM_ListenServer)
     {
         GetWorld()->GetAuthGameMode()->bUseSeamlessTravel = true;
     }
+
+    // 1ì´ˆ í›„ íŒ€ ì´ˆê¸°í™”
+    FTimerHandle TeamInitHandle;
+    GetWorld()->GetTimerManager().SetTimer(TeamInitHandle, this, &ABridgeRunGameMode::InitializeActiveTeams, 1.0f, false);
+
+    // 2ì´ˆ í›„ ê²Œì„ ì‹œì‘
+    FTimerHandle DelayHandle;
+    GetWorld()->GetTimerManager().SetTimer(DelayHandle, this, &ABridgeRunGameMode::StartStrategyPhase, 2.0f, false);
 }
+
+// PostLoginì—ì„œ ë¡œê·¸ ì¶”ê°€ (BridgeRunGameMode.cpp)
 
 void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
-
     if (!NewPlayer) return;
 
-    // PlayerState¿¡¼­ ÆÀ ID È®ÀÎ
-    ABridgeRunPlayerState* PS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
-    int32 ExistingTeamID = -1;
+    UE_LOG(LogTemp, Error, TEXT("========== PostLogin START: %s =========="), *NewPlayer->GetName());
 
-    // PlayerState¿¡¼­ ÀÌ¹Ì ¼³Á¤µÈ ÆÀ ID È®ÀÎ
+    // PlayerState í™•ì¸
+    ABridgeRunPlayerState* PS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
     if (PS)
     {
-        ExistingTeamID = PS->GetTeamID();
+        int32 TeamID = PS->GetTeamID();
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: PlayerState TeamID = %d"), TeamID);
     }
 
-    // GameInstance¿¡¼­µµ ÆÀ ID È®ÀÎ
-    if (ExistingTeamID < 0)
+    // GameInstance í™•ì¸
+    if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
     {
-        if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
-        {
-            FString PlayerID = NewPlayer->GetName();
-            ExistingTeamID = GameInst->GetPlayerTeamID(PlayerID);
-
-            // GameInstance¿¡¼­ °¡Á®¿Â ÆÀ ID°¡ ÀÖÀ¸¸é PlayerState¿¡ ¼³Á¤
-            if (ExistingTeamID >= 0 && PS)
-            {
-                PS->SetTeamID(ExistingTeamID);
-                UE_LOG(LogTemp, Log, TEXT("·Îºñ¿¡¼­ °¡Á®¿Â ÆÀ ID (%d)¸¦ PlayerState¿¡ ¼³Á¤Çß½À´Ï´Ù."), ExistingTeamID);
-            }
-        }
+        FString PlayerID = NewPlayer->GetName();
+        int32 GameInstTeamID = GameInst->GetPlayerTeamID(PlayerID);
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: GameInstance TeamID = %d"), GameInstTeamID);
     }
 
-    // ·Îºñ¿¡¼­ °¡Á®¿Â ÆÀ ID°¡ ÀÖ´Â °æ¿ì, TeamManagerComponent¿¡ ÇØ´ç ÆÀÀ¸·Î ¿äÃ»
-    if (ExistingTeamID >= 0)
-    {
-        if (TeamManagerComponent)
-        {
-            // RequestTeamChange ÇÔ¼ö´Â ÀÌ¹Ì ±¸ÇöµÇ¾î ÀÖ¾î¼­ È°¿ë
-            bool bSuccess = TeamManagerComponent->RequestTeamChange(NewPlayer, ExistingTeamID);
-            if (bSuccess)
-            {
-                UE_LOG(LogTemp, Log, TEXT("·Îºñ¿¡¼­ ¼±ÅÃÇÑ ÆÀ %d¸¦ ¼º°øÀûÀ¸·Î Àû¿ëÇß½À´Ï´Ù."), ExistingTeamID);
-                return; // ÆÀ º¯°æ ¼º°øÇßÀ¸´Ï ¿©±â¼­ Á¾·á
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("·Îºñ¿¡¼­ ¼±ÅÃÇÑ ÆÀ %d¸¦ Àû¿ëÇÒ ¼ö ¾ø½À´Ï´Ù."), ExistingTeamID);
-                // ½ÇÆĞ ½Ã ¾Æ·¡¿¡¼­ ±âº» ÆÀ ÇÒ´ç ·ÎÁ÷ ½ÇÇà
-            }
-        }
-    }
-
-    // ±âÁ¸ ÆÀ ID°¡ ¾ø°Å³ª Àû¿ë ½ÇÆĞÇÑ °æ¿ì¿¡¸¸ »õ·Î ÇÒ´ç
+    // TeamManager í˜¸ì¶œ ì—¬ë¶€ í™•ì¸
     if (TeamManagerComponent)
     {
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: Calling AssignPlayerToTeam"));
         TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
-
-        // ·Î±× Ãâ·Â
-        if (PS)
-        {
-            UE_LOG(LogTemp, Log, TEXT("PostLogin: Player %s assigned to team %d"),
-                *NewPlayer->GetName(), PS->GetTeamID());
-        }
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: AssignPlayerToTeam completed"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("PostLogin: TeamManagerComponent not found!"));
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: TeamManagerComponent is NULL!"));
     }
+
+    UE_LOG(LogTemp, Error, TEXT("========== PostLogin END =========="));
 }
 
 void ABridgeRunGameMode::Logout(AController* Exiting)
 {
-    // ÆÀ °ü¸®´Â TeamManagerComponent¿¡ À§ÀÓ
+    // íŒ€ ê´€ë¦¬ëŠ” TeamManagerComponentì— ìœ„ì„
     Super::Logout(Exiting);
 }
 
-void ABridgeRunGameMode::StartGame()
+void ABridgeRunGameMode::RestartPlayer(AController* NewPlayer)
 {
-    if (!CanStartGame()) return;
+    // ë¨¼ì € ê¸°ë³¸ RestartPlayer í˜¸ì¶œ
+    Super::RestartPlayer(NewPlayer);
 
-    CurrentGameState = EGameState::InProgress;
-    CurrentRound = 1;
+    // í”Œë ˆì´ì–´ê°€ ìŠ¤í°ë˜ì§€ ì•Šì•˜ìœ¼ë©´ ì¢…ë£Œ
+    if (!NewPlayer || !NewPlayer->GetPawn())
+        return;
 
-    // ¶ó¿îµå ½ÃÀÛ
-    StartNewRound();
+    // PlayerStateì—ì„œ íŒ€ ID ê°€ì ¸ì˜¤ê¸°
+    int32 TeamID = -1;
+    ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
 
-    // Á÷¾÷ ½Ã½ºÅÛ Å¸ÀÌ¸Ó ¼³Á¤
-    SetGameTimer(JobSystemTimerHandle, &ABridgeRunGameMode::HandleJobSystemActivation, JobSystemActivationTime);
-
-    // »óÅÂ ¾÷µ¥ÀÌÆ® ¾Ë¸²
-    UpdateGameState();
-}
-
-void ABridgeRunGameMode::StartNewRound()
-{
-    if (CurrentGameState != EGameState::InProgress) return;
-
-    RoundTimeRemaining = RoundDuration;
-
-    // ¶ó¿îµå Å¸ÀÌ¸Ó ½ÃÀÛ
-    GetWorld()->GetTimerManager().SetTimer(
-        RoundTimerHandle,
-        this,
-        &ABridgeRunGameMode::HandleRoundTimer,
-        1.0f,
-        true
-    );
-
-    // »óÅÂ ¾÷µ¥ÀÌÆ® ¾Ë¸²
-    UpdateGameState();
-}
-
-void ABridgeRunGameMode::EndCurrentRound()
-{
-    if (CurrentGameState != EGameState::InProgress) return;
-
-    CurrentGameState = EGameState::RoundEnd;
-    GetWorld()->GetTimerManager().ClearTimer(RoundTimerHandle);
-
-    // ´ÙÀ½ ¶ó¿îµå ÁØºñ ¶Ç´Â °ÔÀÓ Á¾·á
-    if (CurrentRound >= 3)  // 3¶ó¿îµå·Î °ÔÀÓ Á¾·á
+    if (BridgeRunPS)
     {
-        EndGame();
-    }
-    else
-    {
-        CurrentRound++;
-        GetWorld()->GetTimerManager().SetTimer(
-            GameTimerHandle,
-            this,
-            &ABridgeRunGameMode::StartNewRound,
-            PostRoundDelay,
-            false
-        );
+        TeamID = BridgeRunPS->GetTeamID();
     }
 
-    // »óÅÂ ¾÷µ¥ÀÌÆ® ¾Ë¸²
-    UpdateGameState();
-}
-
-void ABridgeRunGameMode::EndGame()
-{
-    CurrentGameState = EGameState::GameOver;
-
-    // Å¸ÀÌ¸Ó Á¤¸®
-    ClearGameTimer(RoundTimerHandle);
-    ClearGameTimer(JobSystemTimerHandle);
-
-    // °ÔÀÓ ÀÎ½ºÅÏ½º¿¡¼­ ½ÂÀÚ ÆÀ °¡Á®¿À±â
-    if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
+    // ìœ íš¨í•œ íŒ€ IDê°€ ì´ë¯¸ ìˆìœ¼ë©´, ê·¸ëŒ€ë¡œ ìºë¦­í„°ì— ì ìš©
+    if (TeamID >= 0)
     {
-        int32 WinningTeam = GameInst->GetWinningTeam();
-
-        // ½ÂÀÚ Ã³¸® ·ÎÁ÷
-        if (WinningTeam >= 0)
+        if (ACitizen* Character = Cast<ACitizen>(NewPlayer->GetPawn()))
         {
-            UE_LOG(LogTemp, Log, TEXT("Game Over! Winning Team: %d"), WinningTeam);
+            // íŒ€ ID ì„¤ì • ë° ë¨¸í‹°ë¦¬ì–¼ ì ìš©
+            Character->TeamID = TeamID;
+            Character->MulticastSetTeamMaterial(TeamID);
+
+            UE_LOG(LogTemp, Log, TEXT("RestartPlayer: í”Œë ˆì´ì–´ %së¥¼ íŒ€ %dë¡œ ì´ˆê¸°í™”í–ˆìŠµë‹ˆë‹¤."),
+                *NewPlayer->GetName(), TeamID);
+
+            return; // ì„±ê³µì ìœ¼ë¡œ ì ìš©í–ˆìœ¼ë‹ˆ ì—¬ê¸°ì„œ ì¢…ë£Œ
+        }
+    }
+
+    // PlayerStateì— íŒ€ IDê°€ ì—†ëŠ” ê²½ìš° GameInstanceì—ì„œ í™•ì¸
+    if (TeamID < 0)
+    {
+        if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
+        {
+            FString PlayerID = NewPlayer->GetName();
+            TeamID = GameInst->GetPlayerTeamID(PlayerID);
+
+            if (TeamID >= 0 && BridgeRunPS)
+            {
+                BridgeRunPS->SetTeamID(TeamID);
+
+                // ìºë¦­í„°ì— ì ìš©
+                if (ACitizen* Character = Cast<ACitizen>(NewPlayer->GetPawn()))
+                {
+                    Character->TeamID = TeamID;
+                    Character->MulticastSetTeamMaterial(TeamID);
+
+                    UE_LOG(LogTemp, Log, TEXT("RestartPlayer: GameInstanceì—ì„œ ê°€ì ¸ì˜¨ íŒ€ %dë¥¼ ì ìš©í–ˆìŠµë‹ˆë‹¤."), TeamID);
+                    return; // ì„±ê³µì ìœ¼ë¡œ ì ìš©í–ˆìœ¼ë‹ˆ ì—¬ê¸°ì„œ ì¢…ë£Œ
+                }
+            }
+        }
+    }
+
+    // ì´ì „ ë°©ë²•ìœ¼ë¡œë„ íŒ€ IDë¥¼ ê°€ì ¸ì˜¤ì§€ ëª»í•œ ê²½ìš°ì—ë§Œ TeamManagerComponentë¥¼ í†µí•´ ìƒˆë¡œ í• ë‹¹
+    if (TeamManagerComponent)
+    {
+        TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
+
+        // í• ë‹¹ í›„ ë¡œê·¸
+        if (BridgeRunPS)
+        {
+            UE_LOG(LogTemp, Log, TEXT("RestartPlayer: í”Œë ˆì´ì–´ %së¥¼ ìƒˆë¡œìš´ íŒ€ %dì— í• ë‹¹í–ˆìŠµë‹ˆë‹¤."),
+                *NewPlayer->GetName(), BridgeRunPS->GetTeamID());
+        }
+    }
+}
+// === ë¼ìš´ë“œ ì‹œìŠ¤í…œ í•¨ìˆ˜ë“¤ ===
+
+float ABridgeRunGameMode::GetRoundPlayTime(int32 RoundNumber) const
+{
+    int32 Index = RoundNumber - 1; // 1-based -> 0-based
+    if (RoundSettingsArray.IsValidIndex(Index))
+    {
+        return RoundSettingsArray[Index].PlayTime;
+    }
+    return 180.0f; // ê¸°ë³¸ê°’
+}
+
+float ABridgeRunGameMode::GetStrategyTime(int32 RoundNumber) const
+{
+    return (RoundNumber == 1) ? FirstStrategyTime : OtherStrategyTime;
+}
+
+void ABridgeRunGameMode::StartStrategyPhase()
+{
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState) return;
+
+    // í˜„ì¬ ë¼ìš´ë“œì— ë§ëŠ” ì „ëµ ì‹œê°„ ì„¤ì •
+    float StrategyTime = GetStrategyTime(BRGameState->GetCurrentRoundNumber());
+
+    // ìƒíƒœ ì—…ë°ì´íŠ¸
+    BRGameState->SetCurrentPhase(EGamePhase::StrategyTime);
+    BRGameState->SetPhaseTimeRemaining(StrategyTime);
+
+    // íƒ€ì´ë¨¸ ì‹œì‘
+    GetWorld()->GetTimerManager().SetTimer(PhaseTimerHandle, this, &ABridgeRunGameMode::UpdatePhaseTimer, 1.0f, true);
+
+    UE_LOG(LogTemp, Log, TEXT("Strategy Phase Started - Round %d, Time: %.0f"),
+        BRGameState->GetCurrentRoundNumber(), StrategyTime);
+}
+
+void ABridgeRunGameMode::StartRoundPlaying()
+{
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState) return;
+
+    // í˜„ì¬ ë¼ìš´ë“œì— ë§ëŠ” í”Œë ˆì´ ì‹œê°„ ì„¤ì •
+    float PlayTime = GetRoundPlayTime(BRGameState->GetCurrentRoundNumber());
+
+    // ìƒíƒœ ì—…ë°ì´íŠ¸
+    BRGameState->SetCurrentPhase(EGamePhase::RoundPlaying);
+    BRGameState->SetPhaseTimeRemaining(PlayTime);
+
+    // â˜… ë¼ìš´ë“œ ì‹œì‘ ì´ë²¤íŠ¸ í˜¸ì¶œ (ì´ í•œ ì¤„ë§Œ ì¶”ê°€!) â˜…
+    OnRoundStart();
+
+    GetWorld()->GetTimerManager().SetTimer(PhaseTimerHandle, this, &ABridgeRunGameMode::UpdatePhaseTimer, 1.0f, true);
+
+    UE_LOG(LogTemp, Log, TEXT("Round Playing Started - Round %d"), BRGameState->GetCurrentRoundNumber());
+}
+
+
+void ABridgeRunGameMode::EndRound()
+{
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState) return;
+
+    // í˜„ì¬ ë¼ìš´ë“œ ìˆœìœ„ ê³„ì‚°
+    CalculateRoundRankings();
+
+    // ë¼ìš´ë“œ ì¢…ë£Œ ìƒíƒœë¡œ ë³€ê²½
+    BRGameState->SetCurrentPhase(EGamePhase::RoundEnd);
+    BRGameState->SetPhaseTimeRemaining(RoundEndWaitTime);
+
+    // ê²Œì„ ì¼ì‹œì •ì§€ ë° UI í‘œì‹œ
+    ShowRoundEndResults();
+
+    // íƒ€ì´ë¨¸ ì¬ì‹œì‘ (UI í‘œì‹œ ì‹œê°„)
+    GetWorld()->GetTimerManager().SetTimer(PhaseTimerHandle, this, &ABridgeRunGameMode::UpdatePhaseTimer, 1.0f, true);
+
+}
+
+
+void ABridgeRunGameMode::ShowRoundEndResults()
+{
+    // ëª¨ë“  í”Œë ˆì´ì–´ì—ê²Œ UI í‘œì‹œ ë° ë§ˆìš°ìŠ¤ í™œì„±í™”
+    for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
+    {
+        APlayerController* PC = Iterator->Get();
+        if (PC)
+        {
+            // ë§ˆìš°ìŠ¤ ì»¤ì„œ í‘œì‹œ
+            PC->bShowMouseCursor = true;
+            PC->bEnableClickEvents = true;
+            PC->bEnableMouseOverEvents = true;
+
+            // ì…ë ¥ ëª¨ë“œë¥¼ UIë¡œ ë³€ê²½
+            FInputModeUIOnly InputMode;
+            PC->SetInputMode(InputMode);
+
+            UE_LOG(LogTemp, Log, TEXT("Enabled mouse cursor for player: %s"), *PC->GetName());
+        }
+    }
+
+    // ë¸”ë£¨í”„ë¦°íŠ¸ ì´ë²¤íŠ¸ í˜¸ì¶œ (UI ìœ„ì ¯ ìƒì„±)
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (BRGameState)
+    {
+        if (BRGameState->GetCurrentRoundNumber() >= GetMaxRounds())
+        {
+            GameOverUI(); // ìµœì¢… ê²Œì„ ì¢…ë£Œ UI
         }
         else
         {
-            UE_LOG(LogTemp, Log, TEXT("Game Over! No winner determined."));
+            OnRoundEndUI(BRGameState->GetCurrentRoundNumber()); // ë¼ìš´ë“œ ì¢…ë£Œ UI
         }
     }
-
-    // »óÅÂ ¾÷µ¥ÀÌÆ® ¾Ë¸²
-    UpdateGameState();
 }
 
-void ABridgeRunGameMode::HandleRoundTimer()
+void ABridgeRunGameMode::HideRoundEndResults()
 {
-    if (RoundTimeRemaining > 0)
+    // ëª¨ë“  í”Œë ˆì´ì–´ì˜ ë§ˆìš°ìŠ¤ ë¹„í™œì„±í™” ë° ê²Œì„ ì…ë ¥ ëª¨ë“œë¡œ ë³µì›
+    for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
     {
-        RoundTimeRemaining--;
-
-        // ³²Àº ½Ã°£ÀÌ º¯°æµÉ ¶§¸¸ ³×Æ®¿öÅ© »óÅÂ ¾÷µ¥ÀÌÆ®
-        UpdateGameState();
-
-        if (RoundTimeRemaining <= 0)
+        APlayerController* PC = Iterator->Get();
+        if (PC)
         {
-            EndCurrentRound();
+            // ë§ˆìš°ìŠ¤ ì»¤ì„œ ìˆ¨ê¹€
+            PC->bShowMouseCursor = false;
+            PC->bEnableClickEvents = false;
+            PC->bEnableMouseOverEvents = false;
+
+            // ì…ë ¥ ëª¨ë“œë¥¼ ê²Œì„ìœ¼ë¡œ ë³€ê²½
+            FInputModeGameOnly InputMode;
+            PC->SetInputMode(InputMode);
+
+            UE_LOG(LogTemp, Log, TEXT("Disabled mouse cursor for player: %s"), *PC->GetName());
         }
     }
 }
 
-void ABridgeRunGameMode::HandleJobSystemActivation()
+// ë¼ìš´ë“œ ìˆœìœ„ ê³„ì‚° í•¨ìˆ˜
+void ABridgeRunGameMode::CalculateRoundRankings()
 {
-    bJobSystemActive = true;
-    UpdateGameState();
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState) return;
+
+    TArray<FTeamVictoryData>& Teams = BRGameState->TeamVictoryPoints;
+
+    // í˜„ì¬ ë¼ìš´ë“œ ì ìˆ˜ ìˆœìœ¼ë¡œ ì •ë ¬
+    TArray<FTeamVictoryData> SortedTeams = Teams;
+    SortedTeams.Sort([](const FTeamVictoryData& A, const FTeamVictoryData& B) {
+        return A.CurrentRoundScore > B.CurrentRoundScore; // ì ìˆ˜ ë†’ì€ ìˆœ
+        });
+
+    // ê° íŒ€ì˜ ë¼ìš´ë“œ ê²°ê³¼(ìˆœìœ„) ì—…ë°ì´íŠ¸ ë° ìŠ¹ì  ê³„ì‚°
+    for (int32 Rank = 0; Rank < SortedTeams.Num(); Rank++)
+    {
+        int32 TeamID = SortedTeams[Rank].TeamID;
+
+        for (FTeamVictoryData& Team : Teams)
+        {
+            if (Team.TeamID == TeamID)
+            {
+                Team.RoundResults.Add(Rank + 1); // 1ë“±, 2ë“±, 3ë“±...
+
+                // ìŠ¹ì  ê³„ì‚°
+                int32 VictoryPoints = 0;
+                switch (Rank + 1)
+                {
+                case 1: VictoryPoints = 5; break;
+                case 2: VictoryPoints = 2; break;
+                case 3: VictoryPoints = -1; break;
+                case 4: VictoryPoints = -2; break;
+                default: VictoryPoints = -2; break;
+                }
+
+                Team.TotalVictoryPoints += VictoryPoints;
+
+                UE_LOG(LogTemp, Log, TEXT("Team %d - Round %d: %dë“± (%dì ), ìŠ¹ì : %d, ì´ ìŠ¹ì : %d"),
+                    TeamID, BRGameState->GetCurrentRoundNumber(), Rank + 1,
+                    Team.CurrentRoundScore, VictoryPoints, Team.TotalVictoryPoints);
+                break;
+            }
+        }
+    }
+}
+
+
+// ê¸°ì¡´ OnPhaseTimeEnd() í•¨ìˆ˜ë¥¼ ì´ë ‡ê²Œ ìˆ˜ì •í•˜ì„¸ìš”
+void ABridgeRunGameMode::OnPhaseTimeEnd()
+{
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState) return;
+
+    GetWorld()->GetTimerManager().ClearTimer(PhaseTimerHandle);
+
+    switch (BRGameState->GetCurrentPhase())
+    {
+    case EGamePhase::StrategyTime:
+        StartRoundPlaying();
+        break;
+
+    case EGamePhase::RoundPlaying:
+        EndRound(); // ì—¬ê¸°ì„œ UIê°€ í‘œì‹œë¨
+        break;
+
+    case EGamePhase::RoundEnd:
+        // â˜… UI ìˆ¨ê¹€ ì¶”ê°€ â˜…
+        HideRoundEndResults();
+
+        if (BRGameState->GetCurrentRoundNumber() >= GetMaxRounds())
+        {
+            EndGame(); // ìµœì¢… ê²Œì„ ì¢…ë£Œ
+        }
+        else
+        {
+            // ë‹¤ìŒ ë¼ìš´ë“œë¡œ
+            BRGameState->SetCurrentRoundNumber(BRGameState->GetCurrentRoundNumber() + 1);
+            StartStrategyPhase();
+        }
+        break;
+
+    case EGamePhase::GameEnd:
+        // ê²Œì„ ì™„ì „ ì¢…ë£Œ ì²˜ë¦¬
+        UE_LOG(LogTemp, Log, TEXT("Game completely finished"));
+        break;
+    }
+}
+
+
+void ABridgeRunGameMode::EndGame()
+{
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState) return;
+
+    // ê²Œì„ ì¢…ë£Œ ìƒíƒœë¡œ ë³€ê²½
+    BRGameState->SetCurrentPhase(EGamePhase::GameEnd);
+    BRGameState->SetPhaseTimeRemaining(0.0f);
+
+    // â˜… GameStateë¥¼ í†µí•´ Multicast í˜¸ì¶œ
+    BRGameState->MulticastGameOverUI();
+
+    // íƒ€ì´ë¨¸ ì •ë¦¬
+    GetWorld()->GetTimerManager().ClearTimer(PhaseTimerHandle);
+}
+
+
+void ABridgeRunGameMode::UpdatePhaseTimer()
+{
+    ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>();
+    if (!BRGameState) return;
+
+    float CurrentTime = BRGameState->GetPhaseTimeRemaining();
+
+    // â˜… ì´ ë¡œê·¸ë¡œ ê°’ í™•ì¸ â˜…
+    UE_LOG(LogTemp, Warning, TEXT("time: %.1f, Round : %d"),
+        CurrentTime, (int32)BRGameState->GetCurrentPhase());
+
+    CurrentTime -= 1.0f;
+    BRGameState->SetPhaseTimeRemaining(CurrentTime);
+
+    if (CurrentTime <= 0.0f)
+    {
+        OnPhaseTimeEnd();
+    }
+}
+
+void ABridgeRunGameMode::StartGameForAllPlayers(const TArray<int32>& TeamCounts)
+{
+    if (HasAuthority())
+    {
+        if (ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>())
+        {
+            BRGameState->StartGameWithTeams(TeamCounts);
+        }
+    }
+}
+
+void ABridgeRunGameMode::ServerStartGame_Implementation()
+{
+    UE_LOG(LogTemp, Warning, TEXT("ServerStartGame called!"));
+
+    InitializeActiveTeams();
+
+    if (ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Setting bGameStarted = true"));
+        BRGameState->bGameStarted = true;
+    }
 }
 
 bool ABridgeRunGameMode::CanStartGame() const
@@ -251,10 +539,10 @@ bool ABridgeRunGameMode::CanStartGame() const
     if (!TeamManagerComponent)
         return false;
 
-    // ÆÀ ¸Å´ÏÀú¿¡¼­ È°¼ºÈ­µÈ ÆÀ Á¤º¸ °¡Á®¿À±â
+    // íŒ€ ë§¤ë‹ˆì €ì—ì„œ í™œì„±í™”ëœ íŒ€ ì •ë³´ ê°€ì ¸ì˜¤ê¸°
     TArray<FTeamInfo> ActiveTeams = TeamManagerComponent->GetActiveTeams();
 
-    // ¸ğµç ÆÀÀÇ ÇÃ·¹ÀÌ¾î ¼ö ÇÕ»ê
+    // ëª¨ë“  íŒ€ì˜ í”Œë ˆì´ì–´ ìˆ˜ í•©ì‚°
     int32 TotalPlayers = 0;
     for (const FTeamInfo& Team : ActiveTeams)
     {
@@ -262,12 +550,6 @@ bool ABridgeRunGameMode::CanStartGame() const
     }
 
     return TotalPlayers >= MinPlayersToStart;
-}
-
-void ABridgeRunGameMode::UpdateGameState()
-{
-    // ³×Æ®¿öÅ© »óÅÂ ¾÷µ¥ÀÌÆ® °­Á¦
-    ForceNetUpdate();
 }
 
 void ABridgeRunGameMode::SetGameTimer(FTimerHandle& TimerHandle, void (ABridgeRunGameMode::* Function)(), float Delay, bool bLooping)
@@ -286,76 +568,3 @@ void ABridgeRunGameMode::ClearGameTimer(FTimerHandle& TimerHandle)
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle);
 }
 
-
-void ABridgeRunGameMode::RestartPlayer(AController* NewPlayer)
-{
-    // ¸ÕÀú ±âº» RestartPlayer È£Ãâ
-    Super::RestartPlayer(NewPlayer);
-
-    // ÇÃ·¹ÀÌ¾î°¡ ½ºÆùµÇÁö ¾Ê¾ÒÀ¸¸é Á¾·á
-    if (!NewPlayer || !NewPlayer->GetPawn())
-        return;
-
-    // PlayerState¿¡¼­ ÆÀ ID °¡Á®¿À±â
-    int32 TeamID = -1;
-    ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
-
-    if (BridgeRunPS)
-    {
-        TeamID = BridgeRunPS->GetTeamID();
-    }
-
-    // À¯È¿ÇÑ ÆÀ ID°¡ ÀÌ¹Ì ÀÖÀ¸¸é, ±×´ë·Î Ä³¸¯ÅÍ¿¡ Àû¿ë
-    if (TeamID >= 0)
-    {
-        if (ACitizen* Character = Cast<ACitizen>(NewPlayer->GetPawn()))
-        {
-            // ÆÀ ID ¼³Á¤ ¹× ¸ÓÆ¼¸®¾ó Àû¿ë
-            Character->TeamID = TeamID;
-            Character->MulticastSetTeamMaterial(TeamID);
-
-            UE_LOG(LogTemp, Log, TEXT("RestartPlayer: ÇÃ·¹ÀÌ¾î %s¸¦ ÆÀ %d·Î ÃÊ±âÈ­Çß½À´Ï´Ù."),
-                *NewPlayer->GetName(), TeamID);
-
-            return; // ¼º°øÀûÀ¸·Î Àû¿ëÇßÀ¸´Ï ¿©±â¼­ Á¾·á
-        }
-    }
-
-    // PlayerState¿¡ ÆÀ ID°¡ ¾ø´Â °æ¿ì GameInstance¿¡¼­ È®ÀÎ
-    if (TeamID < 0)
-    {
-        if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
-        {
-            FString PlayerID = NewPlayer->GetName();
-            TeamID = GameInst->GetPlayerTeamID(PlayerID);
-
-            if (TeamID >= 0 && BridgeRunPS)
-            {
-                BridgeRunPS->SetTeamID(TeamID);
-
-                // Ä³¸¯ÅÍ¿¡ Àû¿ë
-                if (ACitizen* Character = Cast<ACitizen>(NewPlayer->GetPawn()))
-                {
-                    Character->TeamID = TeamID;
-                    Character->MulticastSetTeamMaterial(TeamID);
-
-                    UE_LOG(LogTemp, Log, TEXT("RestartPlayer: GameInstance¿¡¼­ °¡Á®¿Â ÆÀ %d¸¦ Àû¿ëÇß½À´Ï´Ù."), TeamID);
-                    return; // ¼º°øÀûÀ¸·Î Àû¿ëÇßÀ¸´Ï ¿©±â¼­ Á¾·á
-                }
-            }
-        }
-    }
-
-    // ÀÌÀü ¹æ¹ıÀ¸·Îµµ ÆÀ ID¸¦ °¡Á®¿ÀÁö ¸øÇÑ °æ¿ì¿¡¸¸ TeamManagerComponent¸¦ ÅëÇØ »õ·Î ÇÒ´ç
-    if (TeamManagerComponent)
-    {
-        TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
-
-        // ÇÒ´ç ÈÄ ·Î±×
-        if (BridgeRunPS)
-        {
-            UE_LOG(LogTemp, Log, TEXT("RestartPlayer: ÇÃ·¹ÀÌ¾î %s¸¦ »õ·Î¿î ÆÀ %d¿¡ ÇÒ´çÇß½À´Ï´Ù."),
-                *NewPlayer->GetName(), BridgeRunPS->GetTeamID());
-        }
-    }
-}

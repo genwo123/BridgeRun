@@ -73,6 +73,9 @@ public:
     UFUNCTION()
     bool ServerRespawn_Validate(const FVector& RespawnLocation);
 
+    UFUNCTION(BlueprintPure, Category = "Building")
+    class UBuildingComponent* GetBuildingComponent() const { return BuildingComponent; }
+
 protected:
     virtual void BeginPlay() override;
 
@@ -132,6 +135,13 @@ protected:
     void Turn(float Value);
     void LookUp(float Value);
     void Interact();
+
+
+    /*UFUNCTION(BlueprintCallable, Category = "UI")
+    void ToggleScoreboard();
+
+    UFUNCTION(BlueprintCallable, Category = "UI")
+    void HideScoreboard();*/
 
     // ΩΩ∑‘ º±≈√
     void SelectSlot1() { SelectInventorySlot(EInventorySlot::Plank); }

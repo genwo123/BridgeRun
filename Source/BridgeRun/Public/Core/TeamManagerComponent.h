@@ -111,7 +111,11 @@ private:
     TMap<AController*, int32> PlayerTeamMap;
 
     // 내부 유틸리티 함수
-    int32 GetOptimalTeamForTeam() const;
+    int32 GetOptimalTeamForTeam() const; // 기존 함수 (4팀 모두 고려)
+
+    // ★ 새로 추가: 활성화된 팀만 고려하는 함수 ★
+    int32 GetOptimalActiveTeam() const;
+
     void RespawnPlayerInTeam(AController* PlayerController, int32 TeamID);
     AActor* FindPlayerStartForTeam(AController* Controller, const FString& TeamTag);
 };

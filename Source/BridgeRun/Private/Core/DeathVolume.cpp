@@ -121,7 +121,7 @@ FVector ADeathVolume::FindSafeLocationNearby(const FVector& DeathLocation) const
     if (NavSystem->ProjectPointToNavigation(
         DeathLocation,
         ResultLocation,
-        FVector(1000.0f, 1000.0f, 1000.0f)))  // 검색 범위를 충분히 크게
+        FVector(5000.0f, 5000.0f, 5000.0f)))  // 검색 범위를 충분히 크게
     {
         return ResultLocation.Location;
     }
