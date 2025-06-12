@@ -160,6 +160,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Player Info")
     void SetDisplayName(const FString& NewDisplayName);
 
+    UFUNCTION(Server, Reliable, BlueprintCallable, Category = "Player Info")
+    void ServerSetDisplayName(const FString& NewDisplayName);
+
     /** 플레이어 표시 이름 가져오기 */
     UFUNCTION(BlueprintPure, Category = "Player Info")
     FString GetDisplayName() const { return DisplayName; }

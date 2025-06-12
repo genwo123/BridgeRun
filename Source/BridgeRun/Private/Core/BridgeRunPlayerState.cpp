@@ -1,4 +1,4 @@
-// Copyright BridgeRun Game, Inc. All Rights Reserved.
+ï»¿// Copyright BridgeRun Game, Inc. All Rights Reserved.
 #include "Core/BridgeRunPlayerState.h"
 #include "Net/UnrealNetwork.h"
 #include "Characters/Citizen.h"
@@ -6,14 +6,14 @@
 
 ABridgeRunPlayerState::ABridgeRunPlayerState()
 {
-    // ³×Æ®¿öÅ© º¹Á¦ È°¼ºÈ­
+    // ë„¤íŠ¸ì›Œí¬ ë³µì œ í™œì„±í™”
     bReplicates = true;
     bAlwaysRelevant = true;
 
-    // ÃÊ±â ÆÀ ID´Â -1 (¹ÌÇÒ´ç)
+    // ì´ˆê¸° íŒ€ IDëŠ” -1 (ë¯¸í• ë‹¹)
     TeamID = -1;
 
-    // ¸ğµç Åë°è ÃÊ±âÈ­ (0À¸·Î)
+    // ëª¨ë“  í†µê³„ ì´ˆê¸°í™” (0ìœ¼ë¡œ)
     TotalPlanksBuilt = 0;
     TotalTentsBuilt = 0;
     TotalTrophyScore = 0;
@@ -29,17 +29,17 @@ void ABridgeRunPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    // ±âÁ¸ ÆÀ Á¤º¸
+    // ê¸°ì¡´ íŒ€ ì •ë³´
     DOREPLIFETIME(ABridgeRunPlayerState, TeamID);
     DOREPLIFETIME(ABridgeRunPlayerState, DisplayName);
 
-    // ´©Àû Åë°è (°ÔÀÓ ÀüÃ¼)
+    // ëˆ„ì  í†µê³„ (ê²Œì„ ì „ì²´)
     DOREPLIFETIME(ABridgeRunPlayerState, TotalPlanksBuilt);
     DOREPLIFETIME(ABridgeRunPlayerState, TotalTentsBuilt);
     DOREPLIFETIME(ABridgeRunPlayerState, TotalTrophyScore);
     DOREPLIFETIME(ABridgeRunPlayerState, TotalHitCount);
 
-    // ¶ó¿îµå Åë°è (¶ó¿îµåº°)
+    // ë¼ìš´ë“œ í†µê³„ (ë¼ìš´ë“œë³„)
     DOREPLIFETIME(ABridgeRunPlayerState, RoundPlanksBuilt);
     DOREPLIFETIME(ABridgeRunPlayerState, RoundTentsBuilt);
     DOREPLIFETIME(ABridgeRunPlayerState, RoundTrophyScore);
@@ -47,12 +47,25 @@ void ABridgeRunPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 }
 
 // =========================
-// ±âÁ¸ ÆÀ °ü·Ã ÇÔ¼öµé (À¯Áö)
+// ê¸°ì¡´ íŒ€ ê´€ë ¨ í•¨ìˆ˜ë“¤ (ìœ ì§€)
 // =========================
 
 void ABridgeRunPlayerState::SetTeamID(int32 NewTeamID)
 {
-    TeamID = NewTeamID;
+    if (TeamID != NewTeamID)
+    {
+        TeamID = NewTeamID;
+        UE_LOG(LogTemp, Warning, TEXT("PlayerState: SetTeamID %d for %s"), TeamID, *GetPlayerName());
+
+        // â˜… ì„œë²„ì—ì„œ OnRep í•¨ìˆ˜ ìˆ˜ë™ í˜¸ì¶œ (í´ë¼ì´ì–¸íŠ¸ëŠ” ìë™ í˜¸ì¶œë¨) â˜…
+        if (HasAuthority())
+        {
+            OnRep_TeamID();
+        }
+
+        // â˜… ë„¤íŠ¸ì›Œí¬ ì—…ë°ì´íŠ¸ ê°•ì œ ì‹¤í–‰ â˜…
+        ForceNetUpdate();
+    }
 }
 
 int32 ABridgeRunPlayerState::GetTeamID() const
@@ -60,11 +73,13 @@ int32 ABridgeRunPlayerState::GetTeamID() const
     return TeamID;
 }
 
+
+
 void ABridgeRunPlayerState::OnRep_TeamID()
 {
-    UE_LOG(LogTemp, Log, TEXT("PlayerState TeamID changed to %d"), TeamID);
+    UE_LOG(LogTemp, Warning, TEXT("OnRep_TeamID: PlayerState TeamID changed to %d"), TeamID);
 
-    // ¼ÒÀ¯ Ä³¸¯ÅÍ°¡ ÀÖ´Â °æ¿ì ÆÀ ¸ÓÆ¼¸®¾ó ¾÷µ¥ÀÌÆ®
+    // ì†Œìœ  ìºë¦­í„°ê°€ ìˆëŠ” ê²½ìš° íŒ€ ë¨¸í‹°ë¦¬ì–¼ ì—…ë°ì´íŠ¸
     AController* OwningController = Cast<AController>(GetOwner());
     if (OwningController)
     {
@@ -75,21 +90,34 @@ void ABridgeRunPlayerState::OnRep_TeamID()
             if (Character)
             {
                 Character->TeamID = TeamID;
-                Character->SetTeamMaterial(TeamID);
+
+                // â˜… í•µì‹¬ ìˆ˜ì •: MulticastSetTeamMaterial ì‚¬ìš© â˜…
+                Character->MulticastSetTeamMaterial(TeamID);
+
+                UE_LOG(LogTemp, Warning, TEXT("OnRep_TeamID: Applied team %d material to character %s"),
+                    TeamID, *Character->GetName());
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("OnRep_TeamID: Character is not ACitizen"));
             }
         }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("OnRep_TeamID: No controlled pawn"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnRep_TeamID: No owning controller"));
     }
 }
-
-// =========================
-// »õ·Î Ãß°¡: Åë°è ¾÷µ¥ÀÌÆ® RPC ÇÔ¼öµé
-// =========================
 
 void ABridgeRunPlayerState::ServerAddPlankBuilt_Implementation()
 {
     if (!HasAuthority()) return;
 
-    // ´©Àû Åë°è¿Í ¶ó¿îµå Åë°è µÑ ´Ù Áõ°¡
+    // ëˆ„ì  í†µê³„ì™€ ë¼ìš´ë“œ í†µê³„ ë‘˜ ë‹¤ ì¦ê°€
     TotalPlanksBuilt++;
     RoundPlanksBuilt++;
 
@@ -101,7 +129,7 @@ void ABridgeRunPlayerState::ServerAddTentBuilt_Implementation()
 {
     if (!HasAuthority()) return;
 
-    // ´©Àû Åë°è¿Í ¶ó¿îµå Åë°è µÑ ´Ù Áõ°¡
+    // ëˆ„ì  í†µê³„ì™€ ë¼ìš´ë“œ í†µê³„ ë‘˜ ë‹¤ ì¦ê°€
     TotalTentsBuilt++;
     RoundTentsBuilt++;
 
@@ -113,7 +141,7 @@ void ABridgeRunPlayerState::ServerAddTrophyScore_Implementation(int32 TrophyPoin
 {
     if (!HasAuthority()) return;
 
-    // ´©Àû Åë°è¿Í ¶ó¿îµå Åë°è µÑ ´Ù Áõ°¡
+    // ëˆ„ì  í†µê³„ì™€ ë¼ìš´ë“œ í†µê³„ ë‘˜ ë‹¤ ì¦ê°€
     TotalTrophyScore += TrophyPoints;
     RoundTrophyScore += TrophyPoints;
 
@@ -125,7 +153,7 @@ void ABridgeRunPlayerState::ServerAddHitCount_Implementation()
 {
     if (!HasAuthority()) return;
 
-    // ´©Àû Åë°è¿Í ¶ó¿îµå Åë°è µÑ ´Ù Áõ°¡
+    // ëˆ„ì  í†µê³„ì™€ ë¼ìš´ë“œ í†µê³„ ë‘˜ ë‹¤ ì¦ê°€
     TotalHitCount++;
     RoundHitCount++;
 
@@ -137,7 +165,7 @@ void ABridgeRunPlayerState::ServerResetRoundStats_Implementation()
 {
     if (!HasAuthority()) return;
 
-    // ¶ó¿îµå Åë°è¸¸ ÃÊ±âÈ­ (´©Àû Åë°è´Â À¯Áö)
+    // ë¼ìš´ë“œ í†µê³„ë§Œ ì´ˆê¸°í™” (ëˆ„ì  í†µê³„ëŠ” ìœ ì§€)
     RoundPlanksBuilt = 0;
     RoundTentsBuilt = 0;
     RoundTrophyScore = 0;
@@ -147,41 +175,52 @@ void ABridgeRunPlayerState::ServerResetRoundStats_Implementation()
 }
 
 // =========================
-// º¹Á¦ ÇÔ¼öµé (½Ç½Ã°£ ¾÷µ¥ÀÌÆ® ÀÌº¥Æ® ¹ß»ı)
+// ë³µì œ í•¨ìˆ˜ë“¤ (ì‹¤ì‹œê°„ ì—…ë°ì´íŠ¸ ì´ë²¤íŠ¸ ë°œìƒ)
 // =========================
 
 void ABridgeRunPlayerState::OnRep_TotalStats()
 {
-    // BP¿¡¼­ ¹ÙÀÎµùÇÒ ¼ö ÀÖ´Â ÀÌº¥Æ® ºê·ÎµåÄ³½ºÆ®
+    // BPì—ì„œ ë°”ì¸ë”©í•  ìˆ˜ ìˆëŠ” ì´ë²¤íŠ¸ ë¸Œë¡œë“œìºìŠ¤íŠ¸
     if (OnPlayerStatsChanged.IsBound())
     {
-        OnPlayerStatsChanged.Broadcast(this, (int32)EStatType::Trophy); // ´ëÇ¥·Î Trophy Å¸ÀÔ
+        OnPlayerStatsChanged.Broadcast(this, (int32)EStatType::Trophy); // ëŒ€í‘œë¡œ Trophy íƒ€ì…
     }
 
 }
 
 void ABridgeRunPlayerState::OnRep_RoundStats()
 {
-    // BP¿¡¼­ ¹ÙÀÎµùÇÒ ¼ö ÀÖ´Â ÀÌº¥Æ® ºê·ÎµåÄ³½ºÆ®
+    // BPì—ì„œ ë°”ì¸ë”©í•  ìˆ˜ ìˆëŠ” ì´ë²¤íŠ¸ ë¸Œë¡œë“œìºìŠ¤íŠ¸
     if (OnPlayerStatsChanged.IsBound())
     {
-        OnPlayerStatsChanged.Broadcast(this, (int32)EStatType::Planks); // ´ëÇ¥·Î Planks Å¸ÀÔ
+        OnPlayerStatsChanged.Broadcast(this, (int32)EStatType::Planks); // ëŒ€í‘œë¡œ Planks íƒ€ì…
     }
 
 }
 
 void ABridgeRunPlayerState::SetDisplayName(const FString& NewDisplayName)
 {
-    if (HasAuthority()) // ¼­¹ö¿¡¼­¸¸ ¼³Á¤ °¡´É
+    UE_LOG(LogTemp, Error, TEXT("SetDisplayName Called! Authority: %s, Name: %s"),
+        HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT"), *NewDisplayName);
+
+    if (HasAuthority())
     {
         DisplayName = NewDisplayName;
-        UE_LOG(LogTemp, Log, TEXT("Player %s display name set to: %s"),
-            *GetPlayerName(), *DisplayName);
+        UE_LOG(LogTemp, Log, TEXT("Server: DisplayName set to: %s"), *DisplayName);
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("SetDisplayName can only be called on server"));
+        ServerSetDisplayName(NewDisplayName);
+        UE_LOG(LogTemp, Log, TEXT("Client: Sending DisplayName to server: %s"), *NewDisplayName);
     }
+}
+
+void ABridgeRunPlayerState::ServerSetDisplayName_Implementation(const FString& NewDisplayName)
+{
+    DisplayName = NewDisplayName;
+    UE_LOG(LogTemp, Log, TEXT("Server: DisplayName received from client: %s"), *DisplayName);
+
+    ForceNetUpdate();
 }
 
 bool ABridgeRunPlayerState::IsDisplayNameValid() const
@@ -194,9 +233,9 @@ void ABridgeRunPlayerState::OnRep_DisplayName()
     UE_LOG(LogTemp, Log, TEXT("Player %s display name replicated to: %s"),
         *GetPlayerName(), *DisplayName);
 
-    // UI ¾÷µ¥ÀÌÆ® ÀÌº¥Æ® ºê·ÎµåÄ³½ºÆ® (ÇÊ¿äÇÑ °æ¿ì)
+    // UI ì—…ë°ì´íŠ¸ ì´ë²¤íŠ¸ ë¸Œë¡œë“œìºìŠ¤íŠ¸ (í•„ìš”í•œ ê²½ìš°)
     if (OnPlayerStatsChanged.IsBound())
     {
-        OnPlayerStatsChanged.Broadcast(this, -1); // Æ¯º°ÇÑ Å¸ÀÔÀ¸·Î ÀÌ¸§ º¯°æ ¾Ë¸²
+        OnPlayerStatsChanged.Broadcast(this, -1); // íŠ¹ë³„í•œ íƒ€ì…ìœ¼ë¡œ ì´ë¦„ ë³€ê²½ ì•Œë¦¼
     }
 }

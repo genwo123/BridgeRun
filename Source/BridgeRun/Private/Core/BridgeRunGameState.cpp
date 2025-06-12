@@ -22,6 +22,34 @@ void ABridgeRunGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
     DOREPLIFETIME(ABridgeRunGameState, PhaseTimeRemaining);
     DOREPLIFETIME(ABridgeRunGameState, CurrentRoundNumber);
     DOREPLIFETIME(ABridgeRunGameState, TeamVictoryPoints);
+    DOREPLIFETIME(ABridgeRunGameState, bGameStarted);
+}
+
+void ABridgeRunGameState::OnRep_GameStarted()
+{
+    if (bGameStarted)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Creating team score widgets for %d teams"), TeamVictoryPoints.Num());
+        BP_CreateTeamScoreWidgets();
+    }
+}
+void ABridgeRunGameState::StartGameWithTeams(const TArray<int32>& ActiveTeamIDs)
+{
+    if (!HasAuthority()) return;
+
+    // 팀 초기화
+    InitializeTeams(ActiveTeamIDs);
+
+    // 게임 시작 상태로 변경
+    bGameStarted = true;
+
+    // ★ 서버에서도 OnRep_GameStarted 로직을 수동으로 호출
+    OnRep_GameStarted();
+
+    // 게임 페이즈도 변경
+    SetCurrentPhase(EGamePhase::StrategyTime);
+
+    UE_LOG(LogTemp, Log, TEXT("Game started with %d teams"), ActiveTeamIDs.Num());
 }
 
 // === Setter 함수들 ===
@@ -363,4 +391,16 @@ void ABridgeRunGameState::CalculateRoundVictoryPoints()
 bool ABridgeRunGameState::ShouldEndGame() const
 {
     return CurrentRoundNumber >= 3 && CurrentPhase == EGamePhase::RoundEnd;
+}
+
+void ABridgeRunGameState::MulticastGameOverUI_Implementation()
+{
+    // 각 클라이언트에서 실행됨
+    if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+    {
+        if (PC->IsLocalController())
+        {
+            ShowGameOverUIEvent(); // 블루프린트 이벤트
+        }
+    }
 }

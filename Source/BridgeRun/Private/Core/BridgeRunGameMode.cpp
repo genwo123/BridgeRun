@@ -46,6 +46,8 @@ void ABridgeRunGameMode::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
     // 기존 복제 속성들은 제거하고 새로운 시스템은 GameState에서 관리
 }
 
+// BridgeRunGameMode.cpp - InitializeActiveTeams 함수 수정
+
 void ABridgeRunGameMode::InitializeActiveTeams()
 {
     if (!HasAuthority()) return;
@@ -57,29 +59,40 @@ void ABridgeRunGameMode::InitializeActiveTeams()
         return;
     }
 
-    // TeamManagerComponent에서 활성화된 팀 ID 가져오기
+    // ★ 강제 팀 할당 제거 - PlayerState에서 실제 사용 중인 팀만 활성화 ★
     TArray<int32> ActiveTeamIDs;
+    TSet<int32> UsedTeams; // 중복 제거용
 
-    if (TeamManagerComponent)
+    // 모든 플레이어의 PlayerState에서 팀 ID 수집
+    for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
     {
-        TArray<FTeamInfo> ActiveTeams = TeamManagerComponent->GetActiveTeams();
-        for (const FTeamInfo& Team : ActiveTeams)
+        APlayerController* PC = Iterator->Get();
+        if (PC && PC->PlayerState)
         {
-            if (Team.PlayerCount > 0)  // 플레이어가 있는 팀만
+            ABridgeRunPlayerState* BRPlayerState = Cast<ABridgeRunPlayerState>(PC->PlayerState);
+            if (BRPlayerState)
             {
-                ActiveTeamIDs.Add(Team.TeamID);
+                int32 TeamID = BRPlayerState->GetTeamID();
+                if (TeamID >= 0 && TeamID < 4) // 유효한 팀 ID
+                {
+                    UsedTeams.Add(TeamID);
+                    UE_LOG(LogTemp, Warning, TEXT("Player %s using TeamID %d"),
+                        *PC->GetName(), TeamID);
+                }
             }
         }
     }
 
-    // 최소 2팀 보장
+    // Set을 Array로 변환
+    ActiveTeamIDs = UsedTeams.Array();
+
+    // ★ 최소 2팀 보장 (실제 사용 중인 팀이 없을 때만) ★
     if (ActiveTeamIDs.Num() < 2)
     {
+        UE_LOG(LogTemp, Warning, TEXT("No teams in use by players, using default teams"));
         ActiveTeamIDs.Empty();
         ActiveTeamIDs.Add(0);  // 빨강팀
-        ActiveTeamIDs.Add(2);  // 노랑팀 (기본 2팀)
-
-        UE_LOG(LogTemp, Warning, TEXT("Not enough active teams, defaulting to Red and Yellow teams"));
+        ActiveTeamIDs.Add(1);  // 파랑팀
     }
 
     // 팀 ID 정렬 (일관성을 위해)
@@ -88,7 +101,7 @@ void ABridgeRunGameMode::InitializeActiveTeams()
     // GameState에 팀 초기화
     BRGameState->InitializeTeams(ActiveTeamIDs);
 
-    UE_LOG(LogTemp, Log, TEXT("Initialized %d active teams"), ActiveTeamIDs.Num());
+    UE_LOG(LogTemp, Log, TEXT("Initialized %d teams based on player selections"), ActiveTeamIDs.Num());
 
     // 활성화된 팀 로그 출력
     for (int32 TeamID : ActiveTeamIDs)
@@ -96,7 +109,6 @@ void ABridgeRunGameMode::InitializeActiveTeams()
         UE_LOG(LogTemp, Log, TEXT("Active Team: %d (%s)"), TeamID, *BRGameState->GetTeamName(TeamID));
     }
 }
-
 
 void ABridgeRunGameMode::BeginPlay()
 {
@@ -117,76 +129,44 @@ void ABridgeRunGameMode::BeginPlay()
     GetWorld()->GetTimerManager().SetTimer(DelayHandle, this, &ABridgeRunGameMode::StartStrategyPhase, 2.0f, false);
 }
 
+// PostLogin에서 로그 추가 (BridgeRunGameMode.cpp)
 
 void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
-
     if (!NewPlayer) return;
 
-    // PlayerState에서 팀 ID 확인
-    ABridgeRunPlayerState* PS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
-    int32 ExistingTeamID = -1;
+    UE_LOG(LogTemp, Error, TEXT("========== PostLogin START: %s =========="), *NewPlayer->GetName());
 
-    // PlayerState에서 이미 설정된 팀 ID 확인
+    // PlayerState 확인
+    ABridgeRunPlayerState* PS = Cast<ABridgeRunPlayerState>(NewPlayer->PlayerState);
     if (PS)
     {
-        ExistingTeamID = PS->GetTeamID();
+        int32 TeamID = PS->GetTeamID();
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: PlayerState TeamID = %d"), TeamID);
     }
 
-    // GameInstance에서도 팀 ID 확인
-    if (ExistingTeamID < 0)
+    // GameInstance 확인
+    if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
     {
-        if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
-        {
-            FString PlayerID = NewPlayer->GetName();
-            ExistingTeamID = GameInst->GetPlayerTeamID(PlayerID);
-
-            // GameInstance에서 가져온 팀 ID가 있으면 PlayerState에 설정
-            if (ExistingTeamID >= 0 && PS)
-            {
-                PS->SetTeamID(ExistingTeamID);
-                UE_LOG(LogTemp, Log, TEXT("로비에서 가져온 팀 ID (%d)를 PlayerState에 설정했습니다."), ExistingTeamID);
-            }
-        }
+        FString PlayerID = NewPlayer->GetName();
+        int32 GameInstTeamID = GameInst->GetPlayerTeamID(PlayerID);
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: GameInstance TeamID = %d"), GameInstTeamID);
     }
 
-    // 로비에서 가져온 팀 ID가 있는 경우, TeamManagerComponent에 해당 팀으로 요청
-    if (ExistingTeamID >= 0)
-    {
-        if (TeamManagerComponent)
-        {
-            // RequestTeamChange 함수는 이미 구현되어 있어서 활용
-            bool bSuccess = TeamManagerComponent->RequestTeamChange(NewPlayer, ExistingTeamID);
-            if (bSuccess)
-            {
-                UE_LOG(LogTemp, Log, TEXT("로비에서 선택한 팀 %d를 성공적으로 적용했습니다."), ExistingTeamID);
-                return; // 팀 변경 성공했으니 여기서 종료
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("로비에서 선택한 팀 %d를 적용할 수 없습니다."), ExistingTeamID);
-                // 실패 시 아래에서 기본 팀 할당 로직 실행
-            }
-        }
-    }
-
-    // 기존 팀 ID가 없거나 적용 실패한 경우에만 새로 할당
+    // TeamManager 호출 여부 확인
     if (TeamManagerComponent)
     {
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: Calling AssignPlayerToTeam"));
         TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
-
-        // 로그 출력
-        if (PS)
-        {
-            UE_LOG(LogTemp, Log, TEXT("PostLogin: Player %s assigned to team %d"),
-                *NewPlayer->GetName(), PS->GetTeamID());
-        }
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: AssignPlayerToTeam completed"));
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("PostLogin: TeamManagerComponent not found!"));
+        UE_LOG(LogTemp, Error, TEXT("PostLogin: TeamManagerComponent is NULL!"));
     }
+
+    UE_LOG(LogTemp, Error, TEXT("========== PostLogin END =========="));
 }
 
 void ABridgeRunGameMode::Logout(AController* Exiting)
@@ -267,7 +247,6 @@ void ABridgeRunGameMode::RestartPlayer(AController* NewPlayer)
         }
     }
 }
-
 // === 라운드 시스템 함수들 ===
 
 float ABridgeRunGameMode::GetRoundPlayTime(int32 RoundNumber) const
@@ -316,9 +295,14 @@ void ABridgeRunGameMode::StartRoundPlaying()
     BRGameState->SetCurrentPhase(EGamePhase::RoundPlaying);
     BRGameState->SetPhaseTimeRemaining(PlayTime);
 
+    // ★ 라운드 시작 이벤트 호출 (이 한 줄만 추가!) ★
+    OnRoundStart();
+
     GetWorld()->GetTimerManager().SetTimer(PhaseTimerHandle, this, &ABridgeRunGameMode::UpdatePhaseTimer, 1.0f, true);
 
+    UE_LOG(LogTemp, Log, TEXT("Round Playing Started - Round %d"), BRGameState->GetCurrentRoundNumber());
 }
+
 
 void ABridgeRunGameMode::EndRound()
 {
@@ -498,28 +482,13 @@ void ABridgeRunGameMode::EndGame()
     BRGameState->SetCurrentPhase(EGamePhase::GameEnd);
     BRGameState->SetPhaseTimeRemaining(0.0f);
 
-    // 🆕 모든 클라이언트에서 UI 표시하도록 수정
-    for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
-    {
-        APlayerController* PC = Iterator->Get();
-        if (PC && PC->IsLocalController()) // 로컬 컨트롤러에서만 UI 표시
-        {
-            // 마우스 활성화
-            PC->bShowMouseCursor = true;
-            PC->bEnableClickEvents = true;
-            PC->bEnableMouseOverEvents = true;
-
-            FInputModeUIOnly InputMode;
-            PC->SetInputMode(InputMode);
-        }
-    }
-
-    // 서버에서 UI 이벤트 호출
-    GameOverUI();
+    // ★ GameState를 통해 Multicast 호출
+    BRGameState->MulticastGameOverUI();
 
     // 타이머 정리
     GetWorld()->GetTimerManager().ClearTimer(PhaseTimerHandle);
 }
+
 
 void ABridgeRunGameMode::UpdatePhaseTimer()
 {
@@ -541,6 +510,29 @@ void ABridgeRunGameMode::UpdatePhaseTimer()
     }
 }
 
+void ABridgeRunGameMode::StartGameForAllPlayers(const TArray<int32>& TeamCounts)
+{
+    if (HasAuthority())
+    {
+        if (ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>())
+        {
+            BRGameState->StartGameWithTeams(TeamCounts);
+        }
+    }
+}
+
+void ABridgeRunGameMode::ServerStartGame_Implementation()
+{
+    UE_LOG(LogTemp, Warning, TEXT("ServerStartGame called!"));
+
+    InitializeActiveTeams();
+
+    if (ABridgeRunGameState* BRGameState = GetGameState<ABridgeRunGameState>())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Setting bGameStarted = true"));
+        BRGameState->bGameStarted = true;
+    }
+}
 
 bool ABridgeRunGameMode::CanStartGame() const
 {
@@ -575,3 +567,4 @@ void ABridgeRunGameMode::ClearGameTimer(FTimerHandle& TimerHandle)
 {
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle);
 }
+

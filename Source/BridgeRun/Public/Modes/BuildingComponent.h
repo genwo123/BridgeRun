@@ -194,6 +194,8 @@ private:
             SpawnedItem->SetReplicateMovement(true);
             SpawnedItem->bIsBuiltItem = true;
 
+            SpawnedItem->Tags.Add(TEXT("BuiltItem"));
+
             if (SpawnedItem->MeshComponent)
             {
                 // 기본 객체에서 트랜스폼 설정 가져오기

@@ -74,6 +74,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "Team")
     UTeamManagerComponent* GetTeamManager() const { return TeamManagerComponent; }
 
+
 protected:
     UFUNCTION(BlueprintCallable, Category = "Game Flow")
     void CalculateRoundRankings();
@@ -116,8 +117,23 @@ protected:
     UFUNCTION(BlueprintImplementableEvent, Category = "UI")
     void GameOverUI();
 
+    UFUNCTION(BlueprintCallable, Category = "Game Management")
+    void StartGameForAllPlayers(const TArray<int32>& TeamCounts);
+
+    UFUNCTION(Server, Reliable, BlueprintCallable)
+    void ServerStartGame();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+    void ShowGameOverUIForPlayer(APlayerController* PlayerController);
+
+    // 라운드 시작 시 호출되는 블루프린트 이벤트
+    UFUNCTION(BlueprintImplementableEvent, Category = "Round Events")
+    void OnRoundStart();
 
 private:
+
+
+
     // 타이머 핸들
     FTimerHandle PhaseTimerHandle;
 

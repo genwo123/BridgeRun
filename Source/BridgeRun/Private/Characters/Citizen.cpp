@@ -724,50 +724,66 @@ void ACitizen::OnRep_TeamID()
 
 
 
-void ACitizen::MulticastSetTeamMaterial_Implementation(int32 InTeamID)
-{
-    // 네트워크 역할에 관계없이 모든 클라이언트에서 실행
-    UE_LOG(LogTemp, Log, TEXT("MulticastSetTeamMaterial: Character %s, TeamID: %d, IsLocallyControlled: %d"),
-        *GetName(), InTeamID, IsLocallyControlled());
-
-    // 팀 색상 적용
-    SetTeamMaterial(InTeamID);
-}
+// Citizen.cpp의 SetTeamMaterial 함수 수정
 
 void ACitizen::SetTeamMaterial(int32 InTeamID)
 {
+    UE_LOG(LogTemp, Warning, TEXT("SetTeamMaterial: Character %s, TeamID %d"), *GetName(), InTeamID);
+
     USkeletalMeshComponent* MeshComponent = GetMesh();
-    if (!MeshComponent) return;
+    if (!MeshComponent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SetTeamMaterial: MeshComponent is null"));
+        return;
+    }
 
     // 팀 ID에 맞는 머티리얼 선택
     UMaterialInterface* TeamMaterial = nullptr;
+
     switch (InTeamID)
     {
     case 0: TeamMaterial = M_Team_Red; break;
     case 1: TeamMaterial = M_Team_Blue; break;
     case 2: TeamMaterial = M_Team_Yellow; break;
     case 3: TeamMaterial = M_Team_Green; break;
-    default: return;
+    default:
+        UE_LOG(LogTemp, Error, TEXT("SetTeamMaterial: Invalid TeamID %d"), InTeamID);
+        return;
     }
 
-    if (!TeamMaterial) return;
+    if (!TeamMaterial)
+    {
+        UE_LOG(LogTemp, Error, TEXT("SetTeamMaterial: TeamMaterial is null for TeamID %d"), InTeamID);
+        return;
+    }
 
-    // 머티리얼 인스턴스 생성 및 적용
+    // 머티리얼 적용
     UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(TeamMaterial, this);
     if (DynamicMaterial)
     {
-        // 슬롯 0에 적용
         MeshComponent->SetMaterial(0, DynamicMaterial);
 
-        // 슬롯 1에도 적용
         if (MeshComponent->GetNumMaterials() > 1)
         {
             UMaterialInstanceDynamic* DynamicMaterial2 = UMaterialInstanceDynamic::Create(TeamMaterial, this);
             MeshComponent->SetMaterial(1, DynamicMaterial2);
         }
+
+        UE_LOG(LogTemp, Warning, TEXT("SetTeamMaterial SUCCESS: Applied Team %d material"), InTeamID);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("SetTeamMaterial: Failed to create dynamic material"));
     }
 }
 
+// MulticastSetTeamMaterial 함수 수정
+void ACitizen::MulticastSetTeamMaterial_Implementation(int32 InTeamID)
+{
+    UE_LOG(LogTemp, Warning, TEXT("MulticastSetTeamMaterial: Character %s, TeamID %d"), *GetName(), InTeamID);
+
+    SetTeamMaterial(InTeamID);
+}
 void ACitizen::InitializeTeamFromPlayerState()
 {
     // PlayerState에서 팀 ID 가져오기 (서버/클라이언트 모두 실행)

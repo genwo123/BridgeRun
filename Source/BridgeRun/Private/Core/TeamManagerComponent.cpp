@@ -21,7 +21,7 @@ UTeamManagerComponent::UTeamManagerComponent()
     // 기본 설정
     ActiveTeamCount = 4;
     MaxTeams = 4;
-    MaxPlayersPerTeam = 3; // 8에서 3으로 수정
+    MaxPlayersPerTeam = 3; 
 
     // 팀 정보 초기화
     TeamInfo.Reserve(MaxTeams);
@@ -76,7 +76,7 @@ void UTeamManagerComponent::InitializeTeamColors()
     }
 }
 
-// TeamManagerComponent.cpp의 AssignPlayerToTeam 함수 수정
+
 void UTeamManagerComponent::AssignPlayerToTeam(AController* PlayerController)
 {
     if (!PlayerController)
@@ -86,78 +86,162 @@ void UTeamManagerComponent::AssignPlayerToTeam(AController* PlayerController)
     if (PlayerTeamMap.Contains(PlayerController))
         return;
 
-    // 최적의 팀 ID 구하기
-    int32 OptimalTeamID = GetOptimalTeamForTeam();
+    int32 FinalTeamID = -1;
 
-    // 모든 팀이 가득 찼는지 확인
-    if (OptimalTeamID < 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: No available team for player %s!"),
-            *PlayerController->GetName());
-        return;
-    }
-
-    // 활성화된 팀인지 확인
-    if (OptimalTeamID >= ActiveTeamCount || !TeamActive[OptimalTeamID])
-    {
-        UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: Team %d is not active"), OptimalTeamID);
-        return;
-    }
-
-    // 팀 인원 증가
-    TeamInfo[OptimalTeamID].PlayerCount++;
-
-    // 플레이어-팀 맵핑 저장
-    PlayerTeamMap.Add(PlayerController, OptimalTeamID);
-
-    // PlayerState에 팀 ID 설정 및 로그 출력
+    // PlayerState에서 팀 ID 가져오기
     APlayerController* PC = Cast<APlayerController>(PlayerController);
     if (PC && PC->PlayerState)
     {
         ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PC->PlayerState);
         if (BridgeRunPS)
         {
-            BridgeRunPS->SetTeamID(OptimalTeamID);
-            UE_LOG(LogTemp, Log, TEXT("AssignPlayerToTeam: Player %s assigned to team %d (Current count: %d)"),
-                *PlayerController->GetName(), OptimalTeamID, TeamInfo[OptimalTeamID].PlayerCount);
+            int32 StateTeamID = BridgeRunPS->GetTeamID();
+
+            UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: Player %s has TeamID %d"),
+                *PlayerController->GetName(), StateTeamID);
+
+            // PlayerState TeamID가 유효하면 그대로 사용
+            if (StateTeamID >= 0 && StateTeamID < MaxTeams)
+            {
+                FinalTeamID = StateTeamID;
+                UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: Using existing TeamID %d"), FinalTeamID);
+            }
         }
     }
 
-    // 플레이어 캐릭터가 있으면 팀 색상 적용
+    // PlayerState에 팀 정보가 없을 때만 새로 할당
+    if (FinalTeamID < 0)
+    {
+        FinalTeamID = GetOptimalTeamForTeam();
+        UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: Assigned new TeamID %d"), FinalTeamID);
+
+        // 새로 할당한 경우에만 PlayerState 업데이트
+        if (PC && PC->PlayerState)
+        {
+            ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PC->PlayerState);
+            if (BridgeRunPS)
+            {
+                BridgeRunPS->SetTeamID(FinalTeamID);
+                UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: Updated PlayerState TeamID %d"), FinalTeamID);
+            }
+        }
+    }
+
+    // 최종 유효성 검사
+    if (FinalTeamID < 0 || FinalTeamID >= MaxTeams)
+    {
+        UE_LOG(LogTemp, Error, TEXT("AssignPlayerToTeam: Invalid TeamID %d"), FinalTeamID);
+        return;
+    }
+
+    // 팀 할당
+    TeamInfo[FinalTeamID].PlayerCount++;
+    PlayerTeamMap.Add(PlayerController, FinalTeamID);
+
+    // 캐릭터에 색상 적용
     APawn* PlayerPawn = PlayerController->GetPawn();
     if (PlayerPawn)
     {
         ACitizen* Character = Cast<ACitizen>(PlayerPawn);
         if (Character)
         {
-            Character->TeamID = OptimalTeamID;
-            Character->MulticastSetTeamMaterial(OptimalTeamID);
-            UE_LOG(LogTemp, Log, TEXT("AssignPlayerToTeam: Applied team material %d to character"), OptimalTeamID);
+            Character->TeamID = FinalTeamID;
+            Character->MulticastSetTeamMaterial(FinalTeamID);
+            UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: Applied TeamID %d color"), FinalTeamID);
         }
     }
+
+    UE_LOG(LogTemp, Warning, TEXT("AssignPlayerToTeam: COMPLETE - Player %s TeamID %d"),
+        *PlayerController->GetName(), FinalTeamID);
 }
+
+
+int32 UTeamManagerComponent::GetOptimalActiveTeam() const
+{
+    TArray<int32> ActiveTeamCounts;
+    TArray<int32> ActiveTeamIDs;
+
+    // 활성화된 팀들의 현재 인원수 계산
+    for (int32 i = 0; i < MaxTeams; i++)
+    {
+        if (TeamActive[i]) // 활성화된 팀만
+        {
+            int32 TeamCount = 0;
+            for (const auto& PlayerTeamPair : PlayerTeamMap)
+            {
+                if (PlayerTeamPair.Value == i)
+                {
+                    TeamCount++;
+                }
+            }
+            ActiveTeamCounts.Add(TeamCount);
+            ActiveTeamIDs.Add(i);
+        }
+    }
+
+    if (ActiveTeamIDs.Num() == 0)
+    {
+        UE_LOG(LogTemp, Error, TEXT("GetOptimalActiveTeam: No active teams found!"));
+        return 0; // 기본값
+    }
+
+    // 가장 인원이 적은 활성화된 팀 찾기
+    int32 OptimalIndex = 0;
+    int32 MinPlayers = ActiveTeamCounts[0];
+
+    for (int32 i = 1; i < ActiveTeamCounts.Num(); i++)
+    {
+        if (ActiveTeamCounts[i] < MinPlayers)
+        {
+            MinPlayers = ActiveTeamCounts[i];
+            OptimalIndex = i;
+        }
+    }
+
+    int32 OptimalTeamID = ActiveTeamIDs[OptimalIndex];
+
+    // 디버그 로그
+    FString TeamCountsStr = TEXT("");
+    for (int32 i = 0; i < ActiveTeamIDs.Num(); i++)
+    {
+        TeamCountsStr += FString::Printf(TEXT("%d:%d "), ActiveTeamIDs[i], ActiveTeamCounts[i]);
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("GetOptimalActiveTeam: Active teams [%s] -> Selected Team %d"),
+        *TeamCountsStr, OptimalTeamID);
+
+    // 모든 활성화된 팀이 가득 찼는지 확인
+    if (MinPlayers >= MaxPlayersPerTeam)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("All active teams are full"));
+        return -1;
+    }
+
+    return OptimalTeamID;
+}
+
 int32 UTeamManagerComponent::GetOptimalTeamForTeam() const
 {
-    // 균형 있는 팀 배정 로직 구현
+    // ★ 4팀 모두 사용하는 균형 배정 ★
     TArray<int32> TeamCounts;
-    TeamCounts.SetNum(ActiveTeamCount);
-    TeamCounts.Init(0, ActiveTeamCount);
+    TeamCounts.SetNum(MaxTeams); // 4팀 모두
+    TeamCounts.Init(0, MaxTeams);
 
     // 각 팀의 현재 플레이어 수 계산
     for (const auto& PlayerTeamPair : PlayerTeamMap)
     {
         int32 TeamID = PlayerTeamPair.Value;
-        if (TeamID >= 0 && TeamID < ActiveTeamCount)
+        if (TeamID >= 0 && TeamID < MaxTeams) // MaxTeams(4) 사용
         {
             TeamCounts[TeamID]++;
         }
     }
 
-    // 가장 인원이 적은 팀 찾기
+    // ★ 가장 인원이 적은 팀 찾기 (4팀 모두 고려) ★
     int32 OptimalTeam = 0;
     int32 MinPlayers = TeamCounts[0];
 
-    for (int32 i = 1; i < ActiveTeamCount; i++)
+    for (int32 i = 1; i < MaxTeams; i++) // MaxTeams(4)까지 순회
     {
         if (TeamCounts[i] < MinPlayers)
         {
@@ -166,11 +250,15 @@ int32 UTeamManagerComponent::GetOptimalTeamForTeam() const
         }
     }
 
+    // 디버그 로그
+    UE_LOG(LogTemp, Warning, TEXT("GetOptimalTeam: Team counts [0:%d, 1:%d, 2:%d, 3:%d] -> Selected Team %d"),
+        TeamCounts[0], TeamCounts[1], TeamCounts[2], TeamCounts[3], OptimalTeam);
+
     // 모든 팀이 MaxPlayersPerTeam에 도달했는지 확인
     if (MinPlayers >= MaxPlayersPerTeam)
     {
-        UE_LOG(LogTemp, Warning, TEXT("모든 팀이 최대 인원에 도달했습니다! 팀 배정이 불가능합니다."));
-        return -1; // 유효하지 않은 팀 ID 반환
+        UE_LOG(LogTemp, Warning, TEXT("All teams are full"));
+        return -1;
     }
 
     return OptimalTeam;
@@ -307,29 +395,56 @@ void UTeamManagerComponent::ReallocatePlayersToTeams()
 
 bool UTeamManagerComponent::RequestTeamChange(AController* PlayerController, int32 RequestedTeamID)
 {
-    // 기존 코드 유지
+    // ★ 강화된 로그 및 유효성 검사 ★
+    UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: Player %s wants team %d"),
+        *PlayerController->GetName(), RequestedTeamID);
+
+    // 기본 유효성 검사
     if (!PlayerController || RequestedTeamID < 0 || RequestedTeamID >= TeamInfo.Num())
+    {
+        UE_LOG(LogTemp, Error, TEXT("RequestTeamChange: Invalid parameters - Controller: %s, TeamID: %d"),
+            PlayerController ? *PlayerController->GetName() : TEXT("NULL"), RequestedTeamID);
         return false;
+    }
 
     if (RequestedTeamID >= ActiveTeamCount || !TeamActive[RequestedTeamID])
+    {
+        UE_LOG(LogTemp, Error, TEXT("RequestTeamChange: Team %d is not active (ActiveCount: %d)"),
+            RequestedTeamID, ActiveTeamCount);
         return false;
+    }
 
     int32 CurrentTeamID = GetPlayerTeamID(PlayerController);
+    UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: Current team: %d, Requested: %d"),
+        CurrentTeamID, RequestedTeamID);
+
     if (CurrentTeamID == RequestedTeamID)
+    {
+        UE_LOG(LogTemp, Log, TEXT("RequestTeamChange: Already in requested team %d"), RequestedTeamID);
         return true;
+    }
 
     if (TeamInfo[RequestedTeamID].PlayerCount >= MaxPlayersPerTeam)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: Team %d is full (%d/%d)"),
+            RequestedTeamID, TeamInfo[RequestedTeamID].PlayerCount, MaxPlayersPerTeam);
         return false;
+    }
 
     // 기존 팀에서 제거
     if (CurrentTeamID >= 0 && CurrentTeamID < TeamInfo.Num())
     {
         TeamInfo[CurrentTeamID].PlayerCount--;
+        UE_LOG(LogTemp, Log, TEXT("RequestTeamChange: Removed from team %d (new count: %d)"),
+            CurrentTeamID, TeamInfo[CurrentTeamID].PlayerCount);
     }
 
     // 새 팀에 추가
     TeamInfo[RequestedTeamID].PlayerCount++;
     PlayerTeamMap.Add(PlayerController, RequestedTeamID);
+
+    UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: Added to team %d (new count: %d)"),
+        RequestedTeamID, TeamInfo[RequestedTeamID].PlayerCount);
 
     // PlayerState 업데이트
     if (APlayerController* PC = Cast<APlayerController>(PlayerController))
@@ -337,24 +452,25 @@ bool UTeamManagerComponent::RequestTeamChange(AController* PlayerController, int
         if (ABridgeRunPlayerState* BridgeRunPS = Cast<ABridgeRunPlayerState>(PC->PlayerState))
         {
             BridgeRunPS->SetTeamID(RequestedTeamID);
+            UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: Updated PlayerState TeamID to %d"), RequestedTeamID);
         }
     }
 
     // 게임 인스턴스에 팀 정보 저장
     if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
     {
-        // 플레이어 고유 ID 생성 (컨트롤러 이름 사용)
         FString PlayerID = PlayerController->GetName();
-
-        // GameInstance에 저장
         GameInst->SavePlayerTeamInfo(PlayerID, RequestedTeamID);
-
-        UE_LOG(LogTemp, Log, TEXT("플레이어 %s 팀 정보를 GameInstance에 저장했습니다. TeamID: %d"),
+        UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: Saved to GameInstance - Player %s, Team %d"),
             *PlayerID, RequestedTeamID);
     }
 
     // 플레이어 리스폰
     RespawnPlayerInTeam(PlayerController, RequestedTeamID);
+
+    UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: SUCCESS - Player %s moved to team %d"),
+        *PlayerController->GetName(), RequestedTeamID);
+
     return true;
 }
 

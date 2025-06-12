@@ -160,6 +160,22 @@ public:
 
     // === 게임 로직 함수들 ===
 
+    /** 게임 시작 상태 (위젯 생성 트리거용) */
+    UPROPERTY(ReplicatedUsing = OnRep_GameStarted, BlueprintReadWrite, Category = "Game State")
+    bool bGameStarted = false;
+
+    /** 게임 시작 상태 변경 시 호출 */
+    UFUNCTION()
+    void OnRep_GameStarted();
+
+    /** 게임 시작 및 팀 위젯 생성 */
+    UFUNCTION(BlueprintCallable, Category = "Game Management")
+    void StartGameWithTeams(const TArray<int32>& ActiveTeamIDs);
+
+    /** 블루프린트에서 구현할 위젯 생성 이벤트 */
+    UFUNCTION(BlueprintImplementableEvent, Category = "UI Events")
+    void BP_CreateTeamScoreWidgets();
+
     /** 라운드 종료 시 승점 계산 및 부여 */
     UFUNCTION(BlueprintCallable, Category = "Game Logic")
     void CalculateRoundVictoryPoints();
@@ -167,6 +183,14 @@ public:
     /** 게임 종료 조건 확인 (3라운드 완료) */
     UFUNCTION(BlueprintPure, Category = "Game Logic")
     bool ShouldEndGame() const;
+
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastGameOverUI();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+    void ShowGameOverUIEvent();
+
+
 
     // === 팀 관리 함수들 ===
 
