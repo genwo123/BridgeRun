@@ -20,7 +20,7 @@
 
 기존 고정된 4팀 UI에서 실제 활성화된 팀 수에 따라 동적으로 변화하는 UI를 구현했습니다.
 
-![동적 팀 UI 시스템](./images/sprint14/dynamic_team_ui.jpg)
+![동적 팀 UI 시스템](../Images/Sprints_img/sprint14/dynamic_team_ui.jpg)
 *활성화된 팀 수에 따라 자동으로 조정되는 UI*
 
 ### 2.2 팀 감지 시스템 구조도
@@ -66,7 +66,7 @@ void UGameHUD::UpdateTeamScore(int32 TeamId, int32 NewScore)
 }
 ```
 
-![팀 점수 UI](./images/sprint14/team_score_realtime.gif)
+![팀 점수 UI](../Images/Sprints_img/sprint14/team_score_realtime.gif)
 *실시간으로 업데이트되는 팀별 점수 표시*
 
 ### 2.4 발생한 문제와 임시 해결책
@@ -76,7 +76,7 @@ void UGameHUD::UpdateTeamScore(int32 TeamId, int32 NewScore)
 - **원인**: 런타임 머티리얼 생성과 위젯 생성 타이밍 불일치
 - **임시 해결**: 데모용 4팀 고정 UI로 대체하여 안정성 확보
 
-![팀 컬러 문제](./images/sprint14/team_color_issue.jpg)
+![팀 컬러 문제](../Images/Sprints_img/sprint14/team_color_issue.jpg)
 *팀 색상 매핑 문제와 임시 해결방안*
 
 ## 3. 게임 플로우 시스템
@@ -85,7 +85,7 @@ void UGameHUD::UpdateTeamScore(int32 TeamId, int32 NewScore)
 
 공정한 게임 시작을 위한 준비 시간 동안의 이동 제한 벽 시스템을 구현했습니다.
 
-![준비단계 벽 시스템](./images/sprint14/preparation_walls.jpg)
+![준비단계 벽 시스템](../Images/Sprints_img/sprint14/preparation_walls.jpg)
 *준비 시간 동안 팀별 스폰 영역을 분리하는 벽*
 
 ### 3.2 게임 시작 플로우
@@ -135,7 +135,7 @@ void AGameModeBase::OnPreparationTimeEnd()
 
 2분 데모를 위한 최적화된 라운드 시스템을 구현했습니다.
 
-![라운드 타이머](./images/sprint14/round_timer_system.jpg)
+![라운드 타이머](../Images/Sprints_img/sprint14/round_timer_system.jpg)
 *명확한 라운드 진행 상황 표시*
 
 ```cpp
@@ -164,7 +164,7 @@ void ABridgeRunGameMode::StartDemoRound()
 
 게임 종료 시 명확한 승부 결과를 보여주는 시스템을 구현했습니다.
 
-![게임 결과 화면](./images/sprint14/game_results_screen.jpg)
+![게임 결과 화면](../Images/Sprints_img/sprint14/game_results_screen.jpg)
 *팀별 순위와 개인 성과를 보여주는 결과 화면*
 
 ### 4.2 결과 처리 플로우
@@ -175,7 +175,7 @@ void ABridgeRunGameMode::StartDemoRound()
   타이머 만료   최종 점수   등수 산정   데이터 정리   결과 화면   재시작 준비
 ```
 
-### 3.3 순위 계산 시스템
+### 4.3 순위 계산 시스템
 ```cpp
 // 팀별 최종 순위 계산
 struct FTeamRanking
@@ -255,7 +255,7 @@ struct FPlayerStats
 
 트로피 보유 여부에 따른 서로 다른 피격 반응을 구현했습니다.
 
-![피격 시스템 비교](./images/sprint14/hit_system_comparison.jpg)
+![피격 시스템 비교](../Images/Sprints_img/sprint14/hit_system_comparison.jpg)
 *트로피 보유 시 vs 일반 상태의 피격 반응 차이*
 
 ### 5.2 피격 반응 로직
@@ -315,7 +315,7 @@ void UCombatComponent::ApplyKnockbackEffect(AActor* Target)
 }
 ```
 
-![트로피 드랍 효과](./images/sprint14/trophy_drop_effect.gif)
+![트로피 드랍 효과](../Images/Sprints_img/sprint14/trophy_drop_effect.gif)
 *트로피 보유자 피격 시 드랍 효과*
 
 ## 6. 맵 개선 및 최적화
@@ -324,7 +324,7 @@ void UCombatComponent::ApplyKnockbackEffect(AActor* Target)
 
 게임 밸런싱 강화를 위해 총 스폰존을 맵 중앙으로 이동했습니다.
 
-![총 스폰존 재배치](./images/sprint14/gun_spawn_rebalancing.jpg)
+![총 스폰존 재배치](../Images/Sprints_img/sprint14/gun_spawn_rebalancing.jpg)
 *밸런싱을 위한 총 스폰존 중앙 배치*
 
 ### 6.2 밸런싱 개선 효과
@@ -380,7 +380,7 @@ void AGameMap::OnGameStateChanged(EGameState NewState)
 }
 ```
 
-![BGM 시스템](./images/sprint14/bgm_system_integration.jpg)
+![BGM 시스템](../Images/Sprints_img/sprint14/bgm_system_integration.jpg)
 *맵 블루프린트에 통합된 BGM 시스템*
 
 ## 7. 발생한 문제점 및 해결 과정
@@ -390,7 +390,7 @@ void AGameMap::OnGameStateChanged(EGameState NewState)
 **문제 상황:**
 동적으로 생성되는 팀 UI에서 팀별 색상이 제대로 적용되지 않는 문제가 발생했습니다.
 
-![팀 컬러 실패](./images/sprint14/team_color_failure_debug.jpg)
+![팀 컬러 실패](../Images/Sprints_img/sprint14/team_color_failure_debug.jpg)
 *팀 색상 적용 실패 디버깅 과정*
 
 **문제 원인:**

@@ -31,7 +31,9 @@
 
 UMG_Lobby 위젯에 4가지 색상(빨강, 파랑, 초록, 노랑)의 선택 버튼을 추가하고, 현재 선택된 팀을 시각적으로 표시했습니다:
 
-![팀 색상 선택 UI](팀_색상_선택_UI.png)
+![팀 색상 선택 UI](../Images/Sprints_img/sprint12/team_color_selection_ui.png)
+
+*UMG_Lobby 위젯의 우측 상단에 추가된 4개의 팀 색상 버튼 (빨강, 파랑, 초록, 노랑)*
 
 **주요 구현 내용:**
 * 우측 상단에 팀 색상 버튼 4개 추가
@@ -40,13 +42,17 @@ UMG_Lobby 위젯에 4가지 색상(빨강, 파랑, 초록, 노랑)의 선택 버
 
 이 기능은 블루프린트로 구현되었으며, 각 팀 버튼의 OnClicked 이벤트에서 플레이어 컨트롤러로 팀 선택 정보를 전달합니다:
 
-![팀 버튼 클릭 이벤트](팀_버튼_블루프린트.png)
+![팀 버튼 클릭 이벤트](../Images/Sprints_img/sprint12/team_button_click_blueprint.png)
+
+*UMG_Lobby에서 팀 버튼의 OnClicked 이벤트 연결 블루프린트 노드들*
 
 ### 2.3 PC_Lobby 팀 정보 업데이트
 
 플레이어가 팀을 선택할 때 서버에 정보를 전달하는 블루프린트 함수를 구현했습니다:
 
-![ServerUpdatePlayerTeam 함수](서버_업데이트_블루프린트.png)
+![ServerUpdatePlayerTeam 함수](../Images/Sprints_img/sprint12/server_update_player_team_blueprint.png)
+
+*PC_Lobby 블루프린트의 ServerUpdatePlayerTeam 커스텀 이벤트*
 
 이 함수는 "Run on Server" 설정으로 서버에서 실행되며, 플레이어 캐릭터(BP_Citizen)의 TeamID를 업데이트합니다. 캐릭터에 직접 접근하는 방식을 선택한 이유는 PlayerState 캐스팅 문제 때문이었습니다.
 
@@ -66,7 +72,9 @@ UMG_Lobby 위젯에 4가지 색상(빨강, 파랑, 초록, 노랑)의 선택 버
 
 기존 자동 레디 상태에서 플레이어가 직접 준비 상태를 설정하는 방식으로 변경했습니다:
 
-![준비 상태 UI](준비_상태_UI.png)
+![준비 상태 UI](../Images/Sprints_img/sprint12/ready_status_ui.png)
+
+*로비 화면에서 플레이어별 준비 상태를 표시하는 UI*
 
 **주요 구현 내용:**
 * BP_Citizen에 bIsReady 변수 추가
@@ -75,13 +83,17 @@ UMG_Lobby 위젯에 4가지 색상(빨강, 파랑, 초록, 노랑)의 선택 버
 
 이 기능은 블루프린트로 구현되었으며, 준비 버튼의 OnClicked 이벤트에서 서버 함수를 호출합니다:
 
-![준비 버튼 클릭 이벤트](준비_버튼_블루프린트.png)
+![준비 버튼 클릭 이벤트](../Images/Sprints_img/sprint12/ready_button_click_blueprint.png)
+
+*준비 버튼의 OnClicked 이벤트 블루프린트 노드들*
 
 ### 3.2 팀 균형 및 게임 시작 조건
 
 팀 간 인원수 균형과 최소 팀 수 조건을 구현하여 게임 시작 버튼의 활성화 조건을 설정했습니다. 이 로직은 BridgeRunGameInstance C++ 클래스에 구현되었으며, 블루프린트에서 호출됩니다:
 
-![게임 시작 조건 체크](게임_시작_조건_블루프린트.png)
+![게임 시작 조건 체크](../Images/Sprints_img/sprint12/game_start_condition_blueprint.png)
+
+*GM_Lobby에서 게임 시작 조건을 검사하는 블루프린트 노드들*
 
 GM_Lobby 블루프린트에서는 이 조건에 따라 게임 시작 버튼의 활성화 여부를 결정합니다.
 
@@ -93,13 +105,17 @@ GM_Lobby 블루프린트에서는 이 조건에 따라 게임 시작 버튼의 �
 
 게임 시작 직전 모든 플레이어의 팀 정보를 GameInstance에 저장합니다. 이 기능은 블루프린트로 구현되었습니다:
 
-![팀 정보 저장](팀_정보_저장_블루프린트.png)
+![팀 정보 저장](../Images/Sprints_img/sprint12/team_info_save_blueprint.png)
+
+*GM_Lobby의 게임 시작 함수에서 팀 정보를 저장하는 블루프린트 노드들*
 
 ### 4.2 GM_Game에서 팀 정보 복원
 
 게임 맵에 플레이어가 접속할 때 GameInstance에서 팀 정보를 가져와 적용합니다. 이 기능도 블루프린트로 구현되었습니다:
 
-![팀 정보 복원](팀_정보_복원_블루프린트.png)
+![팀 정보 복원](../Images/Sprints_img/sprint12/team_info_restore_blueprint.png)
+
+*GM_Game의 PostLogin 이벤트에서 팀 정보를 복원하는 블루프린트 노드들*
 
 ## 5. 구현 과정에서 발생한 문제점과 해결 방법
 
@@ -110,7 +126,9 @@ PlayerState를 PS_BridgeRunPlayerState로 캐스팅하는 과정에서 문제가
 **문제 상황:**
 블루프린트에서 Cast To PS_BridgeRunPlayerState 노드가 항상 실패하는 현상이 발생했습니다.
 
-![캐스팅 실패](캐스팅_실패_블루프린트.png)
+![캐스팅 실패](../Images/Sprints_img/sprint12/casting_failure_blueprint.png)
+
+*Cast To PS_BridgeRunPlayerState 노드가 실패하는 블루프린트*
 
 **원인 분석:**
 프로젝트 설정에서 PlayerState 클래스가 올바르게 설정되지 않았거나, GM_Lobby에서 사용하는 클래스와 불일치했습니다.
@@ -120,7 +138,9 @@ PlayerState를 PS_BridgeRunPlayerState로 캐스팅하는 과정에서 문제가
 2. GM_Lobby의 클래스 기본값에서도 PlayerState 클래스 설정 확인
 3. 임시 해결책으로 BP_Citizen에 직접 TeamID 설정
 
-![임시 해결책](임시_해결책_블루프린트.png)
+![임시 해결책](../Images/Sprints_img/sprint12/workaround_solution_blueprint.png)
+
+*PlayerState 대신 BP_Citizen에 직접 접근하여 TeamID를 설정하는 블루프린트*
 
 ### 5.2 게임 맵 전환 시 팀 정보 유실 문제
 
@@ -139,7 +159,9 @@ PlayerState를 PS_BridgeRunPlayerState로 캐스팅하는 과정에서 문제가
 2. GM_Game의 PostLogin 함수에 디버그 출력 추가
 3. BP_Citizen에서 Event OnRep_PlayerState 이벤트를 오버라이드하여 자동 팀 배정 로직 수정
 
-![OnRep_PlayerState 오버라이드](OnRep_PlayerState_블루프린트.png)
+**💡 원하는 이미지: OnRep_PlayerState 오버라이드 블루프린트**
+*- BP_Citizen에서 OnRep_PlayerState 이벤트를 오버라이드한 블루프린트*
+*- 자동 팀 배정 대신 GameInstance에서 저장된 팀 정보를 사용하는 로직*
 
 ## 6. 현재 구현 상태 및 성과
 
@@ -161,7 +183,10 @@ PlayerState를 PS_BridgeRunPlayerState로 캐스팅하는 과정에서 문제가
 ### 6.3 실제 테스트 결과
 데디케이티드 서버 환경에서 4명의 클라이언트로 테스트한 결과, 팀 선택 및 게임 시작 기능이 정상적으로 작동했습니다. 모든 플레이어가 서로 다른 팀을 선택하고 게임을 시작했을 때, 게임 맵에서도 선택한 팀 색상이 올바르게 유지되었습니다.
 
-![테스트 결과](로비_테스트_결과.png)
+**💡 원하는 이미지: 로비 테스트 결과**
+*- 4명의 클라이언트가 각각 다른 팀 색상을 선택한 로비 화면*
+*- 게임 맵에서 선택한 팀 색상이 올바르게 적용된 캐릭터들*
+*- 데디케이티드 서버에서 정상 작동하는 멀티플레이어 환경*
 
 ## 7. 다음 스프린트 계획
 

@@ -66,7 +66,7 @@ void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
 - 팀 수에 따른 동적 UI 활성화/비활성화
 - 주기적 Tick 대신 이벤트 기반 점수 업데이트 기능 구현
 
-![팀 스코어 UI 구현](./images/sprint7/Team_Score_UI_Implementation.JPG)
+![팀 스코어 UI 구현](../Images/Sprints_img/sprint7/Team_Score_UI_Implementation.JPG)
 
 ## 2. 성공 및 개선 사항
 
@@ -102,7 +102,7 @@ void ATrophyZone::MulticastOnScoreUpdated_Implementation(int32 NewScore)
 **이벤트 디스패처 구현 과정의 난관**:
 C++ 코드에 이벤트 디스패처를 추가하려 했으나, 컴파일 오류가 발생했습니다. 특히 DECLARE_DYNAMIC_MULTICAST_DELEGATE 매크로 사용 시 예상치 못한 컴파일러 문제가 발생했습니다.
 
-![이벤트 디스패처 빌드 오류](./images/sprint7/Delegate_Build_Error.JPG)
+![이벤트 디스패처 빌드 오류](../Images/Sprints_img/sprint7/Delegate_Build_Error.JPG)
 
 이러한 컴파일 오류로 인해 디스패처 대신 대안적 접근법을 모색해야 했습니다.
 
@@ -133,7 +133,6 @@ BP_ScoreUpdated → Get All Widgets Of Class → ForEach → Update Team Score
 - 블루프린트와 C++ 통합 개발 기법의 실전 적용
 - 문제 발생 시 대안적 접근법을 모색하는 유연한 사고방식
 
-  
 ### 3.2 위젯 참조 관리 문제
 
 **문제 상황**: 트로피존에서 UI 위젯을 찾아 점수를 업데이트하는 과정에서 종종 "None에 접근" 오류가 발생했습니다.
@@ -223,5 +222,4 @@ BlueprintImplementableEvent를 활용한 C++와 블루프린트 간의 통합 �
 
 이 과정에서 몇 가지 도전적인 문제들을 극복해야 했습니다. 특히 C++ 컴파일 이슈와 이벤트 디스패처 관련 문제는 상당한 시간을 소모했지만, 이를 해결하는 과정에서 언리얼 엔진의 이벤트 시스템과 C++ 통합에 대한 깊은 이해를 얻을 수 있었습니다.
 
-다음 스프린트에서는 현재 구현된 기능을 시각적으로 더 개선하고, 다양한 해상도에서 일관된 사용자 경험을 제공하는 데 집중할 계획입니다. 또한 게임 종료 시 승리 팀을 명확하게 표시하는 기능을 추가하여 게임의 완성도를
-높일 것입니다.
+다음 스프린트에서는 현재 구현된 기능을 시각적으로 더 개선하고, 다양한 해상도에서 일관된 사용자 경험을 제공하는 데 집중할 계획입니다. 또한 게임 종료 시 승리 팀을 명확하게 표시하는 기능을 추가하여 게임의 완성도를 높일 것입니다.

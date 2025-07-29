@@ -22,7 +22,7 @@
 
 14개 스프린트 문서의 일관성과 완성도를 점검하고 개선했습니다.
 
-![스프린트 문서 정리](./images/sprint15/sprint_documents_organization.jpg)
+![스프린트 문서 정리](../Images/Sprints_img/sprint15/sprint_documents_organization.jpg)
 *스프린트 1-14 문서 구조 및 내용 정리*
 
 ### 2.2 문서 표준화 작업
@@ -46,7 +46,7 @@
 ## 6. 회고 및 느낀점
 ```
 
-![문서 구조 개선](./images/sprint15/document_structure_improvement.jpg)
+![문서 구조 개선](../Images/Sprints_img/sprint15/document_structure_improvement.jpg)
 *일관된 구조와 풍부한 시각 자료가 포함된 개선된 문서*
 
 ## 3. 프로젝트 README 고도화
@@ -55,7 +55,7 @@
 
 README.md를 포트폴리오 수준으로 대폭 개선했습니다.
 
-![프로젝트 README 개선](./images/sprint15/readme_enhancement.jpg)
+![프로젝트 README 개선](../Images/Sprints_img/sprint15/readme_enhancement.jpg)
 *게임 소개부터 기술 스택까지 체계적으로 정리된 메인 문서*
 
 ### 3.2 개발 로드맵 시각화
@@ -78,7 +78,7 @@ gantt
 
 ### 3.3 기술 스택 및 성과 정리
 
-![기술 스택 정리](./images/sprint15/tech_stack_organization.jpg)
+![기술 스택 정리](../Images/Sprints_img/sprint15/tech_stack_organization.jpg)
 *언리얼 엔진, C++, 네트워킹 등 사용 기술과 달성 성과 체계화*
 
 ```markdown
@@ -95,7 +95,7 @@ gantt
 
 game-design-document.md를 현재 개발 상황에 맞게 대폭 업데이트했습니다.
 
-![게임 디자인 문서 개선](./images/sprint15/game_design_doc_update.jpg)
+![게임 디자인 문서 개선](../Images/Sprints_img/sprint15/game_design_doc_update.jpg)
 *실제 구현된 기능들을 반영한 정확한 게임 디자인 문서*
 
 ### 4.2 직업 시스템 문서 완성
@@ -111,7 +111,7 @@ game-design-document.md를 현재 개발 상황에 맞게 대폭 업데이트했
 
 ### 4.3 맵 & 테마 디자인 정리
 
-![맵 디자인 문서](./images/sprint15/map_design_documentation.jpg)
+![맵 디자인 문서](../Images/Sprints_img/sprint15/map_design_documentation.jpg)
 *안데스 산맥 테마와 토템 쟁탈 메커니즘이 조화된 맵 설계*
 
 ## 5. 개발 문서 체계화
@@ -134,7 +134,7 @@ docs/Development/
 
 ### 5.2 코드 진화 과정 문서화
 
-![코드 진화 문서](./images/sprint15/code_evolution_docs.jpg)
+![코드 진화 문서](../Images/Sprints_img/sprint15/code_evolution_docs.jpg)
 *Phase별 기술 발전 과정을 상세히 기록한 진화 문서들*
 
 ```cpp
@@ -153,7 +153,7 @@ Phase 4: 데디케이티드 서버 (2025.05-06)
 
 각 문서의 기술적 어필 포인트를 명확히 했습니다.
 
-![포트폴리오 어필 포인트](./images/sprint15/portfolio_appeal_points.jpg)
+![포트폴리오 어필 포인트](../Images/Sprints_img/sprint15/portfolio_appeal_points.jpg)
 *기술적 성장, 문제 해결 능력, 실무 적용성을 강조한 문서 구성*
 
 ### 6.2 스토리텔링 개선
@@ -184,7 +184,7 @@ Phase 4: 데디케이티드 서버 (2025.05-06)
 
 하모니아 프로젝트 기말 발표 준비로 인해 BridgeRun 개발에 할애할 수 있는 시간이 크게 제한되었습니다.
 
-![시간 분배 현황](./images/sprint15/time_allocation_constraint.jpg)
+![시간 분배 현황](../Images/Sprints_img/sprint15/time_allocation_constraint.jpg)
 *하모니아 프로젝트와 BridgeRun 개발 시간 분배*
 
 ### 7.2 제약 조건 하에서의 전략적 선택
@@ -221,7 +221,7 @@ Phase 4: 데디케이티드 서버 (2025.05-06)
 **도전 과제:**
 두 개의 중요한 프로젝트를 동시에 진행해야 하는 상황에서 효율적인 시간 관리가 필요했습니다.
 
-![시간 관리 전략](./images/sprint15/time_management_strategy.jpg)
+![시간 관리 전략](../Images/Sprints_img/sprint15/time_management_strategy.jpg)
 *하모니아와 BridgeRun 프로젝트 병행 전략*
 
 **해결 과정:**
@@ -235,12 +235,10 @@ Phase 4: 데디케이티드 서버 (2025.05-06)
 
 ### 8.2 대량 문서의 일관성 유지
 
-### 8.2 대량 문서의 일관성 유지
-
 **도전 과제:**
 14개 스프린트 문서의 형식과 품질이 제각각이었습니다.
 
-![문서 일관성 문제](./images/sprint15/document_consistency_challenge.jpg)
+![문서 일관성 문제](../Images/Sprints_img/sprint15/document_consistency_challenge.jpg)
 *초기 문서들의 형식 불일치와 내용 깊이 차이*
 
 **해결 과정:**

@@ -20,7 +20,7 @@
 
 스프린트 15에서 문서화 작업을 통해 명확해진 방향성을 바탕으로, 실제 서비스 수준의 플랫폼 통합 작업을 시작했습니다.
 
-![Steam 통합 아키텍처](./images/sprint16/steam_integration_architecture.jpg)
+![Steam 통합 아키텍처](../Images/Sprints_img/sprint16/steam_integration_architecture.jpg)
 *Steam SDK와 BridgeRun 시스템의 통합 구조도*
 
 ### 2.2 Steam 통합 진행 과정
@@ -85,7 +85,7 @@ void USteamIntegrationSubsystem::Initialize(FSubsystemCollectionBase& Collection
 }
 ```
 
-![Steam 플레이어 정보](./images/sprint16/steam_player_info_display.jpg)
+![Steam 플레이어 정보](../Images/Sprints_img/sprint16/steam_player_info_display.jpg)
 *게임 내에서 표시되는 Steam 플레이어 정보*
 
 ### 2.4 Steam 세션 관리 구현
@@ -120,7 +120,7 @@ protected:
 
 기존 Listen Server 방식에서 완전한 Dedicated Server 환경으로 전환 작업을 진행했습니다.
 
-![서버 아키텍처 변화](./images/sprint16/server_architecture_transition.jpg)
+![서버 아키텍처 변화](../Images/Sprints_img/sprint16/server_architecture_transition.jpg)
 *Listen Server에서 Dedicated Server로의 전환 과정*
 
 ### 3.2 서버 환경 구성
@@ -194,7 +194,7 @@ void ABridgeRunDedicatedGameMode::StartPlay()
 }
 ```
 
-![서버 상태 모니터링](./images/sprint16/server_monitoring_dashboard.jpg)
+![서버 상태 모니터링](../Images/Sprints_img/sprint16/server_monitoring_dashboard.jpg)
 *데디케이티드 서버 성능 및 상태 모니터링*
 
 ## 4. 기존 시스템 호환성 작업
@@ -203,7 +203,7 @@ void ABridgeRunDedicatedGameMode::StartPlay()
 
 기존에 구현된 시스템들이 데디케이티드 서버 환경에서 제대로 작동하도록 수정 작업을 진행했습니다.
 
-![시스템 호환성 매트릭스](./images/sprint16/system_compatibility_matrix.jpg)
+![시스템 호환성 매트릭스](../Images/Sprints_img/sprint16/system_compatibility_matrix.jpg)
 *각 시스템별 서버 환경 호환성 점검 결과*
 
 ### 4.2 호환성 점검 및 수정 결과
@@ -269,7 +269,7 @@ void UBuildingComponent::MulticastUpdatePreview(bool bValidLocation)
 
 데디케이티드 서버 환경에서의 네트워크 성능을 분석하고 최적화했습니다.
 
-![네트워크 트래픽 분석](./images/sprint16/network_traffic_analysis.jpg)
+![네트워크 트래픽 분석](../Images/Sprints_img/sprint16/network_traffic_analysis.jpg)
 *12명 동시 플레이 시 네트워크 트래픽 분석 결과*
 
 ### 5.2 최적화 전략 및 구현
@@ -313,7 +313,7 @@ void ACitizen::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetime
 }
 ```
 
-![성능 개선 결과](./images/sprint16/performance_improvement_results.jpg)
+![성능 개선 결과](../Images/Sprints_img/sprint16/performance_improvement_results.jpg)
 *네트워크 최적화 전후 성능 비교*
 
 ## 6. 진행 중인 작업과 도전 과제
@@ -368,7 +368,7 @@ Option 3: Hybrid 방식
 
 ### 6.3 현재 직면한 기술적 도전
 
-![기술적 도전 과제](./images/sprint16/technical_challenges.jpg)
+![기술적 도전 과제](../Images/Sprints_img/sprint16/technical_challenges.jpg)
 *현재 해결 중인 주요 기술적 이슈들*
 
 **주요 도전 과제들:**

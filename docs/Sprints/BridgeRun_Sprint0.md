@@ -11,19 +11,21 @@
 ### 1.1 핵심 가치
 게임의 핵심 철학은 "목표를 향한 과정의 가치"입니다. 트로피라는 명확한 목표를 두고, 그것을 얻기 위한 과정에서 발생하는 도전과 협력, 전략적 판단을 게임의 핵심 재미 요소로 삼았습니다.
 
-![잉카 밧줄 다리](/docs/Sprints/images/sprint0/Bridge.jpg)
+![잉카 밧줄 다리](../Images/Sprints_img/sprint0/Bridge.jpg)
 
 *고대 잉카 문명의 밧줄 다리에서 영감을 받은 게임의 핵심 메커닉*
 
 전략적 직업 선택 시스템은 팀 기반 게임의 핵심 요소입니다. 플레이어들은 각자의 역할을 맡아 목표를 달성하게 됩니다.
 
-![오버워치 캐릭터 선택](/docs/Sprints/images/sprint0/OverWatch_selete_Cha.jpg)
+![오버워치 캐릭터 선택](../Images/Sprints_img/sprint0/OverWatch_selete_Cha.jpg)
+
 *본진에서만 가능한 전략적 직업 전환 시스템 구현 방향*
 
 플레이어들은 본진 구역에서만 직업을 변경할 수 있으며, 이는 전략적 판단과 팀 구성의 중요성을 더욱 강조합니다.
 
 ### 1.2 협력과 희생의 강조
-![맵 기본 구상](/docs/Sprints/images/sprint0/idea_map.jpg)
+
+![맵 기본 구상](../Images/Sprints_img/sprint0/idea_map.jpg)
 
 *전략적 협력을 유도하는 맵 구조*
 
@@ -32,7 +34,8 @@
 - 개인의 희생이 팀 전체의 승리로 이어지는 구조
 
 ### 1.3 직업 시스템의 철학
-![직업 기본 구상](/docs/Sprints/images/sprint0/idea_class.jpg)
+
+![직업 기본 구상](../Images/Sprints_img/sprint0/idea_class.jpg)
 
 *각 직업군의 특성과 상호작용*
 
@@ -47,7 +50,8 @@
 ## 2. 초기 시스템 설계
 
 ### 2.1 다리 건설 시스템
-![다리 구조](/docs/Sprints/images/sprint0/idea_bridge.jpg)
+
+![다리 구조](../Images/Sprints_img/sprint0/idea_bridge.jpg)
 
 *다리 건설의 기본 메커닉*
 
@@ -57,7 +61,8 @@
 - 다양한 상황에 따른 전략적 판단 요구
 
 ### 2.2 전략적 이동 시스템
-![전략적 이동](/docs/Sprints/images/sprint0/idea_strategy.jpg)
+
+![전략적 이동](../Images/Sprints_img/sprint0/idea_strategy.jpg)
 
 *전략적 이동과 협력 플레이*
 
@@ -69,11 +74,12 @@
 ## 3. 상세 시스템 설계
 
 ### 3.1 맵 레이아웃
-![2v2 맵 구조](/docs/Sprints/images/sprint0/design_map_2v2.jpg)
+
+![2v2 맵 구조](../Images/Sprints_img/sprint0/design_map_2v2.jpg)
 
 *2:2:2 대전 맵 구조*
 
-![4v4 맵 구조](/docs/Sprints/images/sprint0/design_map_4v4.jpg)
+![4v4 맵 구조](../Images/Sprints_img/sprint0/design_map_4v4.jpg)
 
 *4:4 대전 맵 구조*
 
@@ -83,11 +89,12 @@
 - 다양한 전략 구사 가능성
 
 ### 3.2 직업 및 캐릭터 시스템
-![직업 상세 설계](/docs/Sprints/images/sprint0/design_class_detail.png)
+
+![직업 상세 설계](../Images/Sprints_img/sprint0/design_class_detail.png)
 
 *직업별 특성과 역할*
 
-<img src="/docs/Sprints/images/sprint0/design_citizen_card.png" alt="캐릭터 카드" width="25%" height="25%">
+<img src="../Images/Sprints_img/sprint0/design_citizen_card.png" alt="캐릭터 카드" width="25%" height="25%">
 
 *기본 캐릭터 특성*
 
@@ -150,7 +157,10 @@
   - 직관적인 건설 인터페이스
   - 상태 정보의 명확한 표시
 
-6. 결론
+## 6. 결론
+
 저는 이 게임이 단순한 승패를 넘어서 하나의 여정이 되었으면 합니다. 우리가 살아가면서 혼자서는 이룰 수 없는 많은 것들이 있듯이, 이 게임에서도 협력의 가치를 느낄 수 있기를 바랍니다.
+
 이기든 지든 그 과정에서 서로를 이해하고, 다른 팀의 전략을 보며 "아, 저런 방법이 있었구나"하고 배워가는 순간들이 있었으면 좋겠습니다. 팀원들과 함께 다리를 만들어가는 과정, 서로의 부족한 부분을 채워가며 목표를 향해 나아가는 그 여정 자체가 의미 있는 경험이 되기를 희망합니다.
+
 비록 개발에 시간이 오래 걸리더라도, 이러한 가치들을 잘 담아낼 수 있도록 최선을 다해 만들어보겠습니다. 읽어주셔서 감사합니다.

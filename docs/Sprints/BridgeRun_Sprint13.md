@@ -22,7 +22,7 @@
 - 부자연스러운 즉시 배치로 인한 몰입감 저하
 - 클라이언트 간 최종 위치 불일치
 
-![아이템 스폰 문제 상황](./images/sprint13/item_spawn_issues.jpg)
+![아이템 스폰 문제 상황](../Images/Sprints_img/sprint13/item_spawn_issues.jpg)
 *기존 아이템 스폰의 문제점들*
 
 ### 2.2 개선된 스폰 플로우
@@ -69,7 +69,7 @@ void AItemSpawnZone::SpawnItemAtLocation_Implementation(TSubclassOf<AItem> ItemC
 }
 ```
 
-![개선된 아이템 스폰](./images/sprint13/improved_item_spawn.gif)
+![개선된 아이템 스폰](../Images/Sprints_img/sprint13/improved_item_spawn.gif)
 *자연스럽게 떨어져서 안착하는 아이템들*
 
 ### 2.4 개선 결과
@@ -83,7 +83,7 @@ void AItemSpawnZone::SpawnItemAtLocation_Implementation(TSubclassOf<AItem> ItemC
 
 트로피존에서 점수 변화를 즉시 시각적으로 확인할 수 있도록 개선했습니다.
 
-![트로피 색상 변경 시스템](./images/sprint13/trophy_color_system.jpg)
+![트로피 색상 변경 시스템](../Images/Sprints_img/sprint13/trophy_color_system.jpg)
 *팀별 점수에 따라 실시간으로 변하는 트로피 색상*
 
 ### 3.2 시스템 구조도
@@ -131,7 +131,7 @@ void ATrophyZone::AddScore_Implementation(int32 TeamId, int32 Points)
 }
 ```
 
-![점수 시스템 동작](./images/sprint13/scoring_system_demo.gif)
+![점수 시스템 동작](../Images/Sprints_img/sprint13/scoring_system_demo.gif)
 *실시간으로 변화하는 트로피 색상과 점수 UI*
 
 ## 4. 코드 구조 개선
@@ -142,7 +142,7 @@ void ATrophyZone::AddScore_Implementation(int32 TeamId, int32 Points)
 - 중복 코드로 인한 유지보수 어려움
 - 네트워크 동기화 패턴의 불일치
 
-![코드 구조 개선 전후](./images/sprint13/code_structure_improvement.jpg)
+![코드 구조 개선 전후](../Images/Sprints_img/sprint13/code_structure_improvement.jpg)
 *SOLID 원칙 적용 전후 비교*
 
 ### 4.2 파일 구조 모듈화
@@ -206,7 +206,7 @@ UFUNCTION(NetMulticast, Reliable)
 void MulticastFunction_Implementation();
 ```
 
-![리팩토링 성과](./images/sprint13/refactoring_results.jpg)
+![리팩토링 성과](../Images/Sprints_img/sprint13/refactoring_results.jpg)
 *83% 중복 코드 감소, 모듈별 명확한 책임 분리*
 
 ## 5. 팀 시스템 인프라 확장
@@ -215,7 +215,7 @@ void MulticastFunction_Implementation();
 
 향후 로비 시스템과의 연동을 위한 견고한 팀 관리 기반을 구축했습니다.
 
-![팀 시스템 아키텍처](./images/sprint13/team_system_architecture.jpg)
+![팀 시스템 아키텍처](../Images/Sprints_img/sprint13/team_system_architecture.jpg)
 *확장 가능한 팀 관리 시스템 구조*
 
 ### 5.2 팀 관리 플로우
@@ -251,7 +251,7 @@ bool UBridgeRunGameInstance::AssignPlayerToTeam(const FString& PlayerName, int32
 }
 ```
 
-![팀 배정 UI](./images/sprint13/team_assignment_ui.jpg)
+![팀 배정 UI](../Images/Sprints_img/sprint13/team_assignment_ui.jpg)
 *실시간 팀 배정 및 정원 표시 UI*
 
 ## 6. 로그 시스템 설계
@@ -310,8 +310,8 @@ Phase 1 (현재) → Phase 2 (다음) → Phase 3 (향후) → Phase 4 (장기)
    구조 설계      실시간 수집     파일 저장     외부 연동
 ```
 
-![로그 시스템 설계](./images/sprint13/log_system_design.jpg)
-*포괄적인 게임플레이 데이터 수집 시스템*:
+![로그 시스템 설계](../Images/Sprints_img/sprint13/log_system_design.jpg)
+*포괄적인 게임플레이 데이터 수집 시스템*
 
 1. **1단계 (현재)**: 데이터 구조 설계 및 기본 수집 로직
 2. **2단계**: 게임 내 실시간 로그 수집 구현

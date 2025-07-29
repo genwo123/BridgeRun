@@ -17,7 +17,7 @@
 ## 2. 기본 시스템 구현
 
 ### 2.1 컴포넌트 기반 시스템 구조
-![컴포넌트 구조](./images/sprint2/component_structure.png)
+![컴포넌트 구조](../Images/Sprints_img/sprint2/component_structure.png)
 
 *시티즌 클래스의 컴포넌트 구조*
 
@@ -31,11 +31,11 @@
 ### 2.2 트로피/트로피존 시스템
 
 #### 트로피 시스템
-![트로피 점수 획득](./images/sprint2/trophy_score_system.png)
+![트로피 점수 획득](../Images/Sprints_img/sprint2/trophy_score_system.png)
 
 *트로피 점수 획득 시스템 작동 모습*
 
-![트로피존 상호작용](./images/sprint2/trophy_zone_interaction.png)
+![트로피존 상호작용](../Images/Sprints_img/sprint2/trophy_zone_interaction.png)
 
 *트로피와 트로피존의 상호작용 과정*
 
@@ -95,7 +95,7 @@ void ATrophyZone::UpdateTimer()
 ## 3. 다리 건설 시스템
 
 ### 3.1 스플라인 기반 BuildableZone 설계
-![다릿줄 스플라인 구조](./images/sprint2/rope_spline_structure.png)
+![다릿줄 스플라인 구조](../Images/Sprints_img/sprint2/rope_spline_structure.png)
 
 *스플라인 컴포넌트를 활용한 다리 구조 시스템*
 
@@ -137,11 +137,11 @@ ABuildableZone::ABuildableZone()
 ```
 
 ### 3.2 건설 검증 및 프리뷰 시스템
-![건설 프리뷰](./images/sprint2/buildable_zone_preview.png)
+![건설 프리뷰](../Images/Sprints_img/sprint2/buildable_zone_preview.png)
 
 *실시간 건설 가능 영역 시각화*
 
-![건설 완료](./images/sprint2/plank_placement_result.png)
+![건설 완료](../Images/Sprints_img/sprint2/plank_placement_result.png)
 
 *판자 설치 완료 상태*
 
@@ -166,13 +166,14 @@ bool ABuildableZone::IsPlankPlacementValid(const FVector& StartPoint, const FVec
 }
 ```
 
+## 4. 아이템 스폰 시스템
 
 ### 4.1 자동 생성 시스템
-![판자 스폰존](./images/sprint2/plank_spawn_zone.png)
+![판자 스폰존](../Images/Sprints_img/sprint2/plank_spawn_zone.png)
 
 *판자 생성 구역*
 
-![스폰존 설정](./images/sprint2/plank_spawn_blueprint.png)
+![스폰존 설정](../Images/Sprints_img/sprint2/plank_spawn_blueprint.png)
 
 *스폰존 블루프린트 구성*
 
@@ -204,9 +205,8 @@ void AItemSpawnZone::SpawnItem()
 }
 ```
 
-
 ### 4.2 작동 과정
-![아이템 스폰 과정](./images/sprint2/plank_spawn_process.gif)
+![아이템 스폰 과정](../Images/Sprints_img/sprint2/plank_spawn_process.gif)
 
 *실제 판자 생성 및 획득 과정*
 
@@ -214,17 +214,13 @@ void AItemSpawnZone::SpawnItem()
 
 ### 5.1 트로피존 상호작용 문제
 
-![트로피존 에러](./images/sprint2/trophy_zone_error.png)
+![트로피존 에러](../Images/Sprints_img/sprint2/trophy_zone_error.png)
 
 *트로피존에서 오버랩은 인식되지만 트로피를 인식못하고 있음*
 
-
-![트로피 배치 테스트](./images/sprint2/trophy_placement_test.png)
+![트로피 배치 테스트](../Images/Sprints_img/sprint2/trophy_placement_test.png)
 
 *트로피존 상호작용 문제 디버깅 과정*
-
-
-
 
 - 문제: 트로피와 트로피존 간의 상호작용이 일방향으로만 작동
   - 트로피에서 트로피존은 인식되지만 반대는 동작하지 않음

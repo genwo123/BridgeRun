@@ -87,7 +87,7 @@ void ADeathVolume::HandleOverlap(UPrimitiveComponent* OverlappedComponent,
 - NavMesh 기반 안전한 리스폰 위치 계산
 - 물리 기반 트로피의 네트워크 동기화 개선
 
-![트로피 드롭 시스템 구현](./images/sprint6/Trophy_Drop_System_Implementation.JPG)
+![트로피 드롭 시스템 구현](../Images/Sprints_img/sprint6/Trophy_Drop_System_Implementation.JPG)
 
 ```cpp
 void ADeathVolume::RespawnTrophy(AItem_Trophy* Trophy, const FVector& DeathLocation)
@@ -215,10 +215,10 @@ void ABridgeRunGameMode::UpdateGameState()
 - 클라이언트-서버 간 동기화 방법
 
 **물리/충돌 시스템 개선 과정**:
-![트로피 리스폰 관통 버그](./images/sprint6/Trophy_Respawn_Penetration_Bug.JPG)
+![트로피 리스폰 관통 버그](../Images/Sprints_img/sprint6/Trophy_Respawn_Penetration_Bug.JPG)
 *초기 문제: 트로피가 리스폰 후 지형을 관통하는 현상*
 
-![수정된 트로피 충돌 시스템](./images/sprint6/Fixed_Trophy_Collision_System.JPG)
+![수정된 트로피 충돌 시스템](../Images/Sprints_img/sprint6/Fixed_Trophy_Collision_System.JPG)
 *해결된 결과: PhysicsActor 프로필 적용으로 안정적인 충돌 처리 구현*
 
 ### 개인적 성장
