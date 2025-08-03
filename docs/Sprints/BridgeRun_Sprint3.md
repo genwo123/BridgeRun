@@ -59,7 +59,7 @@ public:
 ```
 
 ### 2.2 Plank 시스템 마이그레이션
-![건설 시스템 프리뷰](./images/sprint3/plank_system_rework_preview.jpg)
+![건설 시스템 프리뷰](../Images/Sprints_img/sprint3/plank_system_rework_preview.jpg)
 
 *개선된 Plank 설치 시스템*
 
@@ -71,7 +71,7 @@ public:
 ## 3. Tent 시스템 구현
 
 ### 3.1 기본 구조
-![텐트 설치 프리뷰](./images/sprint3/tent_placement_preview.jpg)
+![텐트 설치 프리뷰](../Images/Sprints_img/sprint3/tent_placement_preview.jpg)
 
 *텐트 설치 가능 영역 프리뷰*
 
@@ -90,7 +90,7 @@ public:
 ```
 
 ### 3.2 설치 시스템 문제점과 해결
-![텐트 설치 문제](./images/sprint3/tent_placement_validation.jpg)
+![텐트 설치 문제](../Images/Sprints_img/sprint3/tent_placement_validation.jpg)
 
 *초기 텐트 설치 시스템의 문제점*
 
@@ -113,7 +113,7 @@ bool ABuildableZone::IsTentPlacementValid(const FVector& Point)
 }
 ```
 
-![텐트 설치 완료](./images/sprint3/tent_placement_complete.jpg)
+![텐트 설치 완료](../Images/Sprints_img/sprint3/tent_placement_complete.jpg)
 
 *개선된 텐트 설치 시스템*
 
@@ -151,15 +151,15 @@ bool ABuildableZone::IsTentPlacementValid(const FVector& StartPoint, const FVect
 ## 4. 전투 시스템 구현
 
 ### 4.1 망원경 시스템
-![망원경 기본 상태](./images/sprint3/telescope_mode_switch.jpg)
+![망원경 기본 상태](../Images/Sprints_img/sprint3/telescope_mode_switch.jpg)
 
 *망원경 기본 상태*
 
-![망원경 시점 문제](./images/sprint3/telescope_perspective_bug.jpg)
+![망원경 시점 문제](../Images/Sprints_img/sprint3/telescope_perspective_bug.jpg)
 
 *초기 발생한 시점 전환 문제*
 
-![망원경 확대 상태](./images/sprint3/telescope_zoom_view.jpg)
+![망원경 확대 상태](../Images/Sprints_img/sprint3/telescope_zoom_view.jpg)
 
 *수정된 망원경 확대 시점*
 
@@ -169,19 +169,19 @@ bool ABuildableZone::IsTentPlacementValid(const FVector& StartPoint, const FVect
 - 자연스러운 시점 전환
 
 ### 4.2 총기 시스템
-![총기 기본 상태](./images/sprint3/weapon_initial_firstperson.jpg)
+![총기 기본 상태](../Images/Sprints_img/sprint3/weapon_initial_firstperson.jpg)
 
 *총기 기본 상태*
 
-![조준 상태](./images/sprint3/weapon_pickup_firstperson.jpg)
+![조준 상태](../Images/Sprints_img/sprint3/weapon_pickup_firstperson.jpg)
 
 *총기 조준 시점*
 
-![무기 버리기](./images/sprint3/weapon_selection_duplicate_bug.jpg)
+![무기 버리기](../Images/Sprints_img/sprint3/weapon_selection_duplicate_bug.jpg)
 
 *총기 교체 시스템*
 
-![탄약 디버그](./images/sprint3/weapon_ammo_debug_log.jpg)
+![탄약 디버그](../Images/Sprints_img/sprint3/weapon_ammo_debug_log.jpg)
 
 *탄약 관리 시스템 로그*
 
@@ -227,9 +227,11 @@ void AItem_Gun::Fire()
 }
 ```
 
-![전투 모드](./images/sprint3/combat_mode_base.jpg)
+![전투 모드](../Images/Sprints_img/sprint3/combat_mode_base.jpg)
 
 *전투 모드 시스템*
+
+## 5. UI 시스템 분석
 
 ### 5.1 네트워크 테스트 시도
 다음 스프린트를 위한 기초 작업으로 네트워크 기능을 테스트하던 중:
@@ -239,11 +241,11 @@ void AItem_Gun::Fire()
 ```
 예상치 못한 문제가 발생했습니다:
 
-![서버 연결 오류](./images/sprint3/server_connection_error_log.jpg)
+![서버 연결 오류](../Images/Sprints_img/sprint3/server_connection_error_log.jpg)
 
 *변수 할당 문제로 인한 연결 오류*
 
-![UI 변수 오류](./images/sprint3/ui_variable_recognition_error.jpg)
+![UI 변수 오류](../Images/Sprints_img/sprint3/ui_variable_recognition_error.jpg)
 
 *서버 연동 테스트 중 발견된 UI 변수 할당 문제*
 
@@ -252,15 +254,15 @@ void AItem_Gun::Fire()
 ### 5.2 Common UI 분석
 Common UI의 문제점을 확인한 후, Slate UI 마이그레이션을 위해 현재 시스템을 분석했습니다:
 
-![UI 구조 분석](./images/sprint3/ui_structure_expansion.png)
+![UI 구조 분석](../Images/Sprints_img/sprint3/ui_structure_expansion.png)
 
 *Slate UI로 가져올 Common UI의 핵심 기능 분석*
 
-![Common UI 스타일](./images/sprint3/common_ui_style_settings.png)
+![Common UI 스타일](../Images/Sprints_img/sprint3/common_ui_style_settings.png)
 
 *Common UI의 현재 구조와 스타일링 시스템*
 
-![스타일 상세](./images/sprint3/ui_style_detailed_properties.png)
+![스타일 상세](../Images/Sprints_img/sprint3/ui_style_detailed_properties.png)
 
 *현재 사용 중인 UI 속성들 분석*
 

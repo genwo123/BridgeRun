@@ -7,7 +7,7 @@
 ## 1. UI 시스템 구현
 
 ### 1.1 Common UI를 활용한 PlayerStack 구현
-![PlayerStack 구조](./images/sprint1/ui_player_stack_structure.png)
+![PlayerStack 구조](../Images/Sprints_img/sprint1/ui_player_stack_structure.png)
 Common UI 플러그인을 활용하여 효율적인 UI 스택 관리 시스템을 구현했습니다.
 이전 프로젝트에서의 경험을 바탕으로, UI 스택의 체계적인 관리를 위해 PlayerStack과 PopUpStack으로 구분하여 설계했습니다.
     
@@ -29,7 +29,7 @@ void PushPlayerMenu()
 ```
 
 ### 1.2 게임모드와 HUD 연동
-![HUD 연동](./images/sprint1/ui_hud_gamemode_setup.png)
+![HUD 연동](../Images/Sprints_img/sprint1/ui_hud_gamemode_setup.png)
 BeginPlay 이벤트에서 HUD를 초기화하고 플레이어와 연동하는 시스템을 구축했습니다.
 ```cpp
 void AGameModeBase::BeginPlay()
@@ -46,9 +46,9 @@ void AGameModeBase::BeginPlay()
 ```
 
 ### 1.3 인벤토리 UI 시스템
-![아이템 슬롯 구조](./images/sprint1/ui_inventory_slot_layout.png)
-![실시간 카운트](./images/sprint1/ui_item_count_binding.png)
-![아이템 카운트 디자인](./images/sprint1/ui_item_count_blueprint.png)
+![아이템 슬롯 구조](../Images/Sprints_img/sprint1/ui_inventory_slot_layout.png)
+![실시간 카운트](../Images/Sprints_img/sprint1/ui_item_count_binding.png)
+![아이템 카운트 디자인](../Images/Sprints_img/sprint1/ui_item_count_blueprint.png)
 
 아이템 카운트의 실시간 업데이트를 위해 바인딩 시스템을 구현했습니다.
 InvenComponent에서 아이템 개수가 변경될 때마다 UI가 자동으로 업데이트되도록 설계했습니다.
@@ -95,7 +95,7 @@ void ACitizen::MoveRight(float Value)
 ```
 
 ## 3. 입력 시스템 설계
-![입력 매핑](./images/sprint1/input_system_mapping.png)
+![입력 매핑](../Images/Sprints_img/sprint1/input_system_mapping.png)
 
 향후 키 리매핑 기능을 고려하여 확장 가능한 입력 시스템을 구현했습니다.
 
@@ -131,7 +131,7 @@ void ACitizen::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 ```
 
 ## 4. 인벤토리 시스템
-![인게임 UI](./images/sprint1/ingame_inventory_ui.png)
+![인게임 UI](../Images/Sprints_img/sprint1/ingame_inventory_ui.png)
 
 ### 4.1 인벤토리 데이터 구조
 ```cpp

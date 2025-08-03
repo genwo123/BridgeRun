@@ -17,7 +17,7 @@
 
 ### 2.1 GameState 구현
 
-![블루프린트 상속 오류](./images/sprint4/plank_blueprint_inheritance_error.JPG)
+![블루프린트 상속 오류](../Images/Sprints_img/sprint4/plank_blueprint_inheritance_error.JPG)
 
 *블루프린트 상속 구조에서 발생한 네트워크 동기화 문제*
 
@@ -46,7 +46,7 @@ public:
 
 ### 2.2 프리뷰 시스템 동기화
 
-![프리뷰 위치 오류](./images/sprint4/plank_preview_position_error.JPG)
+![프리뷰 위치 오류](../Images/Sprints_img/sprint4/plank_preview_position_error.JPG)
 
 *프리뷰 위치가 클라이언트마다 다르게 표시되는 문제*
 
@@ -78,7 +78,7 @@ void UBuildingComponent::ServerUpdatePreviewLocation_Implementation(const FVecto
 
 ### 2.3 물리 동기화 시스템
 
-![클라이언트 구조 문제](./images/sprint4/plank_client_structure_anomaly.JPG)
+![클라이언트 구조 문제](../Images/Sprints_img/sprint4/plank_client_structure_anomaly.JPG)
 
 *클라이언트의 물리 동기화 문제*
 
@@ -106,7 +106,7 @@ protected:
 
 ### 3.1 서버-클라이언트 동기화
 
-![서버 클라이언트 불일치](./images/sprint4/plank_server_client_discrepancy.JPG)
+![서버 클라이언트 불일치](../Images/Sprints_img/sprint4/plank_server_client_discrepancy.JPG)
 
 *서버와 클라이언트 간의 동기화가 개선된 모습*
 
