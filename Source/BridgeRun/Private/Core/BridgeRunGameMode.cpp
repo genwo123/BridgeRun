@@ -143,21 +143,18 @@ void ABridgeRunGameMode::PostLogin(APlayerController* NewPlayer)
     if (PS)
     {
         int32 TeamID = PS->GetTeamID();
-        UE_LOG(LogTemp, Error, TEXT("PostLogin: PlayerState TeamID = %d"), TeamID);
     }
 
     // GameInstance 확인
     if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetGameInstance()))
     {
         FString PlayerID = NewPlayer->GetName();
-        int32 GameInstTeamID = GameInst->GetPlayerTeamID(PlayerID);
-        UE_LOG(LogTemp, Error, TEXT("PostLogin: GameInstance TeamID = %d"), GameInstTeamID);
+        int32 GameInstTeamID = GameInst->GetPlayerTeamIDForTransition(PlayerID);
     }
 
     // TeamManager 호출 여부 확인
     if (TeamManagerComponent)
     {
-        UE_LOG(LogTemp, Error, TEXT("PostLogin: Calling AssignPlayerToTeam"));
         TeamManagerComponent->AssignPlayerToTeam(NewPlayer);
         UE_LOG(LogTemp, Error, TEXT("PostLogin: AssignPlayerToTeam completed"));
     }
@@ -215,7 +212,7 @@ void ABridgeRunGameMode::RestartPlayer(AController* NewPlayer)
         if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
         {
             FString PlayerID = NewPlayer->GetName();
-            TeamID = GameInst->GetPlayerTeamID(PlayerID);
+            TeamID = GameInst->GetPlayerTeamIDForTransition(PlayerID);
 
             if (TeamID >= 0 && BridgeRunPS)
             {

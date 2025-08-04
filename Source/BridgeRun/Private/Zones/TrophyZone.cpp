@@ -6,6 +6,7 @@
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
+#include "Core/BridgeRunGameState.h" 
 #include "Core/BridgeRunPlayerState.h"
 #include "GameFramework/PlayerController.h"
 #include "Core/BridgeRunGameInstance.h"
@@ -350,19 +351,20 @@ void ATrophyZone::OnScoreTimerComplete()
     // 점수 부여 - 트로피존 타입에 따라 달라짐
     if (ZoneType == ETrophyZoneType::TeamBase)
     {
-        // 팀 베이스: 트로피존의 팀 ID로 점수 부여
-        GameInst->UpdateTeamScore(TeamID, ScoreToAdd);
-        UE_LOG(LogTemp, Log, TEXT("Team Base: Team %d earned %d points (x%.1f multiplier)"),
-            TeamID, ScoreToAdd, ScoreMultiplier);
+        if (ABridgeRunGameState* GameState = GetWorld()->GetGameState<ABridgeRunGameState>())
+        {
+            GameState->UpdateTeamScore(TeamID, ScoreToAdd);
+        }
     }
     else // Neutral Zone
     {
         // 중립 지역: 트로피의 팀 ID로 점수 부여
         if (TrophyTeamID >= 0)
         {
-            GameInst->UpdateTeamScore(TrophyTeamID, ScoreToAdd);
-            UE_LOG(LogTemp, Log, TEXT("Neutral Zone: Trophy Team %d earned %d points (x%.1f multiplier)"),
-                TrophyTeamID, ScoreToAdd, ScoreMultiplier);
+            if (ABridgeRunGameState* GameState = GetWorld()->GetGameState<ABridgeRunGameState>())
+            {
+                GameState->UpdateTeamScore(TrophyTeamID, ScoreToAdd);
+            }
         }
     }
 

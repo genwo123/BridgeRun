@@ -5,7 +5,7 @@
 #include "BridgeRunGameInstance.generated.h"
 
 /**
- * 플레이어 정보 저장 구조체 (팀 정보 + 이름 통합)
+ * 팀 정보 구조체 (맵 전환시 임시 저장용)
  */
 USTRUCT(BlueprintType)
 struct BRIDGERUN_API FPlayerTeamInfo
@@ -13,35 +13,31 @@ struct BRIDGERUN_API FPlayerTeamInfo
     GENERATED_BODY()
 
     UPROPERTY(BlueprintReadWrite, Category = "Player")
-    FString PlayerID;           // 플레이어 고유 ID (자동 생성)
+    FString PlayerID;
 
     UPROPERTY(BlueprintReadWrite, Category = "Player")
-    FString PlayerName;         // 플레이어 닉네임
+    FString PlayerName;
 
     UPROPERTY(BlueprintReadWrite, Category = "Player")
-    int32 TeamID = -1;          // 팀 ID
+    int32 TeamID = -1;
 
     FPlayerTeamInfo() {}
 
-    // 생성자 (ID 자동 생성)
     FPlayerTeamInfo(const FString& InPlayerName, int32 InTeamID)
         : PlayerName(InPlayerName), TeamID(InTeamID)
     {
-        // PlayerID 자동 생성 (타임스탬프 + 랜덤)
         PlayerID = FString::Printf(TEXT("Player_%lld_%d"),
             FDateTime::Now().GetTicks(),
             FMath::RandRange(1000, 9999));
     }
 
-    // 기존 호환용 생성자
     FPlayerTeamInfo(const FString& InPlayerID, const FString& InPlayerName, int32 InTeamID)
-        : PlayerID(InPlayerID), PlayerName(InPlayerName), TeamID(InTeamID)
-    {
+        : PlayerID(InPlayerID), PlayerName(InPlayerName), TeamID(InTeamID) {
     }
 };
 
 /**
- * 게임 인스턴스 클래스 - 로비 + 팀 관리 통합
+ * BridgeRun 게임 인스턴스 - 클라이언트 로컬 설정 + 맵 전환 데이터만 관리
  */
 UCLASS(BlueprintType, Blueprintable, Config = Game)
 class BRIDGERUN_API UBridgeRunGameInstance : public UGameInstance
@@ -53,153 +49,117 @@ public:
     virtual void Init() override;
 
     // =========================
-    // 로비 시스템 호환성 (기존 LobbyGameInstance 대체)
+    // 클라이언트 로컬 설정 (메인 역할)
     // =========================
 
-    /** 기존 로비 시스템 호환용 - 플레이어 이름 (FText) */
+    /** 마지막 사용한 닉네임 (다음 접속시 기본값) */
+    UPROPERTY(BlueprintReadWrite, Category = "Local Settings")
+    FString LastUsedNickname = TEXT("");
+
+    /** 선호하는 스킨 인덱스 */
+    UPROPERTY(BlueprintReadWrite, Category = "Local Settings")
+    int32 PreferredSkinIndex = 0;
+
+    /** 그래픽 설정 */
+    UPROPERTY(BlueprintReadWrite, Category = "Local Settings")
+    int32 GraphicsQuality = 2; // 0=Low, 1=Medium, 2=High, 3=Epic
+
+    /** 사운드 설정 */
+    UPROPERTY(BlueprintReadWrite, Category = "Local Settings")
+    float MasterVolume = 1.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Local Settings")
+    float SFXVolume = 1.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Local Settings")
+    float BGMVolume = 1.0f;
+
+    // 로컬 설정 관리
+    UFUNCTION(BlueprintCallable, Category = "Local Settings")
+    void SaveLocalSettings();
+
+    UFUNCTION(BlueprintCallable, Category = "Local Settings")
+    void LoadLocalSettings();
+
+    UFUNCTION(BlueprintCallable, Category = "Local Settings")
+    void ResetToDefaults();
+
+    // =========================
+    // 로비 시스템 호환성 (SimpleLobbySystem용)
+    // =========================
+
+    /** 로비 시스템 호환용 플레이어 이름 */
     UPROPERTY(BlueprintReadWrite, Category = "Lobby Compatibility")
     FText PlayerNameText;
 
-    /** 기존 로비 시스템 호환용 - 스킨 인덱스 */
+    /** 로비 시스템 호환용 스킨 인덱스 */
     UPROPERTY(BlueprintReadWrite, Category = "Lobby Compatibility")
     int32 SkinIndex = 0;
 
-    /** 싱글톤 패턴 호환 (기존 로비 코드에서 사용) */
+    /** 싱글톤 패턴 호환 */
     UFUNCTION(BlueprintCallable, Category = "Lobby Compatibility")
     static UBridgeRunGameInstance* GetInstance();
 
     // =========================
-    // 플레이어 관리 함수 (단순화)
+    // UI 네비게이션 상태
     // =========================
 
-    /** 현재 플레이어 이름 설정 */
-    UFUNCTION(BlueprintCallable, Category = "Player")
-    void SetCurrentPlayerName(const FString& NewPlayerName);
-
-    /** 현재 플레이어 이름 가져오기 (FString) */
-    UFUNCTION(BlueprintPure, Category = "Player")
-    FString GetCurrentPlayerName() const;
-
-    /** 현재 플레이어 이름 가져오기 (FText - 로비 호환용) */
-    UFUNCTION(BlueprintPure, Category = "Player")
-    FText GetCurrentPlayerNameAsText() const;
-
-    // =========================
-    // 팀 점수 관리 함수
-    // =========================
-
-    UFUNCTION(BlueprintCallable, Category = "Teams")
-    void UpdateTeamScore(int32 TeamID, int32 NewScore);
-
-    UFUNCTION(BlueprintCallable, Category = "Teams")
-    void AddTeamScore(int32 TeamID, int32 ScoreToAdd);
-
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    int32 GetTeamScore(int32 TeamID) const;
-
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    int32 GetWinningTeam() const;
-
-    // =========================
-    // 플레이어 정보 관리 함수 (단순화)
-    // =========================
-
-    /** 플레이어 정보 저장 (이름으로 자동 ID 생성) */
-    UFUNCTION(BlueprintCallable, Category = "Teams")
-    FString AddPlayerInfo(const FString& PlayerName, int32 TeamID);
-
-    /** 플레이어 정보 저장 (ID 직접 지정) */
-    UFUNCTION(BlueprintCallable, Category = "Teams")
-    void SavePlayerTeamInfo(const FString& PlayerID, int32 TeamID, const FString& PlayerName = "");
-
-    /** 플레이어 ID로 팀 ID 가져오기 */
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    int32 GetPlayerTeamID(const FString& PlayerID) const;
-
-    /** 플레이어 ID로 이름 가져오기 */
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    FString GetPlayerNameByID(const FString& PlayerID) const;
-
-    /** 모든 플레이어 정보 가져오기 */
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    TArray<FPlayerTeamInfo> GetAllPlayersInfo() const;
-
-    /** 특정 팀의 플레이어들 가져오기 */
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    TArray<FPlayerTeamInfo> GetPlayersByTeam(int32 TeamID) const;
-
-    /** 플레이어 정보 전체 삭제 */
-    UFUNCTION(BlueprintCallable, Category = "Teams")
-    void ClearPlayersTeamInfo();
-
-    /** 디버그용: 모든 플레이어 정보 출력 */
-    UFUNCTION(BlueprintCallable, Category = "Teams")
-    void PrintPlayersTeamInfo() const;
-
-
-
-
-    // =========================
-    // 팀 균형 관리 함수
-    // =========================
-
-    UPROPERTY(BlueprintReadWrite, Category = "Teams")
-    TArray<int32> StoredTeamCounts;
-
-
-
-
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    bool AreTeamsBalanced() const;
-
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    bool HasMinimumTeams(int32 MinTeamCount = 2) const;
-
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    TArray<int32> GetTeamPlayerCounts() const;
-
-    UFUNCTION(BlueprintCallable, Category = "Teams")
-    void SetTeamPlayerCounts(const TArray<int32>& NewTeamCounts);
-
-    UFUNCTION(BlueprintPure, Category = "Teams")
-    int32 GetActiveTeamsCount() const;
-
+    /** 로그인 화면 건너뛰기 */
     UPROPERTY(BlueprintReadWrite, Category = "UI Navigation")
     bool bSkipLoginScreen = false;
 
-
+    /** 닉네임 설정 완료 여부 */
     UPROPERTY(BlueprintReadWrite, Category = "UI Navigation")
     bool bHasPlayerName = false;
 
+    /** 게임에서 복귀 여부 */
     UPROPERTY(BlueprintReadWrite, Category = "UI Navigation")
     bool bReturningFromGame = false;
 
+    // =========================
+    // 맵 전환 임시 데이터 (최소한만)
+    // =========================
+
+    /** 맵 전환시 팀 정보 임시 저장 */
+    UPROPERTY(BlueprintReadWrite, Category = "Map Transition")
+    TArray<FPlayerTeamInfo> TempPlayerTeamInfo;
+
+    /** 맵 전환용 팀 정보 저장 */
+    UFUNCTION(BlueprintCallable, Category = "Map Transition")
+    void SaveTeamInfoForTransition(const TArray<FPlayerTeamInfo>& TeamInfo);
+
+    /** 맵 전환용 팀 정보 가져오기 */
+    UFUNCTION(BlueprintPure, Category = "Map Transition")
+    TArray<FPlayerTeamInfo> GetTeamInfoFromTransition() const;
+
+    /** 맵 전환용 특정 플레이어 팀 ID 가져오기 */
+    UFUNCTION(BlueprintPure, Category = "Map Transition")
+    int32 GetPlayerTeamIDForTransition(const FString& PlayerID) const;
+
+    /** 맵 전환 데이터 초기화 */
+    UFUNCTION(BlueprintCallable, Category = "Map Transition")
+    void ClearTransitionData();
+
+    // =========================
+    // 편의 함수들
+    // =========================
+
+    /** 현재 플레이어 닉네임 설정 */
+    UFUNCTION(BlueprintCallable, Category = "Player")
+    void SetCurrentPlayerName(const FString& NewPlayerName);
+
+    /** 현재 플레이어 닉네임 가져오기 (FString) */
+    UFUNCTION(BlueprintPure, Category = "Player")
+    FString GetCurrentPlayerName() const;
+
+    /** 현재 플레이어 닉네임 가져오기 (FText - 로비 호환용) */
+    UFUNCTION(BlueprintPure, Category = "Player")
+    FText GetCurrentPlayerNameAsText() const;
+
 protected:
-    // 팀 점수 배열
-    UPROPERTY(BlueprintReadWrite, Category = "Teams")
-    TArray<int32> TeamScores;
-
-    // 플레이어 정보 배열
-    UPROPERTY(BlueprintReadWrite, Category = "Teams")
-    TArray<FPlayerTeamInfo> PlayersTeamInfo;
-
-    // 현재 플레이어 이름 (FString)
-    UPROPERTY(BlueprintReadWrite, Category = "Player")
+    // 현재 플레이어 이름 (내부 관리용)
+    UPROPERTY(BlueprintReadWrite, Category = "Internal")
     FString CurrentPlayerName;
-
-    // 팀 수 설정
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teams", meta = (ClampMin = "1", ClampMax = "10"))
-    int32 NumberOfTeams = 4;
-
-    // 팀 균형 설정
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teams")
-    int32 MinimumTeamsRequired = 2;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teams")
-    int32 MaxPlayerDifferenceAllowed = 1;
-
-    // 유효한 팀 ID 확인
-    bool IsValidTeamID(int32 TeamID) const;
 
 private:
     // 싱글톤 패턴 지원

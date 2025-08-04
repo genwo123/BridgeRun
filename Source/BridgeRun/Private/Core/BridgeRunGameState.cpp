@@ -1,15 +1,19 @@
 // Copyright BridgeRun Game, Inc. All Rights Reserved.
 #include "Core/BridgeRunGameState.h"
+#include "Core/BridgeRunPlayerState.h"
 #include "Net/UnrealNetwork.h"
 
 ABridgeRunGameState::ABridgeRunGameState()
 {
-    // 기본값 설정
     CurrentPhase = EGamePhase::Lobby;
     PhaseTimeRemaining = 0.0f;
     CurrentRoundNumber = 1;
 
-    // 팀 데이터는 초기화만 하고, 실제 팀은 나중에 동적으로 추가
+    RoomName = TEXT("BridgeRun Room");
+    MaxPlayersCount = 12;
+    CurrentPlayersCount = 0;
+    bGameStarted = false;
+
     TeamVictoryPoints.Empty();
 }
 
@@ -17,49 +21,30 @@ void ABridgeRunGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    // 네트워크 복제할 변수들 등록
+    // 공통 게임 상태
     DOREPLIFETIME(ABridgeRunGameState, CurrentPhase);
     DOREPLIFETIME(ABridgeRunGameState, PhaseTimeRemaining);
     DOREPLIFETIME(ABridgeRunGameState, CurrentRoundNumber);
+
+    // 로비 시스템
+    DOREPLIFETIME(ABridgeRunGameState, RoomName);
+    DOREPLIFETIME(ABridgeRunGameState, MaxPlayersCount);
+    DOREPLIFETIME(ABridgeRunGameState, CurrentPlayersCount);
+
+    // 게임플레이 시스템
     DOREPLIFETIME(ABridgeRunGameState, TeamVictoryPoints);
     DOREPLIFETIME(ABridgeRunGameState, bGameStarted);
 }
 
-void ABridgeRunGameState::OnRep_GameStarted()
-{
-    if (bGameStarted)
-    {
-        UE_LOG(LogTemp, Log, TEXT("Creating team score widgets for %d teams"), TeamVictoryPoints.Num());
-        BP_CreateTeamScoreWidgets();
-    }
-}
-void ABridgeRunGameState::StartGameWithTeams(const TArray<int32>& ActiveTeamIDs)
-{
-    if (!HasAuthority()) return;
-
-    // 팀 초기화
-    InitializeTeams(ActiveTeamIDs);
-
-    // 게임 시작 상태로 변경
-    bGameStarted = true;
-
-    // ★ 서버에서도 OnRep_GameStarted 로직을 수동으로 호출
-    OnRep_GameStarted();
-
-    // 게임 페이즈도 변경
-    SetCurrentPhase(EGamePhase::StrategyTime);
-
-    UE_LOG(LogTemp, Log, TEXT("Game started with %d teams"), ActiveTeamIDs.Num());
-}
-
-// === Setter 함수들 ===
+// =========================
+// 공통 게임 상태
+// =========================
 
 void ABridgeRunGameState::SetCurrentPhase(EGamePhase NewPhase)
 {
-    if (HasAuthority()) // 서버에서만 실행
+    if (HasAuthority())
     {
         CurrentPhase = NewPhase;
-        UE_LOG(LogTemp, Log, TEXT("Game Phase changed to: %d"), (int32)NewPhase);
     }
 }
 
@@ -67,7 +52,7 @@ void ABridgeRunGameState::SetPhaseTimeRemaining(float NewTime)
 {
     if (HasAuthority())
     {
-        PhaseTimeRemaining = FMath::Max(0.0f, NewTime); // 음수 방지
+        PhaseTimeRemaining = FMath::Max(0.0f, NewTime);
     }
 }
 
@@ -75,87 +60,135 @@ void ABridgeRunGameState::SetCurrentRoundNumber(int32 NewRound)
 {
     if (HasAuthority())
     {
-        CurrentRoundNumber = FMath::Max(1, NewRound); // 최소 1라운드
-        UE_LOG(LogTemp, Log, TEXT("Round changed to: %d"), CurrentRoundNumber);
+        CurrentRoundNumber = FMath::Max(1, NewRound);
     }
 }
 
-// === UI 표시용 함수들 ===
+// =========================
+// 로비 시스템
+// =========================
 
-FString ABridgeRunGameState::GetFormattedTime() const
+void ABridgeRunGameState::SetRoomName(const FString& NewRoomName)
 {
-    if (PhaseTimeRemaining < 0.0f) return TEXT("00:00"); // 안전장치
-
-    int32 Minutes = (int32)PhaseTimeRemaining / 60;
-    int32 Seconds = (int32)PhaseTimeRemaining % 60;
-    return FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds);
-}
-
-FString ABridgeRunGameState::GetRoundText() const
-{
-    return FString::Printf(TEXT("Round %d"), CurrentRoundNumber);
-}
-
-FString ABridgeRunGameState::GetPhaseText() const
-{
-    switch (CurrentPhase)
+    if (HasAuthority())
     {
-    case EGamePhase::StrategyTime:
-        return TEXT("Strategy Time");
-    case EGamePhase::RoundPlaying:
-        return TEXT("Round Playing");
-    case EGamePhase::RoundEnd:
-        return TEXT("Round End");
-    case EGamePhase::GameEnd:
-        return TEXT("Game End");
-    default:
-        return TEXT("Lobby");
+        RoomName = NewRoomName;
+        ForceNetUpdate();
     }
 }
 
-// === 팀 점수 관련 함수들 ===
+void ABridgeRunGameState::SetMaxPlayersCount(int32 NewMaxPlayers)
+{
+    if (HasAuthority())
+    {
+        MaxPlayersCount = FMath::Clamp(NewMaxPlayers, 2, 12);
+        ForceNetUpdate();
+    }
+}
 
-void ABridgeRunGameState::UpdateTeamScore(int32 TeamID, int32 NewScore)
+void ABridgeRunGameState::UpdateCurrentPlayersCount()
+{
+    if (HasAuthority())
+    {
+        CurrentPlayersCount = PlayerArray.Num();
+        ForceNetUpdate();
+    }
+}
+
+bool ABridgeRunGameState::AreAllNonHostPlayersReady() const
+{
+    int32 NonHostPlayers = 0;
+    int32 ReadyNonHostPlayers = 0;
+
+    for (APlayerState* PS : PlayerArray)
+    {
+        ABridgeRunPlayerState* BRPS = Cast<ABridgeRunPlayerState>(PS);
+        if (BRPS && !BRPS->GetHostStatus()) // 방장이 아닌 플레이어
+        {
+            NonHostPlayers++;
+            if (BRPS->GetReadyStatus())
+            {
+                ReadyNonHostPlayers++;
+            }
+        }
+    }
+
+    return (NonHostPlayers > 0) && (ReadyNonHostPlayers == NonHostPlayers);
+}
+
+int32 ABridgeRunGameState::GetReadyPlayersCount() const
+{
+    int32 ReadyCount = 0;
+
+    for (APlayerState* PS : PlayerArray)
+    {
+        ABridgeRunPlayerState* BRPS = Cast<ABridgeRunPlayerState>(PS);
+        if (BRPS && !BRPS->GetHostStatus() && BRPS->GetReadyStatus())
+        {
+            ReadyCount++;
+        }
+    }
+
+    return ReadyCount;
+}
+
+int32 ABridgeRunGameState::GetTotalNonHostPlayersCount() const
+{
+    int32 NonHostCount = 0;
+
+    for (APlayerState* PS : PlayerArray)
+    {
+        ABridgeRunPlayerState* BRPS = Cast<ABridgeRunPlayerState>(PS);
+        if (BRPS && !BRPS->GetHostStatus())
+        {
+            NonHostCount++;
+        }
+    }
+
+    return NonHostCount;
+}
+
+bool ABridgeRunGameState::CanStartGame() const
+{
+    return IsLobbyPhase() &&
+        GetTotalNonHostPlayersCount() >= 1 &&
+        AreAllNonHostPlayersReady();
+}
+
+void ABridgeRunGameState::MulticastUpdateLobbyUI_Implementation()
+{
+    // 모든 클라이언트에서 로비 UI 업데이트 (블루프린트에서 구현)
+}
+
+// =========================
+// 게임플레이 시스템
+// =========================
+
+void ABridgeRunGameState::OnRep_GameStarted()
+{
+    if (bGameStarted)
+    {
+        BP_CreateTeamScoreWidgets();
+    }
+}
+
+void ABridgeRunGameState::StartGameWithTeams(const TArray<int32>& ActiveTeamIDs)
 {
     if (!HasAuthority()) return;
 
-    // 해당 TeamID를 가진 팀 찾기
-    for (FTeamVictoryData& Team : TeamVictoryPoints)
-    {
-        if (Team.TeamID == TeamID)
-        {
-            Team.CurrentRoundScore = FMath::Max(0, NewScore); // 음수 방지
-            UE_LOG(LogTemp, Log, TEXT("Team %d score updated to: %d"), TeamID, NewScore);
-            return;
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("Team %d not found for score update"), TeamID);
+    InitializeTeams(ActiveTeamIDs);
+    bGameStarted = true;
+    OnRep_GameStarted();
+    SetCurrentPhase(EGamePhase::StrategyTime);
 }
-
-int32 ABridgeRunGameState::GetTeamCurrentScore(int32 TeamID) const
-{
-    for (const FTeamVictoryData& Team : TeamVictoryPoints)
-    {
-        if (Team.TeamID == TeamID)
-        {
-            return Team.CurrentRoundScore;
-        }
-    }
-    return 0;
-}
-
-// === 팀 관리 함수들 ===
 
 void ABridgeRunGameState::InitializeTeams(const TArray<int32>& ActiveTeamIDs)
 {
     if (!HasAuthority()) return;
 
-    // 기존 팀 데이터 초기화
     TeamVictoryPoints.Empty();
     TeamVictoryPoints.Reserve(ActiveTeamIDs.Num());
 
-    // 활성화된 팀만 추가
     for (int32 TeamID : ActiveTeamIDs)
     {
         FTeamVictoryData NewTeam;
@@ -163,11 +196,8 @@ void ABridgeRunGameState::InitializeTeams(const TArray<int32>& ActiveTeamIDs)
         NewTeam.CurrentRoundScore = 0;
         NewTeam.TotalVictoryPoints = 0;
         TeamVictoryPoints.Add(NewTeam);
-
-        UE_LOG(LogTemp, Log, TEXT("Team %d initialized"), TeamID);
     }
 
-    // 네트워크 업데이트 강제
     ForceNetUpdate();
 }
 
@@ -187,17 +217,16 @@ FSlateColor ABridgeRunGameState::GetTeamColor(int32 TeamID) const
 {
     switch (TeamID)
     {
-    case 0: return FSlateColor(FLinearColor::Red);        // 빨강
-    case 1: return FSlateColor(FLinearColor::Blue);       // 파랑
-    case 2: return FSlateColor(FLinearColor::Yellow);     // 노랑
-    case 3: return FSlateColor(FLinearColor::Green);      // 초록
+    case 0: return FSlateColor(FLinearColor::Red);
+    case 1: return FSlateColor(FLinearColor::Blue);
+    case 2: return FSlateColor(FLinearColor::Yellow);
+    case 3: return FSlateColor(FLinearColor::Green);
     default: return FSlateColor(FLinearColor::White);
     }
 }
 
 bool ABridgeRunGameState::IsTeamActive(int32 TeamID) const
 {
-    // TeamVictoryPoints 배열에 해당 TeamID가 있는지 확인
     for (const FTeamVictoryData& Team : TeamVictoryPoints)
     {
         if (Team.TeamID == TeamID)
@@ -223,13 +252,48 @@ TArray<int32> ABridgeRunGameState::GetActiveTeamIDs() const
     return ActiveIDs;
 }
 
-// === 순위 관련 함수들 ===
+void ABridgeRunGameState::UpdateTeamScore(int32 TeamID, int32 NewScore)
+{
+    if (!HasAuthority()) return;
+
+    for (FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TeamID == TeamID)
+        {
+            Team.CurrentRoundScore = FMath::Max(0, NewScore);
+            return;
+        }
+    }
+}
+
+int32 ABridgeRunGameState::GetTeamCurrentScore(int32 TeamID) const
+{
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TeamID == TeamID)
+        {
+            return Team.CurrentRoundScore;
+        }
+    }
+    return 0;
+}
+
+int32 ABridgeRunGameState::GetTeamVictoryPoints(int32 TeamID) const
+{
+    for (const FTeamVictoryData& Team : TeamVictoryPoints)
+    {
+        if (Team.TeamID == TeamID)
+        {
+            return Team.TotalVictoryPoints;
+        }
+    }
+    return 0;
+}
 
 TArray<int32> ABridgeRunGameState::GetTeamRankings() const
 {
     TArray<FTeamVictoryData> SortedTeams = TeamVictoryPoints;
 
-    // 승점 순으로 정렬 (내림차순)
     SortedTeams.Sort([](const FTeamVictoryData& A, const FTeamVictoryData& B) {
         return A.TotalVictoryPoints > B.TotalVictoryPoints;
         });
@@ -247,15 +311,13 @@ int32 ABridgeRunGameState::GetTeamRank(int32 TeamID) const
 {
     TArray<int32> Rankings = GetTeamRankings();
     int32 RankIndex = Rankings.Find(TeamID);
-    return (RankIndex != INDEX_NONE) ? RankIndex + 1 : 0; // 0-based를 1-based로 변환
+    return (RankIndex != INDEX_NONE) ? RankIndex + 1 : 0;
 }
 
 bool ABridgeRunGameState::IsGameTied() const
 {
-    if (TeamVictoryPoints.Num() < 2)
-        return false;
+    if (TeamVictoryPoints.Num() < 2) return false;
 
-    // 최고 승점 찾기
     int32 HighestScore = INT32_MIN;
     for (const FTeamVictoryData& Team : TeamVictoryPoints)
     {
@@ -265,7 +327,6 @@ bool ABridgeRunGameState::IsGameTied() const
         }
     }
 
-    // 최고 승점을 가진 팀이 몇 개인지 확인
     int32 TiedCount = 0;
     for (const FTeamVictoryData& Team : TeamVictoryPoints)
     {
@@ -281,10 +342,8 @@ bool ABridgeRunGameState::IsGameTied() const
 TArray<int32> ABridgeRunGameState::GetWinningTeams() const
 {
     TArray<int32> WinningTeams;
-    if (TeamVictoryPoints.Num() == 0)
-        return WinningTeams;
+    if (TeamVictoryPoints.Num() == 0) return WinningTeams;
 
-    // 최고 승점 찾기
     int32 HighestScore = INT32_MIN;
     for (const FTeamVictoryData& Team : TeamVictoryPoints)
     {
@@ -294,7 +353,6 @@ TArray<int32> ABridgeRunGameState::GetWinningTeams() const
         }
     }
 
-    // 최고 승점을 가진 모든 팀 찾기
     for (const FTeamVictoryData& Team : TeamVictoryPoints)
     {
         if (Team.TotalVictoryPoints == HighestScore)
@@ -309,12 +367,8 @@ TArray<int32> ABridgeRunGameState::GetWinningTeams() const
 FString ABridgeRunGameState::GetRankDisplayText(int32 TeamID) const
 {
     int32 MyRank = GetTeamRank(TeamID);
-    if (MyRank == 0)
-    {
-        return TEXT("Rank Unknown");
-    }
+    if (MyRank == 0) return TEXT("Rank Unknown");
 
-    // 동점 확인
     int32 MyPoints = GetTeamVictoryPoints(TeamID);
     int32 SameRankCount = 0;
 
@@ -336,30 +390,15 @@ FString ABridgeRunGameState::GetRankDisplayText(int32 TeamID) const
     }
 }
 
-int32 ABridgeRunGameState::GetTeamVictoryPoints(int32 TeamID) const
-{
-    for (const FTeamVictoryData& Team : TeamVictoryPoints)
-    {
-        if (Team.TeamID == TeamID)
-        {
-            return Team.TotalVictoryPoints;
-        }
-    }
-    return 0;
-}
-
 void ABridgeRunGameState::CalculateRoundVictoryPoints()
 {
-    if (!HasAuthority())
-        return;
+    if (!HasAuthority()) return;
 
-    // 현재 라운드 점수를 기준으로 팀 정렬
     TArray<FTeamVictoryData> SortedTeams = TeamVictoryPoints;
     SortedTeams.Sort([](const FTeamVictoryData& A, const FTeamVictoryData& B) {
         return A.CurrentRoundScore > B.CurrentRoundScore;
         });
 
-    // 브릿지런 승점 시스템: 1등(+5), 2등(+2), 3등(-1), 4등(-2)
     TArray<int32> VictoryPointsTable = { 5, 2, -1, -2 };
 
     for (int32 i = 0; i < SortedTeams.Num(); i++)
@@ -367,25 +406,18 @@ void ABridgeRunGameState::CalculateRoundVictoryPoints()
         int32 TeamID = SortedTeams[i].TeamID;
         int32 PointsToAdd = (i < VictoryPointsTable.Num()) ? VictoryPointsTable[i] : -2;
 
-        // 해당 팀의 승점 업데이트
         for (FTeamVictoryData& Team : TeamVictoryPoints)
         {
             if (Team.TeamID == TeamID)
             {
                 Team.TotalVictoryPoints += PointsToAdd;
-                Team.RoundResults.Add(i + 1); // 이번 라운드 순위 저장
-
-                UE_LOG(LogTemp, Log, TEXT("Team %d: Round rank %d, gained %d victory points, total: %d"),
-                    TeamID, i + 1, PointsToAdd, Team.TotalVictoryPoints);
+                Team.RoundResults.Add(i + 1);
                 break;
             }
         }
     }
 
-    // 네트워크 업데이트 강제
     ForceNetUpdate();
-
-    UE_LOG(LogTemp, Log, TEXT("Round victory points calculated for %d teams"), SortedTeams.Num());
 }
 
 bool ABridgeRunGameState::ShouldEndGame() const
@@ -395,12 +427,48 @@ bool ABridgeRunGameState::ShouldEndGame() const
 
 void ABridgeRunGameState::MulticastGameOverUI_Implementation()
 {
-    // 각 클라이언트에서 실행됨
     if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
     {
         if (PC->IsLocalController())
         {
-            ShowGameOverUIEvent(); // 블루프린트 이벤트
+            ShowGameOverUIEvent();
         }
+    }
+}
+
+// =========================
+// UI 표시용 함수들
+// =========================
+
+FString ABridgeRunGameState::GetFormattedTime() const
+{
+    if (PhaseTimeRemaining < 0.0f) return TEXT("00:00");
+
+    int32 Minutes = (int32)PhaseTimeRemaining / 60;
+    int32 Seconds = (int32)PhaseTimeRemaining % 60;
+    return FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds);
+}
+
+FString ABridgeRunGameState::GetRoundText() const
+{
+    return FString::Printf(TEXT("Round %d"), CurrentRoundNumber);
+}
+
+FString ABridgeRunGameState::GetPhaseText() const
+{
+    switch (CurrentPhase)
+    {
+    case EGamePhase::Lobby:
+        return TEXT("Lobby");
+    case EGamePhase::StrategyTime:
+        return TEXT("Strategy Time");
+    case EGamePhase::RoundPlaying:
+        return TEXT("Round Playing");
+    case EGamePhase::RoundEnd:
+        return TEXT("Round End");
+    case EGamePhase::GameEnd:
+        return TEXT("Game End");
+    default:
+        return TEXT("Unknown");
     }
 }

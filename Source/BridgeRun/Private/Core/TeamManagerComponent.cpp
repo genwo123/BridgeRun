@@ -460,9 +460,10 @@ bool UTeamManagerComponent::RequestTeamChange(AController* PlayerController, int
     if (UBridgeRunGameInstance* GameInst = Cast<UBridgeRunGameInstance>(GetWorld()->GetGameInstance()))
     {
         FString PlayerID = PlayerController->GetName();
-        GameInst->SavePlayerTeamInfo(PlayerID, RequestedTeamID);
-        UE_LOG(LogTemp, Warning, TEXT("RequestTeamChange: Saved to GameInstance - Player %s, Team %d"),
-            *PlayerID, RequestedTeamID);
+        FPlayerTeamInfo TempInfo(PlayerID, TEXT(""), RequestedTeamID);
+        TArray<FPlayerTeamInfo> TempArray = GameInst->GetTeamInfoFromTransition();
+        TempArray.Add(TempInfo);
+        GameInst->SaveTeamInfoForTransition(TempArray);
     }
 
     // 플레이어 리스폰
