@@ -11,6 +11,9 @@
 #include "Item/Item_Tent.h"
 #include "BuildingComponent.generated.h"
 
+// Delegate 선언
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBuildProgressChanged, float, Progress, bool, IsBuilding);
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class BRIDGERUN_API UBuildingComponent : public UActorComponent
 {
@@ -21,6 +24,13 @@ public:
     virtual void BeginPlay() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+    // Delegate
+    UPROPERTY(BlueprintAssignable, Category = "Building")
+    FOnBuildProgressChanged OnBuildProgressChanged;
+
+    float LocalBuildProgress = 0.0f;
+
 
     // 네트워크 RPC
     UFUNCTION(Server, Reliable)
@@ -82,20 +92,34 @@ protected:
     float BuildRotationStep = 15.0f;
 
     // 널빤지 설정
-    UPROPERTY(EditAnywhere, Category = "Building|Plank")
-    float PlankPlacementDistance = 50.0f;
-    UPROPERTY(EditAnywhere, Category = "Building|Plank")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building|Plank")
+    float PlankPlacementDistance = 150.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building|Plank")
     float PlankBuildTime = 2.0f;
 
     // 텐트 설정
-    UPROPERTY(EditAnywhere, Category = "Building|Tent")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building|Tent")
     float TentPlacementDistance = 50.0f;
-    UPROPERTY(EditAnywhere, Category = "Building|Tent")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building|Tent")
     float TentBuildTime = 2.0f;
 
+    // 건설 중 이동 제한 설정
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Building|Settings", meta = (DisplayName = "Max Movement During Build (cm)"))
+    float MaxMovementDuringBuild = 100.0f;
 
-    UPROPERTY(ReplicatedUsing = OnRep_BuildProgress, BlueprintReadOnly, Category = "Building|UI")
-    float CurrentBuildProgress = 0.0f;
+    // 건설 시작 시점의 위치/회전 고정
+    UPROPERTY(Replicated)
+    FVector FixedBuildLocation;
+
+    UPROPERTY(Replicated)
+    FRotator FixedBuildRotation;
+
+    // 건설 시작 시점의 플레이어 위치 (이동 감지용)
+    FVector BuildStartPlayerLocation;
+
+    // 진행도 및 시간
+    UPROPERTY(EditAnywhere,BlueprintReadWrite, Category = "Building|UI")
+    float CurrentBuildProgress = 2.0f;
 
     UFUNCTION(BlueprintPure, Category = "Building")
     float GetCurrentBuildTime() const
@@ -109,10 +133,6 @@ protected:
     UFUNCTION(BlueprintPure, Category = "Building")
     float GetCurrentBuildProgress() const { return CurrentBuildProgress; }
 
-
-    // 복제 함수 (OnRep_BuildState 등 옆에 추가)
-    UFUNCTION()
-    void OnRep_BuildProgress();
 
     // 복제 상태
     UPROPERTY(Replicated)
@@ -214,20 +234,17 @@ private:
                     SpawnedItem->SetActorTransform(NewTransform);
                 }
 
-                // 🆕 물리 설정을 여기서 먼저 적용
+                // 물리 설정을 여기서 먼저 적용
                 ConfigureBuildingItemPhysics(SpawnedItem->MeshComponent, Location, Rotation);
             }
 
-            // 🆕 중요: OnPlaced를 반드시 호출하여 서버에서 상태 설정
+            // 중요: OnPlaced를 반드시 호출하여 서버에서 상태 설정
             if (GetOwner()->HasAuthority())
             {
                 SpawnedItem->OnPlaced();
-                UE_LOG(LogTemp, Warning, TEXT("OnPlaced called for spawned item: %s"), *SpawnedItem->GetName());
             }
 
-            // =====================================
             // 스코어보드 통계 수집
-            // =====================================
             if (OwnerCitizen && OwnerCitizen->GetController())
             {
                 APlayerController* PC = Cast<APlayerController>(OwnerCitizen->GetController());
@@ -240,32 +257,16 @@ private:
                         if (Cast<AItem_Plank>(SpawnedItem))
                         {
                             BridgeRunPS->ServerAddPlankBuilt();
-                            UE_LOG(LogTemp, Log, TEXT("Player %s built a plank - stats updated"),
-                                *OwnerCitizen->GetName());
                         }
                         else if (Cast<AItem_Tent>(SpawnedItem))
                         {
                             BridgeRunPS->ServerAddTentBuilt();
-                            UE_LOG(LogTemp, Log, TEXT("Player %s built a tent - stats updated"),
-                                *OwnerCitizen->GetName());
                         }
                     }
-                    else
-                    {
-                        UE_LOG(LogTemp, Warning, TEXT("Failed to cast PlayerState to BridgeRunPlayerState"));
-                    }
                 }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("PlayerController or PlayerState is null"));
-                }
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("OwnerCitizen or Controller is null"));
             }
 
-            // 인벤토리 상태 체크 (기존 코드)
+            // 인벤토리 상태 체크
             CheckInventoryAfterBuilding(SpawnedItem);
 
             return SpawnedItem;

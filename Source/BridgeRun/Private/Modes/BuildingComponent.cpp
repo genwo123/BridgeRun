@@ -25,7 +25,10 @@ void UBuildingComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
     DOREPLIFETIME(UBuildingComponent, CurrentBuildingItem);
     DOREPLIFETIME(UBuildingComponent, bCanBuildNow);
     DOREPLIFETIME(UBuildingComponent, bIsBuilding);
-    DOREPLIFETIME(UBuildingComponent, CurrentBuildProgress);
+
+    // 새로 추가
+    DOREPLIFETIME(UBuildingComponent, FixedBuildLocation);
+    DOREPLIFETIME(UBuildingComponent, FixedBuildRotation);
 }
 
 void UBuildingComponent::BeginPlay()
@@ -52,31 +55,65 @@ void UBuildingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
         UpdateBuildPreview();
     }
 
-    // 프로그레스 바 업데이트 추가
+    // 건설 중일 때 처리 (조건 단순화)
     if (bIsBuilding && GetOwner()->HasAuthority())
     {
+        // 매 프레임마다 로그는 너무 많으니 조건부로만
+        static float LastLogTime = 0.0f;
+        float CurrentTime = GetWorld()->GetTimeSeconds();
+
+        if (CurrentTime - LastLogTime > 0.5f) // 0.5초마다 로그
+        {
+            UE_LOG(LogTemp, Error, TEXT("=== TICK: bIsBuilding=TRUE, HasAuthority=TRUE ==="));
+            LastLogTime = CurrentTime;
+        }
+
         float BuildTime = (CurrentBuildingItem == EInventorySlot::Plank) ? PlankBuildTime : TentBuildTime;
         float RemainingTime = GetWorld()->GetTimerManager().GetTimerRemaining(BuildTimerHandle);
 
-        // 진행도 계산 (1.0 - 남은시간/총시간)
-        CurrentBuildProgress = 1.0f - (RemainingTime / BuildTime);
+        if (RemainingTime > 0.0f)
+        {
+            float NewProgress = 1.0f - (RemainingTime / BuildTime);
+            NewProgress = FMath::Clamp(NewProgress, 0.0f, 1.0f);
 
-        // 이동 감지 (선택적)
+            // 진행도 변경 시에만 Delegate 호출
+            if (FMath::Abs(CurrentBuildProgress - NewProgress) > 0.01f)
+            {
+                CurrentBuildProgress = NewProgress;
+                UE_LOG(LogTemp, Error, TEXT("=== BROADCASTING PROGRESS: %.2f, RemainingTime: %.2f ==="),
+                    CurrentBuildProgress, RemainingTime);
+                OnBuildProgressChanged.Broadcast(CurrentBuildProgress, bIsBuilding);
+            }
+        }
+
+        // 플레이어 이동 감지
         if (OwnerCitizen)
         {
-            static FVector LastPosition = OwnerCitizen->GetActorLocation();
-            FVector CurrentPosition = OwnerCitizen->GetActorLocation();
+            FVector CurrentPlayerLocation = OwnerCitizen->GetActorLocation();
+            float MovementDistance = FVector::Distance(BuildStartPlayerLocation, CurrentPlayerLocation);
 
-            if (FVector::Distance(LastPosition, CurrentPosition) > 10.0f)
+            if (MovementDistance > MaxMovementDuringBuild)
             {
+                UE_LOG(LogTemp, Warning, TEXT("플레이어가 너무 멀리 이동하여 건설 취소! 거리: %.1fcm"), MovementDistance);
                 CancelBuild();
+                return;
             }
+        }
+    }
 
-            LastPosition = CurrentPosition;
+    // 건설 중에는 프리뷰를 고정 위치에 표시
+    if (bIsBuilding && BuildPreviewMesh)
+    {
+        BuildPreviewMesh->SetWorldLocation(FixedBuildLocation);
+        BuildPreviewMesh->SetWorldRotation(FixedBuildRotation);
+        BuildPreviewMesh->SetVisibility(true);
+
+        if (ValidPlacementMaterial)
+        {
+            BuildPreviewMesh->SetMaterial(0, ValidPlacementMaterial);
         }
     }
 }
-
 // 프리뷰 메시 컴포넌트 초기화
 void UBuildingComponent::InitializeBuildPreviewMesh()
 {
@@ -414,59 +451,86 @@ void UBuildingComponent::RotateBuildPreview_Implementation()
 // 건설 시도
 void UBuildingComponent::AttemptBuild_Implementation()
 {
+    UE_LOG(LogTemp, Error, TEXT("=== AttemptBuild_Implementation STARTED ==="));
+
     if (!BuildPreviewMesh || !OwnerCitizen || !bCanBuildNow || !bIsValidPlacement || bIsBuilding || !GetOwner()->HasAuthority())
+    {
+        UE_LOG(LogTemp, Error, TEXT("=== AttemptBuild VALIDATION FAILED ==="));
         return;
+    }
 
-    // 건설 딜레이 설정
+    // 아이템 보유 여부 체크
+    bool bHasItem = false;
+    if (UInvenComponent* InvenComp = OwnerCitizen->GetInvenComponent())
+    {
+        if (CurrentBuildingItem == EInventorySlot::Plank)
+        {
+            FItemData* ItemData = InvenComp->GetItemData(EInventorySlot::Plank);
+            bHasItem = ItemData && ItemData->Count > 0;
+        }
+        else if (CurrentBuildingItem == EInventorySlot::Tent)
+        {
+            FItemData* ItemData = InvenComp->GetItemData(EInventorySlot::Tent);
+            bHasItem = ItemData && ItemData->Count > 0;
+        }
+    }
+
+    if (!bHasItem)
+    {
+        UE_LOG(LogTemp, Error, TEXT("=== NO ITEM AVAILABLE ==="));
+        return;
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("=== BUILDING START PROCESS ==="));
+
+    // 건설 시작 - 위치/회전 고정
+    bIsBuilding = true;
+    CurrentBuildProgress = 0.0f;
+
+    // 현재 프리뷰 위치/회전을 고정
+    FixedBuildLocation = BuildPreviewMesh->GetComponentLocation();
+    FixedBuildRotation = BuildPreviewMesh->GetComponentRotation();
+
+    // 플레이어 시작 위치 저장 (이동 감지용)
+    BuildStartPlayerLocation = OwnerCitizen->GetActorLocation();
+
+    // 건설 시간 결정
+    float BuildTime = (CurrentBuildingItem == EInventorySlot::Plank) ? PlankBuildTime : TentBuildTime;
+    UE_LOG(LogTemp, Error, TEXT("=== BUILD TIME SET: %.2f seconds ==="), BuildTime);
+
+    // 건설 완료 타이머 설정
+    GetWorld()->GetTimerManager().SetTimer(
+        BuildTimerHandle,
+        this,
+        &UBuildingComponent::FinishBuild,
+        BuildTime,
+        false
+    );
+
+    // 딜레이는 건설 완료 후에 설정
     bCanBuildNow = false;
-    GetWorld()->GetTimerManager().SetTimer(BuildDelayTimerHandle, this, &UBuildingComponent::ResetBuildDelay, 2.0f, false);
 
-    FVector Location = BuildPreviewMesh->GetComponentLocation();
-    FRotator Rotation = BuildPreviewMesh->GetComponentRotation();
+    // 항상 Delegate 호출 (IsLocallyControlled 조건 제거)
+    UE_LOG(LogTemp, Error, TEXT("=== BROADCASTING BUILD START (FORCED): Progress=%.2f, IsBuilding=%s ==="),
+        CurrentBuildProgress, bIsBuilding ? TEXT("TRUE") : TEXT("FALSE"));
+    OnBuildProgressChanged.Broadcast(CurrentBuildProgress, bIsBuilding);
+    UE_LOG(LogTemp, Error, TEXT("=== BROADCAST COMPLETED ==="));
 
-    // 아이템 종류에 따라 건설 처리
-    if (PlankClass && CurrentBuildingItem == EInventorySlot::Plank)
-    {
-        if (OwnerCitizen->UseItem(EInventorySlot::Plank))
-        {
-            SpawnBuildingItem<AItem_Plank>(PlankClass, Location, Rotation);
-        }
-    }
-    else if (TentClass && CurrentBuildingItem == EInventorySlot::Tent)
-    {
-        if (OwnerCitizen->UseItem(EInventorySlot::Tent))
-        {
-            SpawnBuildingItem<AItem_Tent>(TentClass, Location, Rotation);
-        }
-    }
-
-    // 건설 상태 업데이트
-    if (bIsValidPlacement)
-    {
-        bIsBuilding = false;
-        bCanBuildNow = true;
-        MulticastOnBuildComplete();
-
-        if (GetOwner())
-        {
-            GetOwner()->ForceNetUpdate();
-        }
-
-        if (BuildPreviewMesh)
-        {
-            BuildPreviewMesh->MarkRenderStateDirty();
-        }
-    }
+    // 네트워크 업데이트
+    GetOwner()->ForceNetUpdate();
+    UE_LOG(LogTemp, Error, TEXT("=== AttemptBuild_Implementation COMPLETED ==="));
 }
 
-// 건설 아이템의 물리 및 충돌 설정
 void UBuildingComponent::ConfigureBuildingItemPhysics(UStaticMeshComponent* MeshComp, const FVector& Location, const FRotator& Rotation)
 {
     if (!MeshComp)
         return;
 
+    // 모빌리티를 먼저 Movable로 설정 (물리 시뮬레이션 가능하게)
+    MeshComp->SetMobility(EComponentMobility::Movable);
+
     // 물리/충돌 설정
-    MeshComp->SetSimulatePhysics(false);
+    MeshComp->SetSimulatePhysics(false);  // 일단 false로 설정
     MeshComp->SetEnableGravity(false);
     MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     MeshComp->SetCollisionResponseToAllChannels(ECR_Block);
@@ -474,12 +538,12 @@ void UBuildingComponent::ConfigureBuildingItemPhysics(UStaticMeshComponent* Mesh
 
     // 물리 상태 복제 설정
     MeshComp->SetIsReplicated(true);
-    MeshComp->SetMobility(EComponentMobility::Movable);
     MeshComp->bReplicatePhysicsToAutonomousProxy = true;
 
-    // 위치 고정을 위한 설정
+    // 위치 고정
     MeshComp->SetWorldLocation(Location);
     MeshComp->SetWorldRotation(Rotation);
+    MeshComp->UpdateComponentToWorld();
 }
 
 // 건설 후 인벤토리 상태 확인
@@ -536,53 +600,75 @@ void UBuildingComponent::FinishBuild()
     if (!bIsBuilding || !OwnerCitizen || !GetOwner()->HasAuthority())
         return;
 
-    // 타이머 정지
-    GetWorld()->GetTimerManager().ClearTimer(BuildTimerHandle);
+    UE_LOG(LogTemp, Error, TEXT("=== FinishBuild CALLED ==="));
 
-    // 기존 코드: 아이템 생성 로직
-    FVector Location = BuildPreviewMesh->GetComponentLocation();
-    FRotator Rotation = BuildPreviewMesh->GetComponentRotation();
-
-    // 아이템 종류에 따라 건설 처리
+    // 고정된 위치/회전으로 아이템 생성
     if (PlankClass && CurrentBuildingItem == EInventorySlot::Plank)
     {
         if (OwnerCitizen->UseItem(EInventorySlot::Plank))
         {
-            SpawnBuildingItem<AItem_Plank>(PlankClass, Location, Rotation);
+            SpawnBuildingItem<AItem_Plank>(PlankClass, FixedBuildLocation, FixedBuildRotation);
         }
     }
     else if (TentClass && CurrentBuildingItem == EInventorySlot::Tent)
     {
         if (OwnerCitizen->UseItem(EInventorySlot::Tent))
         {
-            SpawnBuildingItem<AItem_Tent>(TentClass, Location, Rotation);
+            SpawnBuildingItem<AItem_Tent>(TentClass, FixedBuildLocation, FixedBuildRotation);
         }
     }
 
     // 상태 초기화
     bIsBuilding = false;
-    CurrentBuildProgress = 0.0f;
-    bCanBuildNow = true;
+    CurrentBuildProgress = 1.0f;
 
-    // 완료 이벤트 발생
+    // 항상 Delegate 호출 (조건 제거)
+    UE_LOG(LogTemp, Error, TEXT("=== BROADCASTING BUILD FINISH: Progress=%.2f, IsBuilding=%s ==="),
+        CurrentBuildProgress, bIsBuilding ? TEXT("TRUE") : TEXT("FALSE"));
+    OnBuildProgressChanged.Broadcast(CurrentBuildProgress, bIsBuilding);
+
+    // 건설 완료 후 딜레이 설정
+    GetWorld()->GetTimerManager().SetTimer(BuildDelayTimerHandle, this, &UBuildingComponent::ResetBuildDelay, 0.5f, false);
+
+    // 타이머 정리
+    GetWorld()->GetTimerManager().ClearTimer(BuildTimerHandle);
+
+    // 완료 이벤트
     MulticastOnBuildComplete();
 
     // 네트워크 업데이트
     GetOwner()->ForceNetUpdate();
-}
 
+    UE_LOG(LogTemp, Error, TEXT("=== FinishBuild COMPLETED ==="));
+}
 // 건설 취소
 void UBuildingComponent::CancelBuild()
 {
-    if (GetOwner()->HasAuthority())
-    {
-        GetWorld()->GetTimerManager().ClearTimer(BuildTimerHandle);
-        bIsBuilding = false;
-        CurrentBuildProgress = 0.0f;
-        GetOwner()->ForceNetUpdate();
-    }
-}
+    if (!GetOwner()->HasAuthority() || !bIsBuilding)
+        return;
 
+    UE_LOG(LogTemp, Error, TEXT("=== CancelBuild CALLED ==="));
+
+    // 타이머 정리
+    GetWorld()->GetTimerManager().ClearTimer(BuildTimerHandle);
+
+    // 상태 초기화
+    bIsBuilding = false;
+    CurrentBuildProgress = 0.0f;
+
+    // 항상 Delegate 호출 (조건 제거)
+    UE_LOG(LogTemp, Error, TEXT("=== BROADCASTING BUILD CANCEL: Progress=%.2f, IsBuilding=%s ==="),
+        CurrentBuildProgress, bIsBuilding ? TEXT("TRUE") : TEXT("FALSE"));
+    OnBuildProgressChanged.Broadcast(CurrentBuildProgress, bIsBuilding);
+
+    // 즉시 다시 건설 가능하도록 (취소되었으므로)
+    bCanBuildNow = true;
+
+    // 네트워크 업데이트
+    GetOwner()->ForceNetUpdate();
+
+    UE_LOG(LogTemp, Error, TEXT("=== CancelBuild COMPLETED ==="));
+}
 // 널빤지 배치 검증
 bool UBuildingComponent::ValidatePlankPlacement(const FVector& Location)
 {
@@ -789,8 +875,3 @@ void UBuildingComponent::MulticastOnBuildComplete_Implementation()
     bCanBuildNow = true;
 }
 
-void UBuildingComponent::OnRep_BuildProgress()
-{
-    // 클라이언트에서 프로그레스 업데이트 시 필요한 작업
-    // (UI 위젯에서 직접 값을 읽을 예정이므로 여기서는 특별한 작업 필요 없음)
-}

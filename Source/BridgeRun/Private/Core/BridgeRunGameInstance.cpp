@@ -1,7 +1,18 @@
-// Copyright BridgeRun Game, Inc. All Rights Reserved.
 #include "Core/BridgeRunGameInstance.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
+
+// === OnlineSubsystem 헤더들 ===
+#include "OnlineSubsystem.h"
+#include "OnlineSessionSettings.h"
+#include "Interfaces/OnlineSessionInterface.h"
+#include "Interfaces/OnlineIdentityInterface.h"
+#include "Interfaces/OnlineFriendsInterface.h"
+
+// === Steam SDK 헤더 ===
+#if STEAM_SDK_ENABLED
+#include "steam_api.h"
+#endif
 
 TWeakObjectPtr<UBridgeRunGameInstance> UBridgeRunGameInstance::Instance;
 
@@ -121,4 +132,30 @@ FString UBridgeRunGameInstance::GetCurrentPlayerName() const
 FText UBridgeRunGameInstance::GetCurrentPlayerNameAsText() const
 {
     return PlayerNameText;
+}
+
+
+
+void UBridgeRunGameInstance::CheckSteamSDKStatus()
+{
+    UE_LOG(LogTemp, Warning, TEXT("=== Steam SDK Status Check ==="));
+
+    // 모든 Steam API 호출 임시 주석 처리
+    /*
+#if STEAM_SDK_ENABLED
+    // Steam 코드 전체 주석...
+#endif
+    */
+
+    // OnlineSubsystem만 확인
+    IOnlineSubsystem* OnlineSub = IOnlineSubsystem::Get();
+    if (OnlineSub)
+    {
+        FString SubsystemName = OnlineSub->GetSubsystemName().ToString();
+        UE_LOG(LogTemp, Warning, TEXT(" OnlineSubsystem: %s"), *SubsystemName);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT(" OnlineSubsystem: NULL"));
+    }
 }

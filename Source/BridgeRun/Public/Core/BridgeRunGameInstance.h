@@ -88,6 +88,9 @@ public:
     // 로비 시스템 호환성 (SimpleLobbySystem용)
     // =========================
 
+    UFUNCTION(BlueprintCallable, Category = "Steam Debug")
+    void CheckSteamSDKStatus();
+
     /** 로비 시스템 호환용 플레이어 이름 */
     UPROPERTY(BlueprintReadWrite, Category = "Lobby Compatibility")
     FText PlayerNameText;
